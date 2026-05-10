@@ -3,6 +3,7 @@ import { getSettings } from './storage';
 import type { Settings } from './schemas';
 import { Setup } from './screens/Setup';
 import { Home } from './screens/Home';
+import { PreTreatment } from './screens/PreTreatment';
 
 type Screen =
   | { name: 'loading' }
@@ -43,6 +44,17 @@ export function App() {
     );
   }
 
-  // Pre/Active/Post screens land in Tasks 10-12.
+  if (screen.name === 'pre') {
+    return (
+      <PreTreatment
+        settings={settings}
+        existingIds={screen.existingIds}
+        onSaved={sessionId => setScreen({ name: 'active', sessionId })}
+        onCancel={() => setScreen({ name: 'home' })}
+      />
+    );
+  }
+
+  // Active/Post screens land in Tasks 11-12.
   return <div className="p-4 text-slate-400">Screen "{screen.name}" not built yet.</div>;
 }
