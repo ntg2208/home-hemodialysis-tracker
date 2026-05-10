@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getSettings } from './storage';
-import type { Settings } from './schemas';
+import type { Session, Settings } from './schemas';
 import { Setup } from './screens/Setup';
 import { Home } from './screens/Home';
 import { PreTreatment } from './screens/PreTreatment';
@@ -12,7 +12,7 @@ type Screen =
   | { name: 'setup' }
   | { name: 'home' }
   | { name: 'pre'; existingIds: string[] }
-  | { name: 'active'; sessionId: string }
+  | { name: 'active'; session: Session }
   | { name: 'post'; sessionId: string };
 
 export function App() {
@@ -51,7 +51,7 @@ export function App() {
       <PreTreatment
         settings={settings}
         existingIds={screen.existingIds}
-        onSaved={sessionId => setScreen({ name: 'active', sessionId })}
+        onSaved={session => setScreen({ name: 'active', session })}
         onCancel={() => setScreen({ name: 'home' })}
       />
     );
@@ -61,8 +61,8 @@ export function App() {
     return (
       <ActiveSession
         settings={settings}
-        sessionId={screen.sessionId}
-        onEnd={() => setScreen({ name: 'post', sessionId: screen.sessionId })}
+        session={screen.session}
+        onEnd={() => setScreen({ name: 'post', sessionId: screen.session.session_id })}
       />
     );
   }

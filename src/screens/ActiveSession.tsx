@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { ApiError, saveReading } from '../api';
 import { AddReadingModal } from '../components/AddReadingModal';
-import type { Reading, Settings } from '../schemas';
+import type { Reading, Session, Settings } from '../schemas';
 
 interface Props {
   settings: Settings;
-  sessionId: string;
+  session: Session;
   onEnd: () => void;
 }
 
@@ -14,7 +14,8 @@ interface PendingReading extends Reading {
   errorMsg?: string;
 }
 
-export function ActiveSession({ settings, sessionId, onEnd }: Props) {
+export function ActiveSession({ settings, session, onEnd }: Props) {
+  const sessionId = session.session_id;
   const [readings, setReadings] = useState<PendingReading[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -61,9 +62,16 @@ export function ActiveSession({ settings, sessionId, onEnd }: Props) {
   return (
     <div className="p-4 max-w-md mx-auto space-y-4">
       <header className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Session {sessionId}</h1>
+        <h1 className="text-xl font-bold">Session <span className="font-mono text-base text-slate-300">{sessionId}</span></h1>
         <button type="button" onClick={onEnd} className="text-sm text-accent underline">End session</button>
       </header>
+
+      <div className="bg-panel border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 grid grid-cols-2 gap-x-4 gap-y-1">
+        <div>Weight <span className="text-slate-100">{session.pre_weight ?? '–'} kg</span></div>
+        <div>UF goal <span className="text-slate-100">{session.uf_goal ?? '–'} L</span></div>
+        <div>BP <span className="text-slate-100">{session.pre_bp_sys ?? '–'}/{session.pre_bp_dia ?? '–'}</span></div>
+        <div>Pulse <span className="text-slate-100">{session.pre_pulse ?? '–'}</span></div>
+      </div>
 
       <button
         type="button"

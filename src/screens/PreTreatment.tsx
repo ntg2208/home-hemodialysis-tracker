@@ -9,7 +9,7 @@ import type { Session, Settings } from '../schemas';
 interface Props {
   settings: Settings;
   existingIds: string[];
-  onSaved: (sessionId: string) => void;
+  onSaved: (session: Session) => void;
   onCancel: () => void;
 }
 
@@ -51,7 +51,7 @@ export function PreTreatment({ settings, existingIds, onSaved, onCancel }: Props
       await saveSession(settings, session);
       // Local cache is a UX nicety; don't fail the submit if IDB write fails.
       saveLastSession(session).catch(() => {});
-      onSaved(session_id);
+      onSaved(session);
     } catch (e) {
       setError(e instanceof ApiError ? `Save failed: ${e.code}` : String(e));
     } finally {

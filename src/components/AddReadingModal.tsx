@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NumberField } from './NumberField';
 import { SaveButton } from './SaveButton';
+import { ApiError } from '../api';
 import type { Reading } from '../schemas';
 import { nowHHMM } from '../sessionId';
 
@@ -45,7 +46,7 @@ export function AddReadingModal({ sessionId, seq, defaultBloodFlow, onSave, onCl
       await onSave(reading);
       onClose();
     } catch (e) {
-      setError(String(e));
+      setError(e instanceof ApiError ? `Save failed: ${e.code}` : String(e));
     } finally {
       setSaving(false);
     }

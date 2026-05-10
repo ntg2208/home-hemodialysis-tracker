@@ -43,7 +43,7 @@ export function Home({ settings, onStartSession, onSettingsCleared }: Props) {
     <div className="p-4 max-w-md mx-auto space-y-4">
       <header className="flex items-baseline justify-between">
         <h1 className="text-2xl font-bold">HD Tracker</h1>
-        <button onClick={clearAndReset} className="text-xs text-slate-500 underline">Settings</button>
+        <button type="button" onClick={clearAndReset} className="text-xs text-slate-500 underline">Settings</button>
       </header>
 
       <button
