@@ -64,7 +64,7 @@ export async function probe(settings: Settings): Promise<void> {
   try {
     body = await res.json();
   } catch {
-    throw new ApiError('invalid_response', 'Backend returned non-JSON. Check deployment access setting.');
+    throw new ApiError('invalid_json', 'Backend returned non-JSON. Check deployment access setting.');
   }
   const err = ErrorResponseSchema.safeParse(body);
   if (err.success) throw new ApiError(err.data.error);
