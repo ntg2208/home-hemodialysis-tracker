@@ -5,6 +5,7 @@ import { Setup } from './screens/Setup';
 import { Home } from './screens/Home';
 import { PreTreatment } from './screens/PreTreatment';
 import { ActiveSession } from './screens/ActiveSession';
+import { PostTreatment } from './screens/PostTreatment';
 
 type Screen =
   | { name: 'loading' }
@@ -66,6 +67,16 @@ export function App() {
     );
   }
 
-  // Post screen lands in Task 12.
-  return <div className="p-4 text-slate-400">Screen "{screen.name}" not built yet.</div>;
+  if (screen.name === 'post') {
+    return (
+      <PostTreatment
+        settings={settings}
+        sessionId={screen.sessionId}
+        onSaved={() => setScreen({ name: 'home' })}
+      />
+    );
+  }
+
+  // Should be unreachable.
+  return null;
 }
