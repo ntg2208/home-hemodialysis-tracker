@@ -28,9 +28,11 @@ export function PreTreatment({ settings, existingIds, onSaved, onCancel }: Props
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getLastSession().then(last => {
-      if (last) setForm(f => ({ ...f, uf_goal: last.uf_goal, uf_rate: last.uf_rate }));
-    });
+    getLastSession()
+      .then(last => {
+        if (last) setForm(f => ({ ...f, uf_goal: f.uf_goal ?? last.uf_goal, uf_rate: f.uf_rate ?? last.uf_rate }));
+      })
+      .catch(() => {});
   }, []);
 
   function update<K extends keyof FormState>(k: K, v: FormState[K]) {
@@ -47,7 +49,8 @@ export function PreTreatment({ settings, existingIds, onSaved, onCancel }: Props
     const session: Session = { session_id, date, ...form };
     try {
       await saveSession(settings, session);
-      await saveLastSession(session);
+      // Local cache is a UX nicety; don't fail the submit if IDB write fails.
+      saveLastSession(session).catch(() => {});
       onSaved(session_id);
     } catch (e) {
       setError(e instanceof ApiError ? `Save failed: ${e.code}` : String(e));
