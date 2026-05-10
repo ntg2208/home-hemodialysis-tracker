@@ -52,7 +52,7 @@ export function AddReadingModal({ sessionId, seq, defaultBloodFlow, onSave, onCl
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-10">
+    <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50">
       <div className="bg-bg border border-slate-700 rounded-t-2xl sm:rounded-2xl p-4 w-full max-w-md max-h-[90vh] overflow-y-auto space-y-3">
         <header className="flex items-center justify-between">
           <h2 className="text-lg font-bold">Reading #{seq}</h2>

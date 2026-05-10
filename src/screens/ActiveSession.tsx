@@ -19,10 +19,18 @@ export function ActiveSession({ settings, sessionId, onEnd }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
 
   const nextSeq = readings.length === 0 ? 1 : Math.max(...readings.map(r => r.seq)) + 1;
-  const lastBloodFlow = [...readings].reverse().find(r => r.blood_flow != null)?.blood_flow;
+  // readings is stored newest-first (persist prepends), so first hit = most recent.
+  const lastBloodFlow = readings.find(r => r.blood_flow != null)?.blood_flow;
 
   async function persist(reading: Reading): Promise<void> {
-    setReadings(rs => [{ ...reading, status: 'pending' }, ...rs]);
+    // Idempotent on reading_id: upsert the row instead of always prepending,
+    // so a modal-level retry after a failed save updates in place.
+    setReadings(rs => {
+      const existing = rs.findIndex(r => r.reading_id === reading.reading_id);
+      const next: PendingReading = { ...reading, status: 'pending' };
+      if (existing >= 0) return rs.map((r, i) => i === existing ? next : r);
+      return [next, ...rs];
+    });
     try {
       await saveReading(settings, reading);
       setReadings(rs => rs.map(r => r.reading_id === reading.reading_id ? { ...r, status: 'saved' } : r));
@@ -35,8 +43,11 @@ export function ActiveSession({ settings, sessionId, onEnd }: Props) {
 
   async function retry(reading: PendingReading) {
     setReadings(rs => rs.map(r => r.reading_id === reading.reading_id ? { ...r, status: 'pending', errorMsg: undefined } : r));
+    // Strip UI-only fields before sending over the wire.
+    const { status: _s, errorMsg: _e, ...wire } = reading;
+    void _s; void _e;
     try {
-      await saveReading(settings, reading);
+      await saveReading(settings, wire);
       setReadings(rs => rs.map(r => r.reading_id === reading.reading_id ? { ...r, status: 'saved' } : r));
     } catch (e) {
       const msg = e instanceof ApiError ? e.code : String(e);
