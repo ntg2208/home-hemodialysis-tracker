@@ -29,8 +29,12 @@ export function Home({ settings, onStartSession, onSettingsCleared }: Props) {
 
   async function clearAndReset() {
     if (!confirm('Clear saved URL and secret on this device?')) return;
-    await clearSettings();
-    onSettingsCleared();
+    try {
+      await clearSettings();
+      onSettingsCleared();
+    } catch {
+      setError('Failed to clear settings. Please try again.');
+    }
   }
 
   const ids = sessions?.map(s => s.session_id) ?? [];
@@ -45,7 +49,8 @@ export function Home({ settings, onStartSession, onSettingsCleared }: Props) {
       <button
         type="button"
         onClick={() => onStartSession(ids)}
-        className="w-full bg-accent text-bg font-semibold rounded-lg py-4 text-lg"
+        disabled={sessions === null}
+        className="w-full bg-accent text-bg font-semibold rounded-lg py-4 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Start session
       </button>
