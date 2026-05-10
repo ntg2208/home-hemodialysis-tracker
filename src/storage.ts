@@ -15,6 +15,9 @@ function db(): Promise<IDBPDatabase> {
           d.createObjectStore(STORE_KV);
         }
       },
+    }).catch(err => {
+      dbPromise = null;
+      throw err;
     });
   }
   return dbPromise;
