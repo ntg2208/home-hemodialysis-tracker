@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getSettings } from './storage';
 import type { Settings } from './schemas';
 import { Setup } from './screens/Setup';
+import { Home } from './screens/Home';
 
 type Screen =
   | { name: 'loading' }
@@ -32,12 +33,16 @@ export function App() {
 
   if (!settings) return <div className="p-4 text-slate-400">Loading…</div>;
 
-  // Home/Pre/Active/Post screens land in Tasks 9-12.
-  return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold">Home (placeholder)</h1>
-      <p className="text-sm text-slate-400 break-all">URL: {settings.script_url}</p>
-      <p className="text-sm text-slate-400">Screen: {screen.name}</p>
-    </div>
-  );
+  if (screen.name === 'home') {
+    return (
+      <Home
+        settings={settings}
+        onStartSession={existingIds => setScreen({ name: 'pre', existingIds })}
+        onSettingsCleared={() => { setSettings(null); setScreen({ name: 'setup' }); }}
+      />
+    );
+  }
+
+  // Pre/Active/Post screens land in Tasks 10-12.
+  return <div className="p-4 text-slate-400">Screen "{screen.name}" not built yet.</div>;
 }
