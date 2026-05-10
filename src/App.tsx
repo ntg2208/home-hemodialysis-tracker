@@ -4,6 +4,7 @@ import type { Settings } from './schemas';
 import { Setup } from './screens/Setup';
 import { Home } from './screens/Home';
 import { PreTreatment } from './screens/PreTreatment';
+import { ActiveSession } from './screens/ActiveSession';
 
 type Screen =
   | { name: 'loading' }
@@ -55,6 +56,16 @@ export function App() {
     );
   }
 
-  // Active/Post screens land in Tasks 11-12.
+  if (screen.name === 'active') {
+    return (
+      <ActiveSession
+        settings={settings}
+        sessionId={screen.sessionId}
+        onEnd={() => setScreen({ name: 'post', sessionId: screen.sessionId })}
+      />
+    );
+  }
+
+  // Post screen lands in Task 12.
   return <div className="p-4 text-slate-400">Screen "{screen.name}" not built yet.</div>;
 }
