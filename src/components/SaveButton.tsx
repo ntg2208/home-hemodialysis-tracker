@@ -21,7 +21,7 @@ export function SaveButton({ saving, error, onClick, children, disabled }: SaveB
       </button>
       {error && (
         <div className="bg-red-900/40 border border-red-700 text-red-200 rounded-lg px-3 py-2 text-sm">
-          {error} <button className="underline ml-2" onClick={onClick}>Retry</button>
+          {error} <button type="button" className="underline ml-2" onClick={onClick}>Retry</button>
         </div>
       )}
     </div>
