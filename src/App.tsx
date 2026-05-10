@@ -77,6 +77,8 @@ export function App() {
     );
   }
 
-  // Should be unreachable.
-  return null;
+  // Compile-time exhaustiveness: any new Screen variant without a branch
+  // above will surface here as a type error.
+  const _exhaustive: never = screen;
+  return _exhaustive;
 }
