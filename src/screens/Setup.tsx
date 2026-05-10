@@ -15,7 +15,7 @@ export function Setup({ onSaved }: Props) {
     setError(null);
     const parsed = Settings.safeParse({ script_url: url.trim(), shared_secret: secret });
     if (!parsed.success) {
-      setError('URL must be a valid https:// link and secret must not be empty.');
+      setError('URL must be a valid URL and secret must not be empty.');
       return;
     }
     setBusy(true);

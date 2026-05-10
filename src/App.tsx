@@ -16,10 +16,12 @@ export function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
 
   useEffect(() => {
-    getSettings().then(s => {
-      if (s) { setSettings(s); setScreen({ name: 'home' }); }
-      else setScreen({ name: 'setup' });
-    });
+    getSettings()
+      .then(s => {
+        if (s) { setSettings(s); setScreen({ name: 'home' }); }
+        else setScreen({ name: 'setup' });
+      })
+      .catch(() => setScreen({ name: 'setup' }));
   }, []);
 
   if (screen.name === 'loading') return <div className="p-4 text-slate-400">Loading…</div>;
