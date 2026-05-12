@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Activity, CalendarDays, Play, Settings as SettingsIcon } from 'lucide-react';
 import { getAll, ApiError } from '../api';
 import { clearSettings } from '../storage';
 import type { Session, Settings } from '../schemas';
@@ -41,22 +42,33 @@ export function Home({ settings, onStartSession, onSettingsCleared }: Props) {
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-4">
-      <header className="flex items-baseline justify-between">
-        <h1 className="text-2xl font-bold">HD Tracker</h1>
-        <button type="button" onClick={clearAndReset} className="text-xs text-slate-500 underline">Settings</button>
+      <header className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold inline-flex items-center gap-2">
+          <Activity size={24} className="text-accent" /> Treatment tracker
+        </h1>
+        <button
+          type="button"
+          onClick={clearAndReset}
+          aria-label="Settings"
+          className="text-slate-500 hover:text-slate-300 p-1"
+        >
+          <SettingsIcon size={20} />
+        </button>
       </header>
 
       <button
         type="button"
         onClick={() => onStartSession(ids)}
         disabled={sessions === null}
-        className="w-full bg-accent text-bg font-semibold rounded-lg py-4 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full bg-accent text-bg font-semibold rounded-lg py-4 text-lg disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
       >
-        Start session
+        <Play size={22} fill="currentColor" /> Start session
       </button>
 
       <section className="space-y-2">
-        <h2 className="text-sm uppercase tracking-wide text-slate-500">Recent sessions</h2>
+        <h2 className="text-sm uppercase tracking-wide text-slate-500 inline-flex items-center gap-2">
+          <CalendarDays size={14} /> Recent sessions
+        </h2>
         {error && (
           <div className="bg-red-900/40 border border-red-700 text-red-200 rounded-lg px-3 py-2 text-sm">
             {error} <button type="button" className="underline ml-2" onClick={load}>Retry</button>

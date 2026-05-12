@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Activity, KeyRound, Link2, Save } from 'lucide-react';
 import { probe, ApiError } from '../api';
 import { saveSettings } from '../storage';
 import { Settings } from '../schemas';
@@ -32,11 +33,15 @@ export function Setup({ onSaved }: Props) {
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-4">
-      <h1 className="text-2xl font-bold">Setup</h1>
+      <h1 className="text-2xl font-bold inline-flex items-center gap-2">
+        <Activity size={22} className="text-accent" /> Setup
+      </h1>
       <p className="text-sm text-slate-400">Paste your Apps Script /exec URL and the shared secret. They are stored on this device only.</p>
 
       <label className="block">
-        <span className="block text-sm text-slate-400 mb-1">Script URL</span>
+        <span className="text-sm text-slate-400 mb-1 inline-flex items-center gap-1.5">
+          <Link2 size={14} /> Script URL
+        </span>
         <input
           type="url"
           value={url}
@@ -47,7 +52,9 @@ export function Setup({ onSaved }: Props) {
       </label>
 
       <label className="block">
-        <span className="block text-sm text-slate-400 mb-1">Shared secret</span>
+        <span className="text-sm text-slate-400 mb-1 inline-flex items-center gap-1.5">
+          <KeyRound size={14} /> Shared secret
+        </span>
         <input
           type="password"
           value={secret}
@@ -61,9 +68,9 @@ export function Setup({ onSaved }: Props) {
         type="button"
         onClick={submit}
         disabled={busy}
-        className="w-full bg-accent text-bg font-semibold rounded-lg py-3 disabled:opacity-50"
+        className="w-full bg-accent text-bg font-semibold rounded-lg py-3 disabled:opacity-50 inline-flex items-center justify-center gap-2"
       >
-        {busy ? 'Verifying…' : 'Save and continue'}
+        <Save size={18} /> {busy ? 'Verifying…' : 'Save and continue'}
       </button>
 
       {error && (

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Activity, AlertCircle, Check, Droplets, Heart, Loader2, Plus, Scale, Square } from 'lucide-react';
 import { ApiError, saveReading } from '../api';
 import { AddReadingModal } from '../components/AddReadingModal';
 import type { Reading, Session, Settings } from '../schemas';
@@ -62,23 +63,44 @@ export function ActiveSession({ settings, session, onEnd }: Props) {
   return (
     <div className="p-4 max-w-md mx-auto space-y-4">
       <header className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Session <span className="font-mono text-base text-slate-300">{sessionId}</span></h1>
-        <button type="button" onClick={onEnd} className="text-sm text-accent underline">End session</button>
+        <h1 className="text-xl font-bold inline-flex items-center gap-2">
+          <Activity size={20} className="text-accent" />
+          Session <span className="font-mono text-base text-slate-300">{sessionId}</span>
+        </h1>
+        <button
+          type="button"
+          onClick={onEnd}
+          className="text-sm text-accent inline-flex items-center gap-1"
+        >
+          <Square size={14} fill="currentColor" /> End
+        </button>
       </header>
 
       <div className="bg-panel border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 grid grid-cols-2 gap-x-4 gap-y-1">
-        <div>Weight <span className="text-slate-100">{session.pre_weight ?? '–'} kg</span></div>
-        <div>UF goal <span className="text-slate-100">{session.uf_goal ?? '–'} L</span></div>
-        <div>BP <span className="text-slate-100">{session.pre_bp_sys ?? '–'}/{session.pre_bp_dia ?? '–'}</span></div>
-        <div>Pulse <span className="text-slate-100">{session.pre_pulse ?? '–'}</span></div>
+        <div className="inline-flex items-center gap-2">
+          <Scale size={14} className="text-slate-500" />
+          Weight <span className="text-slate-100">{session.pre_weight ?? '–'} kg</span>
+        </div>
+        <div className="inline-flex items-center gap-2">
+          <Droplets size={14} className="text-cyan-400" />
+          UF goal <span className="text-slate-100">{session.uf_goal ?? '–'} L</span>
+        </div>
+        <div className="inline-flex items-center gap-2">
+          <Heart size={14} className="text-rose-400" />
+          BP <span className="text-slate-100">{session.pre_bp_sys ?? '–'}/{session.pre_bp_dia ?? '–'}</span>
+        </div>
+        <div className="inline-flex items-center gap-2">
+          <Activity size={14} className="text-emerald-400" />
+          Pulse <span className="text-slate-100">{session.pre_pulse ?? '–'}</span>
+        </div>
       </div>
 
       <button
         type="button"
         onClick={() => setModalOpen(true)}
-        className="w-full bg-accent text-bg font-semibold rounded-lg py-3 text-lg"
+        className="w-full bg-accent text-bg font-semibold rounded-lg py-3 text-lg inline-flex items-center justify-center gap-2"
       >
-        + Add reading
+        <Plus size={22} /> Add reading
       </button>
 
       <ul className="space-y-2">
@@ -88,11 +110,15 @@ export function ActiveSession({ settings, session, onEnd }: Props) {
             <div className="flex justify-between">
               <span className="font-mono text-slate-300">{r.time}</span>
               <span className={
-                r.status === 'pending' ? 'text-slate-500' :
-                r.status === 'error'   ? 'text-red-400'   :
-                                         'text-emerald-400'
+                'inline-flex items-center gap-1 ' + (
+                  r.status === 'pending' ? 'text-slate-500' :
+                  r.status === 'error'   ? 'text-red-400'   :
+                                           'text-emerald-400'
+                )
               }>
-                {r.status === 'pending' ? 'saving…' : r.status === 'error' ? '⚠ error' : '✓'}
+                {r.status === 'pending' ? <><Loader2 size={14} className="animate-spin" /> saving…</> :
+                 r.status === 'error'   ? <><AlertCircle size={14} /> error</> :
+                                          <Check size={14} />}
               </span>
             </div>
             <div className="text-slate-400">
