@@ -13,7 +13,7 @@ type Screen =
   | { name: 'home' }
   | { name: 'pre'; existingIds: string[] }
   | { name: 'active'; session: Session }
-  | { name: 'post'; sessionId: string };
+  | { name: 'post'; session: Session };
 
 export function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'loading' });
@@ -62,7 +62,7 @@ export function App() {
       <ActiveSession
         settings={settings}
         session={screen.session}
-        onEnd={() => setScreen({ name: 'post', sessionId: screen.session.session_id })}
+        onEnd={() => setScreen({ name: 'post', session: screen.session })}
       />
     );
   }
@@ -71,7 +71,7 @@ export function App() {
     return (
       <PostTreatment
         settings={settings}
-        sessionId={screen.sessionId}
+        session={screen.session}
         onSaved={() => setScreen({ name: 'home' })}
       />
     );
