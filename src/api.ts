@@ -27,8 +27,12 @@ async function postJson<T>(
   try {
     res = await fetch(settings.script_url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      // text/plain keeps this a CORS "simple request" so the browser skips
+      // the OPTIONS preflight that Apps Script's /exec does not handle.
+      // The Apps Script doPost still parses e.postData.contents as JSON.
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ secret: settings.shared_secret, action, data }),
+      redirect: 'follow',
     });
   } catch (e) {
     throw new ApiError('network_error', String(e));
@@ -68,7 +72,7 @@ export async function probe(settings: Settings): Promise<void> {
   }
   const err = ErrorResponseSchema.safeParse(body);
   if (err.success) throw new ApiError(err.data.error);
-  const ok = GetResponseSchema.safeParse(body);
+  const ok = GetResponseSchema.safeParse(stripEmptyRows(body));
   if (!ok.success) throw new ApiError('schema_mismatch', ok.error.message);
 }
 
@@ -88,9 +92,23 @@ export async function getAll(settings: Settings): Promise<GetResponse> {
   }
   const err = ErrorResponseSchema.safeParse(body);
   if (err.success) throw new ApiError(err.data.error);
-  const parsed = GetResponseSchema.safeParse(body);
+  // Defensive: the Sheet may contain phantom empty rows if the user cleared
+  // cell contents instead of deleting the row. Drop rows missing the primary
+  // key so a half-cleared Sheet doesn't fail the whole load.
+  const cleaned = stripEmptyRows(body);
+  const parsed = GetResponseSchema.safeParse(cleaned);
   if (!parsed.success) throw new ApiError('schema_mismatch', parsed.error.message);
   return parsed.data;
+}
+
+function stripEmptyRows(body: unknown): unknown {
+  if (!body || typeof body !== 'object') return body;
+  const b = body as { sessions?: unknown; readings?: unknown };
+  const keep = (rows: unknown, idKey: string) =>
+    Array.isArray(rows)
+      ? rows.filter(r => r && typeof r === 'object' && typeof (r as Record<string, unknown>)[idKey] === 'string' && (r as Record<string, string>)[idKey] !== '')
+      : rows;
+  return { ...b, sessions: keep(b.sessions, 'session_id'), readings: keep(b.readings, 'reading_id') };
 }
 
 export async function saveSession(settings: Settings, session: Session): Promise<void> {
