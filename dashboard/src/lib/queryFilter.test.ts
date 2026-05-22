@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { filterRows, isValidBound, type QueryParams } from './queryFilter';
+import { filterRows, isValidBound } from './queryFilter';
 import type { BloodTestRow } from '../schemas';
 
 function row(over: Partial<BloodTestRow>): BloodTestRow {
