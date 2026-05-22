@@ -27,3 +27,10 @@ vitest.config.js
 scripts/pkb_backfill/blood_tests.csv
 scripts/pkb_backfill/pastes/
 scripts/pkb_backfill/*.txt
+
+# Dashboard — generated data and build artifacts
+dashboard/data/
+dashboard/node_modules/
+dashboard/dist/
+dashboard/.wrangler/
+dashboard/.dev.vars
