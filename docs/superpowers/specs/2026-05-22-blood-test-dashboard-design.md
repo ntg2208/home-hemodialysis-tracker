@@ -145,7 +145,7 @@ Two app states in `App.tsx`:
 - **Date/month range** — `from`/`to` pickers with a month-vs-date granularity toggle. Defaults to the full range of the selected phase.
 - **Marker** selector — selects the marker shown in the Trend tab.
 
-**Tab 1 — Scorecard:** markers grouped into panels (Renal, Liver, Bone, Haematology, Other) via a static `marker→panel` map in `markers.ts`; unmapped markers fall into Other. Each marker is a tile showing the latest value + unit (within the phase filter), the delta vs the previous reading (↑/↓/→), and in/out-of-range color. Markers with no reference range render with neutral coloring. Clicking a tile sets the Trend marker and switches to the Trend tab.
+**Tab 1 — Scorecard:** markers grouped into panels (Renal, Liver, Bone, Haematology, Other) via a static `marker→panel` map in `markers.ts`; unmapped markers fall into Other. Each marker is a tile showing the latest value + unit, the delta vs the previous reading (↑/↓/→), and in/out-of-range color — all computed within the current filter scope (phase + date range). Markers with no reference range render with neutral coloring. Clicking a tile sets the Trend marker and switches to the Trend tab.
 
 **Tab 2 — Trend:** one marker, a Recharts line chart:
 - value over time (x = `datetime`, y = `value`),
@@ -187,9 +187,9 @@ Light by design (single-user app), mirroring the PWA:
 
 - `cd dashboard && npm run dev` — local dev (Vite). `prebuild` regenerates `data/blood_tests.json` from the CSV.
 - `cd dashboard && npm run build` — static `dist/` + the bundled Function.
-- `cd dashboard && npx wrangler pages deploy dist --project-name=treatment-dashboard --branch=master --commit-dirty=true`
+- `cd dashboard && npx wrangler pages deploy dist --project-name=treatment-dashboard --branch=main --commit-dirty=true`
 - The PWA's deploy command gains a `pwa/` path prefix; README updated for both apps.
-- One-time: create the `treatment-dashboard` Pages project and set the `DASHBOARD_KEY` secret.
+- One-time: create the `treatment-dashboard` Pages project with `--production-branch=main` (matching the local git branch, so the deploy `--branch` unambiguously hits Production — avoids the production/preview mismatch that bit the PWA on 2026-05-15), and set the `DASHBOARD_KEY` secret.
 
 ## Risks and mitigations
 
