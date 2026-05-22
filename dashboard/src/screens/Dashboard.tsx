@@ -75,6 +75,11 @@ export function Dashboard({ rows }: Props) {
   );
 }
 
+function flagOf(r: BloodTestRow): 'in' | 'out' | null {
+  if (r.qualitative || r.ref_low == null || r.ref_high == null) return null;
+  return r.value >= r.ref_low && r.value <= r.ref_high ? 'in' : 'out';
+}
+
 function ResultsTable({ rows }: { rows: BloodTestRow[] }) {
   if (rows.length === 0) return null;
   const sorted = [...rows].sort((a, b) => b.datetime.localeCompare(a.datetime));
@@ -85,24 +90,31 @@ function ResultsTable({ rows }: { rows: BloodTestRow[] }) {
           <th className="py-1 pr-4">Date</th>
           <th className="py-1 pr-4">Value</th>
           <th className="py-1 pr-4">Range</th>
+          <th className="py-1 pr-4">Flag</th>
           <th className="py-1 pr-4">Timing</th>
           <th className="py-1">Note</th>
         </tr>
       </thead>
       <tbody className="text-slate-300">
-        {sorted.map((r) => (
-          <tr key={`${r.marker}-${r.lab_id}`} className="border-t border-slate-800">
-            <td className="py-1 pr-4">{r.datetime.slice(0, 16).replace('T', ' ')}</td>
-            <td className="py-1 pr-4">
-              {r.qualitative ? r.unit : `${r.value} ${r.unit}`}
-            </td>
-            <td className="py-1 pr-4">
-              {r.ref_low != null && r.ref_high != null ? `${r.ref_low}–${r.ref_high}` : '—'}
-            </td>
-            <td className="py-1 pr-4">{r.timing || '—'}</td>
-            <td className="py-1">{r.note || '—'}</td>
-          </tr>
-        ))}
+        {sorted.map((r) => {
+          const flag = flagOf(r);
+          return (
+            <tr key={`${r.marker}-${r.lab_id}`} className="border-t border-slate-800">
+              <td className="py-1 pr-4">{r.datetime.slice(0, 16).replace('T', ' ')}</td>
+              <td className="py-1 pr-4">
+                {r.qualitative ? r.unit : `${r.value} ${r.unit}`}
+              </td>
+              <td className="py-1 pr-4">
+                {r.ref_low != null && r.ref_high != null ? `${r.ref_low}–${r.ref_high}` : '—'}
+              </td>
+              <td className={`py-1 pr-4 ${flag === 'out' ? 'text-red-400' : flag === 'in' ? 'text-emerald-400' : ''}`}>
+                {flag ?? '—'}
+              </td>
+              <td className="py-1 pr-4">{r.timing || '—'}</td>
+              <td className="py-1">{r.note || '—'}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

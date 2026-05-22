@@ -16,6 +16,7 @@ type Point = {
   post: number | null;
   plain: number | null;
   range: [number, number] | null;
+  outlier: number | null;
 };
 
 // Phase boundary dates (from the spec's data model).
@@ -26,14 +27,20 @@ function toPoints(rows: BloodTestRow[]): Point[] {
     .filter((r) => !r.qualitative)
     .slice()
     .sort((a, b) => a.datetime.localeCompare(b.datetime))
-    .map((r) => ({
-      datetime: r.datetime,
-      pre: r.timing === 'pre' ? r.value : null,
-      post: r.timing === 'post' ? r.value : null,
-      plain: r.timing === '' ? r.value : null,
-      range:
-        r.ref_low != null && r.ref_high != null ? [r.ref_low, r.ref_high] : null,
-    }));
+    .map((r) => {
+      const lo = r.ref_low;
+      const hi = r.ref_high;
+      const range: [number, number] | null = lo != null && hi != null ? [lo, hi] : null;
+      const out = range != null && (r.value < range[0] || r.value > range[1]);
+      return {
+        datetime: r.datetime,
+        pre: r.timing === 'pre' ? r.value : null,
+        post: r.timing === 'post' ? r.value : null,
+        plain: r.timing === '' ? r.value : null,
+        range,
+        outlier: out ? r.value : null,
+      };
+    });
 }
 
 export function TrendChart({ marker, rows }: Props) {
@@ -62,7 +69,6 @@ export function TrendChart({ marker, rows }: Props) {
             stroke="none"
             fill="#22d3ee"
             fillOpacity={0.12}
-            connectNulls
             isAnimationActive={false}
           />
           {PHASE_BOUNDARIES.map((d) => (
@@ -80,6 +86,14 @@ export function TrendChart({ marker, rows }: Props) {
             <Line dataKey="plain" name={displayName(marker)} stroke="#22d3ee" dot
               connectNulls isAnimationActive={false} />
           )}
+          <Line
+            dataKey="outlier"
+            name="Out of range"
+            stroke="none"
+            legendType="none"
+            dot={{ r: 5, fill: '#f87171', stroke: '#f87171' }}
+            isAnimationActive={false}
+          />
           <Brush dataKey="datetime" height={20} stroke="#475569" fill="#0f172a" />
         </ComposedChart>
       </ResponsiveContainer>
