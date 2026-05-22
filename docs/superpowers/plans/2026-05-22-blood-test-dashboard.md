@@ -1799,7 +1799,8 @@ npm run dev          # regenerates data/blood_tests.json, then starts Vite
 ```bash
 cd dashboard
 npm run build
-npx wrangler pages dev dist --binding DASHBOARD_KEY=<dev-key>
+echo 'DASHBOARD_KEY=<dev-key>' > .dev.vars   # gitignored
+npx wrangler pages dev dist
 ```
 
 ### Deploy
