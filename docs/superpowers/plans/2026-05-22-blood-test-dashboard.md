@@ -164,6 +164,7 @@ dashboard/.dev.vars
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240000.0",
+    "@types/node": "^22.0.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
@@ -222,7 +223,7 @@ export default defineConfig({ plugins: [react()] });
     "resolveJsonModule": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "types": ["@cloudflare/workers-types", "vitest/globals"]
+    "types": ["@cloudflare/workers-types", "vitest/globals", "node"]
   },
   "include": ["src", "functions", "scripts"]
 }
@@ -545,7 +546,7 @@ git commit -m "feat(dashboard): CSV to JSON converter with prebuild hook"
 `dashboard/src/lib/queryFilter.test.ts`:
 ```ts
 import { describe, it, expect } from 'vitest';
-import { filterRows, isValidBound, type QueryParams } from './queryFilter';
+import { filterRows, isValidBound } from './queryFilter';
 import type { BloodTestRow } from '../schemas';
 
 function row(over: Partial<BloodTestRow>): BloodTestRow {
