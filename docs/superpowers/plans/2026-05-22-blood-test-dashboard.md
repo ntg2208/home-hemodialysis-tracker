@@ -68,7 +68,17 @@ treatment_tracker/
 - Move: every existing PWA file/dir into `pwa/`
 - Keep at root: `LICENSE`, `docs/`, `scripts/`, `.gitignore`, `README.md`
 
-- [ ] **Step 1: Create the folder and move source files**
+- [ ] **Step 1: Guard health data in `.gitignore` first**
+
+Before any `git add`, ensure the untracked health-data files under `scripts/pkb_backfill/` can never be staged. Append to the root `.gitignore`:
+```
+# Personal health data — never commit (repo is open-source-bound)
+scripts/pkb_backfill/blood_tests.csv
+scripts/pkb_backfill/pastes/
+scripts/pkb_backfill/*.txt
+```
+
+- [ ] **Step 2: Create the folder and move source files**
 
 ```bash
 cd ~/Documents/Personal_Projects/treatment_tracker
@@ -78,7 +88,7 @@ git mv src public backend index.html package.json package-lock.json \
        tailwind.config.ts postcss.config.js vitest.config.ts README.md pwa/
 ```
 
-- [ ] **Step 2: Move untracked generated/config artifacts and clean up**
+- [ ] **Step 3: Move untracked generated/config artifacts and clean up**
 
 ```bash
 # generated files git doesn't track — move or delete (they regenerate)
@@ -87,20 +97,21 @@ rm -f vite.config.js vite.config.d.ts vitest.config.js vitest.config.d.ts \
 rm -rf node_modules dist .wrangler
 ```
 
-- [ ] **Step 3: Reinstall and verify the PWA still builds**
+- [ ] **Step 4: Reinstall and verify the PWA still builds**
 
 ```bash
 cd pwa && npm install && npm run build
 ```
 Expected: `dist/` is produced with no TypeScript errors.
 
-- [ ] **Step 4: Verify the PWA test suite still passes**
+- [ ] **Step 5: Verify the PWA test suite still passes**
 
 Run: `cd pwa && npm test`
 Expected: the existing `sessionId` test passes (5/5).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
+`git add -A` is now safe — the health-data files are ignored as of Step 1.
 ```bash
 cd ~/Documents/Personal_Projects/treatment_tracker
 git add -A
@@ -115,17 +126,12 @@ git commit -m "refactor: move PWA into pwa/ ahead of dashboard subfolder"
 - Create: `dashboard/package.json`, `dashboard/index.html`, `dashboard/vite.config.ts`, `dashboard/tsconfig.json`, `dashboard/tailwind.config.ts`, `dashboard/postcss.config.js`, `dashboard/vitest.config.ts`, `dashboard/src/main.tsx`, `dashboard/src/index.css`, `dashboard/src/App.tsx` (placeholder)
 - Modify: `.gitignore`
 
-- [ ] **Step 1: Add health-data entries to the root `.gitignore`**
+- [ ] **Step 1: Add dashboard entries to the root `.gitignore`**
 
-Append to `.gitignore`:
+The `scripts/pkb_backfill/` health-data entries were already added in Task 1. Append the dashboard entries (`dashboard/data/` holds the generated health-data JSON):
 ```
-# Personal health data — never commit (repo is open-source-bound)
+# Dashboard — generated data and build artifacts
 dashboard/data/
-scripts/pkb_backfill/blood_tests.csv
-scripts/pkb_backfill/pastes/
-scripts/pkb_backfill/*.txt
-
-# Dashboard build artifacts
 dashboard/node_modules/
 dashboard/dist/
 dashboard/.wrangler/
