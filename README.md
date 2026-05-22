@@ -83,15 +83,15 @@ Built `dist/` is a static PWA — host it on any CDN. We use **Cloudflare Pages*
 
 ```bash
 npx wrangler login                                                    # opens browser
-npx wrangler pages project create treatment-tracker --production-branch=main
-npx wrangler pages deploy dist --project-name=treatment-tracker --branch=main
+npx wrangler pages project create treatment-tracker --production-branch=master
+npx wrangler pages deploy dist --project-name=treatment-tracker --branch=master
 ```
 
 You get a permanent URL like `https://treatment-tracker.pages.dev`. Future redeploys land at the same URL:
 
 ```bash
 npm run build
-npx wrangler pages deploy dist --project-name=treatment-tracker --branch=main --commit-dirty=true
+npx wrangler pages deploy dist --project-name=treatment-tracker --branch=master --commit-dirty=true
 ```
 
 Other hosts that work with zero config: Netlify (drag `dist/` onto [app.netlify.com/drop](https://app.netlify.com/drop)), Vercel, GitHub Pages, any static webserver.

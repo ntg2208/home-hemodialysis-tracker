@@ -25,6 +25,10 @@ interface FormState {
 }
 
 export function AddReadingModal({ sessionId, seq, defaultBloodFlow, onSave, onClose }: Props) {
+  // Lock seq at mount. nextSeq in the parent advances as soon as persist()
+  // prepends the new reading, which would flip this modal's header from #N
+  // to #N+1 mid-save.
+  const [lockedSeq] = useState(seq);
   const [form, setForm] = useState<FormState>({ time: nowHHMM(), blood_flow: defaultBloodFlow });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,9 +41,9 @@ export function AddReadingModal({ sessionId, seq, defaultBloodFlow, onSave, onCl
     setError(null);
     setSaving(true);
     const reading: Reading = {
-      reading_id: `${sessionId}-r${seq}`,
+      reading_id: `${sessionId}-r${lockedSeq}`,
       session_id: sessionId,
-      seq,
+      seq: lockedSeq,
       ...form,
     };
     try {
@@ -56,7 +60,7 @@ export function AddReadingModal({ sessionId, seq, defaultBloodFlow, onSave, onCl
     <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50">
       <div className="bg-bg border border-slate-700 rounded-t-2xl sm:rounded-2xl p-4 w-full max-w-md max-h-[90vh] overflow-y-auto space-y-3">
         <header className="flex items-center justify-between">
-          <h2 className="text-lg font-bold">Reading #{seq}</h2>
+          <h2 className="text-lg font-bold">Reading #{lockedSeq}</h2>
           <button type="button" onClick={onClose} className="text-slate-400 text-sm underline">Close</button>
         </header>
 

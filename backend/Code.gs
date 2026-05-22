@@ -67,7 +67,10 @@ function saveReading_(data) {
   const sh = sheet_(SHEET_READINGS);
   ensureHeader_(sh, READING_COLS);
   appendAsText_(sh, READING_COLS, data);
-  rebuildLegacyView_();
+  // Intentionally NOT rebuilding legacy_view here — that's O(history) per call
+  // and would slow every reading save. The view is rebuilt on session start
+  // (save_session) and finish (update_session), which is when a clinician
+  // would actually open the formatted tab.
   return { ok: true, reading_id: data.reading_id };
 }
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ClipboardList, Play, X } from 'lucide-react';
 import { ApiError, saveSession } from '../api';
-import { getLastSession, saveLastSession } from '../storage';
+import { getDriedWeight, getLastSession, saveLastSession } from '../storage';
 import { nextSessionId, todayIso } from '../sessionId';
 import { NumberField } from '../components/NumberField';
 import { SaveButton } from '../components/SaveButton';
@@ -31,21 +31,27 @@ export function PreTreatment({ settings, existingIds, onSaved, onCancel }: Props
   const [rateTouched, setRateTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [driedWeight, setDriedWeight] = useState<number | null>(null);
 
   useEffect(() => {
     // Last-session prefill is no longer used for uf_goal / uf_rate —
     // those are derived from pre_weight via the formula below.
     getLastSession().catch(() => {});
+    getDriedWeight().then(setDriedWeight).catch(() => setDriedWeight(59));
   }, []);
 
   function update<K extends keyof FormState>(k: K, v: FormState[K]) {
     setForm(f => ({ ...f, [k]: v }));
   }
 
-  // Derived defaults: uf_goal = pre_weight - 59; uf_rate = uf_goal / 0.004.
-  // Only used when the user hasn't manually edited that field.
+  // Derived defaults: uf_goal = pre_weight - dried_weight;
+  // uf_rate = uf_goal / 0.004. Only used when the user hasn't manually
+  // edited that field. Block derivation until dried weight has loaded so
+  // the formula doesn't briefly use a stale constant.
   const derivedGoal =
-    form.pre_weight != null ? round2(form.pre_weight - 59) : undefined;
+    form.pre_weight != null && driedWeight != null
+      ? round2(form.pre_weight - driedWeight)
+      : undefined;
   const effectiveGoal = goalTouched ? form.uf_goal : derivedGoal;
   const derivedRate =
     effectiveGoal != null ? round2(effectiveGoal / 0.004) : undefined;

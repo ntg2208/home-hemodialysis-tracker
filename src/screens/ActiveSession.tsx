@@ -1,24 +1,33 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Activity, AlertCircle, Check, Droplets, Heart, Loader2, Plus, Scale, Square } from 'lucide-react';
 import { ApiError, saveReading } from '../api';
 import { AddReadingModal } from '../components/AddReadingModal';
-import type { Reading, Session, Settings } from '../schemas';
+import type { PendingReading, Reading, Session, Settings } from '../schemas';
 
 interface Props {
   settings: Settings;
   session: Session;
+  initialReadings?: PendingReading[];
+  onReadingsChange?: (rs: PendingReading[]) => void;
   onEnd: () => void;
 }
 
-interface PendingReading extends Reading {
-  status: 'pending' | 'saved' | 'error';
-  errorMsg?: string;
-}
-
-export function ActiveSession({ settings, session, onEnd }: Props) {
+export function ActiveSession({ settings, session, initialReadings, onReadingsChange, onEnd }: Props) {
   const sessionId = session.session_id;
-  const [readings, setReadings] = useState<PendingReading[]>([]);
+  const [readings, setReadings] = useState<PendingReading[]>(initialReadings ?? []);
   const [modalOpen, setModalOpen] = useState(false);
+
+  // Skip notifying on mount — the initial readings already came from the
+  // parent's persisted state, echoing them back would be a no-op write.
+  // Ref-stash the callback so a fresh function identity from the parent
+  // doesn't re-trigger this effect (and round-trip back into setReadings).
+  const firstRender = useRef(true);
+  const onChangeRef = useRef(onReadingsChange);
+  onChangeRef.current = onReadingsChange;
+  useEffect(() => {
+    if (firstRender.current) { firstRender.current = false; return; }
+    onChangeRef.current?.(readings);
+  }, [readings]);
 
   const nextSeq = readings.length === 0 ? 1 : Math.max(...readings.map(r => r.seq)) + 1;
   // readings is stored newest-first (persist prepends), so first hit = most recent.

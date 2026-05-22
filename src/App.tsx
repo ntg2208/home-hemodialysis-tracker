@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
-import { getSettings } from './storage';
-import type { Session, Settings } from './schemas';
+import {
+  clearActiveState,
+  getActiveState,
+  getSettings,
+  saveActiveState,
+} from './storage';
+import type { PendingReading, Session, Settings } from './schemas';
 import { Setup } from './screens/Setup';
 import { Home } from './screens/Home';
 import { PreTreatment } from './screens/PreTreatment';
@@ -12,7 +17,7 @@ type Screen =
   | { name: 'setup' }
   | { name: 'home' }
   | { name: 'pre'; existingIds: string[] }
-  | { name: 'active'; session: Session }
+  | { name: 'active'; session: Session; readings: PendingReading[] }
   | { name: 'post'; session: Session };
 
 export function App() {
@@ -20,13 +25,46 @@ export function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
 
   useEffect(() => {
-    getSettings()
-      .then(s => {
-        if (s) { setSettings(s); setScreen({ name: 'home' }); }
-        else setScreen({ name: 'setup' });
-      })
-      .catch(() => setScreen({ name: 'setup' }));
+    (async () => {
+      let s: Settings | undefined;
+      try { s = await getSettings(); }
+      catch { setScreen({ name: 'setup' }); return; }
+      if (!s) { setScreen({ name: 'setup' }); return; }
+      setSettings(s);
+
+      // Restore an in-progress session if one was persisted within the TTL.
+      // Any reading that was mid-flight when state was last persisted is
+      // demoted to 'error' so the user can retry — we can't know whether the
+      // backend actually completed the write before we got killed.
+      const active = getActiveState();
+      if (active?.screen === 'pre' && active.existingIds) {
+        setScreen({ name: 'pre', existingIds: active.existingIds });
+      } else if (active?.screen === 'active' && active.session) {
+        const readings = (active.readings ?? []).map(r =>
+          r.status === 'pending' ? { ...r, status: 'error' as const, errorMsg: 'interrupted' } : r
+        );
+        setScreen({ name: 'active', session: active.session, readings });
+      } else if (active?.screen === 'post' && active.session) {
+        setScreen({ name: 'post', session: active.session });
+      } else {
+        setScreen({ name: 'home' });
+      }
+    })();
   }, []);
+
+  // Persist screen on every transition so a reload/eviction can resume it.
+  // localStorage is synchronous — the write is on disk before this returns.
+  useEffect(() => {
+    if (screen.name === 'pre') {
+      saveActiveState({ screen: 'pre', existingIds: screen.existingIds });
+    } else if (screen.name === 'active') {
+      saveActiveState({ screen: 'active', session: screen.session, readings: screen.readings });
+    } else if (screen.name === 'post') {
+      saveActiveState({ screen: 'post', session: screen.session });
+    } else if (screen.name === 'home' || screen.name === 'setup') {
+      clearActiveState();
+    }
+  }, [screen]);
 
   if (screen.name === 'loading') return <div className="p-4 text-slate-400">Loading…</div>;
 
@@ -51,7 +89,7 @@ export function App() {
       <PreTreatment
         settings={settings}
         existingIds={screen.existingIds}
-        onSaved={session => setScreen({ name: 'active', session })}
+        onSaved={session => setScreen({ name: 'active', session, readings: [] })}
         onCancel={() => setScreen({ name: 'home' })}
       />
     );
@@ -62,6 +100,10 @@ export function App() {
       <ActiveSession
         settings={settings}
         session={screen.session}
+        initialReadings={screen.readings}
+        onReadingsChange={rs =>
+          setScreen(s => (s.name === 'active' ? { ...s, readings: rs } : s))
+        }
         onEnd={() => setScreen({ name: 'post', session: screen.session })}
       />
     );

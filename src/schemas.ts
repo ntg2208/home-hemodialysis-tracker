@@ -40,6 +40,11 @@ export const ReadingSchema = z.object({
 });
 export type Reading = z.infer<typeof ReadingSchema>;
 
+export type PendingReading = Reading & {
+  status: 'pending' | 'saved' | 'error';
+  errorMsg?: string;
+};
+
 export const GetResponseSchema = z.object({
   ok: z.literal(true),
   sessions: z.array(SessionSchema),
