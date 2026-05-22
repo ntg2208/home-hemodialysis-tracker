@@ -22,3 +22,8 @@ vitest.config.js
 
 # Cloudflare Wrangler
 .wrangler/
+
+# Personal health data — never commit (repo is open-source-bound)
+scripts/pkb_backfill/blood_tests.csv
+scripts/pkb_backfill/pastes/
+scripts/pkb_backfill/*.txt
