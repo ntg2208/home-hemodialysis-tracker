@@ -7,7 +7,9 @@ Two apps supporting home haemodialysis:
 
 ## Dashboard
 
-Design: `docs/superpowers/specs/2026-05-22-blood-test-dashboard-design.md`
+**Live:** https://treatment-dashboard.pages.dev (key-gated; pass `Authorization: Bearer <DASHBOARD_KEY>` to `/api/blood-tests`).
+
+Design: `docs/superpowers/specs/2026-05-22-blood-test-dashboard-design.md` · Plan: `docs/superpowers/plans/2026-05-22-blood-test-dashboard.md`
 
 ### Develop
 
