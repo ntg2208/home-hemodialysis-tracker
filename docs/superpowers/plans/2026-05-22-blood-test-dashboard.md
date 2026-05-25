@@ -1,5 +1,7 @@
 # Blood Test Dashboard Implementation Plan
 
+> **Status: Completed (2026-05-22 → 2026-05-25) and Superseded by `2026-05-25-homehd-unified-app-design.md`.** This plan ran to completion — see commits `cda5433` (repo restructure) through `a1d8dd3` (mark dashboard live). The resulting code now ports into the unified app per the new spec's Phase 2. Retained as build history.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a personal blood-test analytics dashboard (panel-grouped scorecard + single-marker trend chart) plus an authenticated query endpoint, as a second app inside the `treatment_tracker` repo.

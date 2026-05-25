@@ -1,7 +1,7 @@
 # Blood Test Dashboard — Design
 
 **Date:** 2026-05-22
-**Status:** Approved, ready for implementation plan
+**Status:** **Superseded by `2026-05-25-homehd-unified-app-design.md`** — the dashboard ships as a tab inside the unified app. Code produced under this spec (and its plan) is preserved and ported, not rewritten. Kept here as design history.
 **Source design:** `~/Project_ideas/Home HD Knowledge Base and Tracking System.md` (section 3 "Monthly Blood Test Analytics", and Update Log entries 2026-05-12, 2026-05-13, 2026-05-22)
 
 A personal analytics dashboard for monthly blood test results, plus a query endpoint. The backfill parser (`scripts/pkb_backfill/parse_pkb.py`) and dataset (`blood_tests.csv`, 2391 rows) already exist and are **out of scope here** — this spec covers only the dashboard app and its endpoint.
