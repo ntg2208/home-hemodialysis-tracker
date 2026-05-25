@@ -1,13 +1,16 @@
-# Home HD Unified App — Design
+# Home HD Unified App
 
 **Date:** 2026-05-25
-**Status:** Approved, ready for implementation plan
-**Source brainstorm:** Conversation with user on 2026-05-25 (Update Log entry pending in `~/Project_ideas/Home HD Knowledge Base and Tracking System.md`).
-**Supersedes:** `2026-05-22-blood-test-dashboard-design.md` — the dashboard becomes a tab inside this unified app. The dashboard's code is fully built and live on Cloudflare Pages (`treatment-dashboard.pages.dev`); this spec ports it to a new host and folder, it does not rebuild it.
+**Status:** Design approved; implementation plan to be written and appended as `## Implementation plan` in this file.
+**Source brainstorm:** Conversation with user on 2026-05-25, recorded as the `### 2026-05-25` Update Log entry in `~/Project_ideas/Home HD Knowledge Base and Tracking System.md`.
+**Supersedes:** [`2026-05-22-blood-test-dashboard.md`](2026-05-22-blood-test-dashboard.md) — the dashboard becomes a tab inside this unified app. The dashboard's code is fully built and live on Cloudflare Pages (`treatment-dashboard.pages.dev`); this spec ports it to a new host and folder, it does not rebuild it.
+**Carries forward:** [`2026-05-10-pwa-mvp.md`](2026-05-10-pwa-mvp.md) — the live treatment PWA moves verbatim into `frontend/src/routes/Treatment/`; its Apps Script + Sheet backend is unchanged.
 
 A single Progressive Web App that consolidates every Home HD personal tool — live dialysis entry, blood-test analytics, NxStage error knowledge base, supply inventory, fitness tracker integration, and a RAG chatbot — behind one auth, one shell, one device install. Hosted on GCP (Firebase Hosting + Cloud Run + Firestore). Migrates the live treatment PWA and the live blood-test dashboard off Cloudflare Pages as part of the same restructure.
 
-## Goal
+## Design
+
+### Goal
 
 Stop maintaining "a set of small purpose-built tools" once they've grown to the point where unification is cheaper than the friction of separate installs, separate auths, and separate deploys. Move to one app that holds the whole personal Home HD stack, designed so:
 
@@ -16,7 +19,7 @@ Stop maintaining "a set of small purpose-built tools" once they've grown to the 
 - The future RAG chatbot has a single substrate to embed and retrieve over.
 - Hosting costs stay at $0 at this scale.
 
-## Key decisions (from brainstorming, 2026-05-25)
+### Key decisions (from brainstorming, 2026-05-25)
 
 - **Single app, route-split tabs** — Vite + React + React Router. Treatment, Blood Tests, KB, Inventory, Fitness, Chat are routes inside one app, one PWA install, one service worker. Each route is a lazy-loaded chunk so Treatment doesn't bloat as new features land.
 - **GCP, on the free tier** — Firebase Hosting for the frontend, Cloud Run for the API surface, Firestore for writes, Secret Manager for keys. Vertex AI deferred to whenever RAG is designed (the only paid leg).
@@ -26,7 +29,7 @@ Stop maintaining "a set of small purpose-built tools" once they've grown to the 
 - **Both Cloudflare Pages projects decommissioned** — `treatment-tracker.pages.dev` (live PWA) and `treatment-dashboard.pages.dev` (live dashboard) retire as the new unified app comes up.
 - **The dashboard's code is preserved, not rewritten.** The 16-task plan that landed between 2026-05-22 and 2026-05-25 produced clean, route-isolated, well-tested modules. Migration ports them; it does not redo them.
 
-## Non-goals
+### Non-goals
 
 Deferred — these features land later as tabs, each via its own brainstorm → spec → plan:
 
@@ -42,7 +45,7 @@ Out of scope entirely:
 - Multi-user support (single-user app by design).
 - Rewriting or behaviourally changing anything the dashboard already does — the Scorecard logic, Trend chart, FilterBar, query filter, and `/api/blood-tests` contract are preserved verbatim.
 
-## Stack
+### Stack
 
 - **Frontend:** Vite + React 18 + TypeScript (strict), Tailwind CSS, React Router, Recharts, lucide-react, zod, idb, vite-plugin-pwa.
 - **Backend:** Cloud Run (Node 20, Hono router), Firestore (Native mode, europe-west2), Secret Manager.
@@ -50,7 +53,7 @@ Out of scope entirely:
 - **CI/CD:** local terminal — `firebase deploy` + `gcloud run deploy`. GitHub Actions deferred.
 - **Treatment backend (unchanged):** Apps Script web app bound to the existing Google Sheet (`sessions`, `readings`, `legacy_view`). The `blood_tests` tab planned in earlier section-3 designs is **no longer needed** — blood-test data lives in the API now, not the Sheet.
 
-## Repo layout
+### Repo layout
 
 Full restructure of `~/Documents/Personal_Projects/treatment_tracker/`. Rename the directory to `homehd/` during Phase 1; rename the GitHub remote at Phase 3.
 
@@ -123,11 +126,10 @@ homehd/
 │   └── Code.gs                        # documented copy of the live Sheet-bound script
 ├── firebase.json                      # hosting + /api/* rewrites
 ├── .firebaserc                        # project: homehd-personal
-├── docs/superpowers/specs/
-│   ├── 2026-05-22-blood-test-dashboard-design.md   # Superseded by this file
-│   └── 2026-05-25-homehd-unified-app-design.md     # this file
-├── docs/superpowers/plans/
-│   └── 2026-05-22-blood-test-dashboard.md          # Superseded; produced code that gets ported
+├── docs/superpowers/                             # flat: one file per project, design + plan combined
+│   ├── 2026-05-10-pwa-mvp.md                     # Completed; PWA code carried forward
+│   ├── 2026-05-22-blood-test-dashboard.md        # Completed; Superseded by this file
+│   └── 2026-05-25-homehd-unified.md              # this file
 ├── package.json                       # workspace root (frontend + api)
 ├── .gitignore
 └── README.md
@@ -156,7 +158,7 @@ api/dist/
 
 Existing `dashboard/data/`, `dashboard/`, `pwa/` paths drop out when those directories are moved/removed in Phase 1 and Phase 2.
 
-## Routing and navigation
+### Routing and navigation
 
 `React Router` with file-conventional routes. Single `RouterProvider` in `App.tsx`. Routes:
 
@@ -176,7 +178,7 @@ Existing `dashboard/data/`, `dashboard/`, `pwa/` paths drop out when those direc
 
 **Navigation shell:** a top tab bar on desktop, bottom tab bar on mobile breakpoints, shown on all routes except `/setup`. Tab order: Treatment, Tests, KB, Inv, Fitness, Chat. Inactive placeholder tabs are visible (route to a friendly "coming soon" card) so the shape of the app is obvious from day one.
 
-## Auth model
+### Auth model
 
 **One main key** for `/api/*` access, plus the existing Apps Script URL + secret for Treatment writes. All three are entered once in the Setup Wizard.
 
@@ -198,7 +200,7 @@ IndexedDB (via `idb`) for static settings, mirroring the existing PWA pattern. T
 
 **Migration note:** the existing dashboard uses `DASHBOARD_KEY`; the existing PWA uses the Apps Script `SHARED_SECRET`. Phase 2 retires `DASHBOARD_KEY` and replaces it with the unified `MAIN_API_KEY`. The Apps Script secret stays as-is.
 
-## Cloud Run service
+### Cloud Run service
 
 **Single service** at `https://homehd-api-<hash>.europe-west2.run.app`, fronted by Firebase Hosting rewrites so the frontend calls `/api/*` same-origin.
 
@@ -266,7 +268,7 @@ gcloud run deploy homehd-api \
 
 **Why Hono:** TypeScript-first, tiny, zero dependencies, identical handler shape works locally (`@hono/node-server`) and on Cloud Run. Lift-and-shift compatible with Cloudflare Workers if priorities ever flip.
 
-## Firebase Hosting rewrites
+### Firebase Hosting rewrites
 
 `firebase.json`:
 
@@ -296,7 +298,7 @@ The `**` → `/index.html` rewrite handles SPA client-side routing.
 
 The `sw.js` `no-cache` header ensures service-worker updates roll out on next page load.
 
-## Blood-test data pipeline (ported)
+### Blood-test data pipeline (ported)
 
 ```
 scripts/pkb_backfill/blood_tests.csv
@@ -327,7 +329,7 @@ Monthly workflow unchanged in shape: edit `blood_tests.csv` → `cd api && npm r
 
 JSON size at 2391 rows ≈ 350 KB. Cloud Run image limits are gigabytes; decades of headroom.
 
-## Blood-test endpoint contract — `GET /api/blood-tests`
+### Blood-test endpoint contract — `GET /api/blood-tests`
 
 Preserved verbatim from the superseded dashboard spec:
 
@@ -338,7 +340,7 @@ Preserved verbatim from the superseded dashboard spec:
 
 Future shape `GET /api/blood-tests/markers` returns the canonical marker list for the FilterBar dropdown (replaces deriving from a full bulk fetch). Not blocking.
 
-## Treatment route — what changes
+### Treatment route — what changes
 
 **Code:** moved verbatim from `pwa/src/` into `frontend/src/routes/Treatment/`. Same screens (Home, Pre, Active, AddReadingModal, Post), same direct Apps Script client, same localStorage-based active-session persistence (the 2026-05-15 lesson stands), same `appendAsText_` backend (lives in the Sheet's Apps Script editor, **not** moving).
 
@@ -353,7 +355,7 @@ Future shape `GET /api/blood-tests/markers` returns the canonical marker list fo
 
 **Apps Script backend:** unchanged. `legacy_view` still rebuilds. The Sheet remains the clinical team's reading surface.
 
-## Blood Tests route — what changes
+### Blood Tests route — what changes
 
 **Code:** moved verbatim from `dashboard/src/` into `frontend/src/routes/BloodTests/`. Components, lib (queryFilter, scorecard), markers, schemas — all preserved with tests.
 
@@ -368,7 +370,7 @@ Future shape `GET /api/blood-tests/markers` returns the canonical marker list fo
 
 **Endpoint:** `/api/blood-tests` contract preserved exactly. Only the runtime changes (Pages Function → Cloud Run handler).
 
-## Error handling
+### Error handling
 
 **Cloud Run service:**
 - `401` from `bearerAuth` middleware on missing/wrong main key (does not apply to `/api/health`).
@@ -384,7 +386,7 @@ Future shape `GET /api/blood-tests/markers` returns the canonical marker list fo
 - Treatment route's Apps Script errors stay scoped to that route (unchanged behaviour).
 - React `ErrorBoundary` at the app shell **and** at each lazy route, so a render error in Inventory doesn't blank Treatment.
 
-## Auth UX — Setup Wizard
+### Auth UX — Setup Wizard
 
 Single screen at `/setup`, shown on first launch (when IndexedDB has no `auth` record) and on rotation. Three fields:
 
@@ -398,7 +400,7 @@ Probes happen on save in sequence; per-field error messages on failure, others u
 
 A "Reset auth" button in the app shell's Settings panel clears IndexedDB and pushes to `/setup`.
 
-## Migration — sequencing
+### Migration — sequencing
 
 Three landings, gated on real-use verification. **Both Cloudflare Pages apps continue serving production throughout the migration; nothing is decommissioned until its replacement is verified on a real session / real query.**
 
@@ -446,7 +448,7 @@ Three landings, gated on real-use verification. **Both Cloudflare Pages apps con
 
 1. **Decommission Cloudflare Pages projects** — both `treatment-tracker` and `treatment-dashboard` (Cloudflare console → project → Delete). Only after Phase 1 + 2 have been used for ~4 weeks.
 2. **Remove Wrangler artefacts** — `wrangler` from `package.json`, `.wrangler/`, the Cloudflare-specific README sections in both `pwa/README.md` and `dashboard/README.md`. Delete `pwa/` and `dashboard/` directories (Git history preserves them).
-3. **Mark old specs/plans Superseded** — update frontmatter of `2026-05-22-blood-test-dashboard-design.md` and `2026-05-22-blood-test-dashboard.md` (done in this commit alongside this spec).
+3. **Old docs already merged + marked Superseded** — `2026-05-22-blood-test-dashboard.md` and `2026-05-10-pwa-mvp.md` were collapsed into single combined files (design + implementation plan together) under `docs/superpowers/` and their Status banners were updated in the same commit that introduced this spec; no further action needed in Phase 3.
 4. **Rename:** local directory `treatment_tracker` → `homehd`; GitHub remote `treatment_tracker` → `homehd`.
 
 ### Future phases (each its own brainstorm → spec → plan)
@@ -458,7 +460,7 @@ Three landings, gated on real-use verification. **Both Cloudflare Pages apps con
 | 6 | Fitness ingest | Provider choice (Fitbit / Strava / Apple Health via webhooks / Garmin), OAuth, Cloud Scheduler trigger, Firestore writes, Fitness tab dashboard. |
 | 7 | RAG chatbot | Vector store decision (Firestore vectors vs Vertex AI Vector Search), embedding strategy across BP + blood tests + KB + fitness + inventory, LLM provider (BYO API key via Secret Manager), Chat tab UI. The only paid leg; explicit cost design at that point. |
 
-## Build & deploy
+### Build & deploy
 
 **Local dev:**
 
@@ -493,7 +495,7 @@ firebase deploy --only hosting
 - Frontend: `firebase hosting:rollback`
 - API: `gcloud run services update-traffic homehd-api --to-revisions=<previous-revision>=100`
 
-## Testing
+### Testing
 
 Mirroring the existing "light by design" stance — single-user app, manual acceptance gates are the real tests:
 
@@ -509,7 +511,7 @@ Mirroring the existing "light by design" stance — single-user app, manual acce
   - Phase 1: real dialysis session through `/treatment` writes correctly to the Sheet.
   - Phase 2: `/blood-tests` Scorecard + at least one Trend chart render against live data; spot-check values.
 
-## Risks and mitigations
+### Risks and mitigations
 
 | Risk | Mitigation |
 |---|---|
@@ -524,7 +526,7 @@ Mirroring the existing "light by design" stance — single-user app, manual acce
 | Repo rename breaks local clones / bookmarks | Rename on disk during Phase 1, rename GitHub remote at Phase 3; the GitHub remote URL change is one `git remote set-url` per clone. |
 | Apps Script `legacy_view` rebuild cost (2026-05-15 lesson) | Out of scope — backend unchanged. The fix is already in `Code.gs`. |
 
-## Open questions (non-blocking)
+### Open questions (non-blocking)
 
 - Custom domain choice (`homehd.<yourdomain>` vs accept `homehd-personal.web.app`). Defaults to the `.web.app` URL until decided.
 - Whether to ship `apps-script/Code.gs` as a checked-in copy of the live Sheet-bound script for readability. Recommend yes — currently the live source is only visible inside the Sheet's editor, which is fragile.
