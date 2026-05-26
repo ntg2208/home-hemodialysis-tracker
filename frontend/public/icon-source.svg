@@ -1,0 +1,12 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" fill="#0f172a"/>
+  <!-- Droplet centered, ~70% of canvas height -->
+  <g transform="translate(256 256)">
+    <path d="M 0 -170 C 0 -170 -120 -32 -120 60 a 120 120 0 1 0 240 0 C 120 -32 0 -170 0 -170 z"
+          fill="#22d3ee"/>
+    <!-- ECG-style pulse line cutting through the droplet -->
+    <path d="M -86 64 L -46 64 L -26 18 L 8 116 L 32 32 L 60 64 L 96 64"
+          stroke="#0f172a" stroke-width="16" fill="none"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -1,0 +1,6 @@
+# tsc -b compiled outputs from tsconfig.node.json
+tailwind.config.js
+tailwind.config.d.ts
+postcss.config.d.ts
+dist/
+node_modules/
