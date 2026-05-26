@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import {
   createBrowserRouter,
   RouterProvider,
@@ -17,7 +17,7 @@ const Inventory = lazy(() => import('./routes/Inventory'));
 const Fitness = lazy(() => import('./routes/Fitness'));
 const Chat = lazy(() => import('./routes/Chat'));
 
-function AuthGuard({ children }: { children: React.ReactNode }) {
+function AuthGuard({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const [checked, setChecked] = useState(false);
 
