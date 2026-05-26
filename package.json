@@ -1,0 +1,11 @@
+{
+  "name": "homehd",
+  "private": true,
+  "workspaces": ["frontend", "api"],
+  "scripts": {
+    "build-data": "tsx scripts/build-data.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}

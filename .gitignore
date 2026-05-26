@@ -34,3 +34,20 @@ dashboard/node_modules/
 dashboard/dist/
 dashboard/.wrangler/
 dashboard/.dev.vars
+
+# Personal health data — never commit
+scripts/pkb_backfill/blood_tests.csv
+scripts/pkb_backfill/pastes/
+scripts/pkb_backfill/*.txt
+api/src/data/
+
+# Firebase / GCP local
+.firebase/
+firebase-debug.log
+*-debug.log
+.dev.vars
+
+# Build artifacts
+frontend/dist/
+api/dist/
+**/node_modules/
