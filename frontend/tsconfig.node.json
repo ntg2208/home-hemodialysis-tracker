@@ -6,7 +6,10 @@
     "moduleResolution": "bundler",
     "skipLibCheck": true,
     "strict": true,
-    "composite": true
+    "composite": true,
+    "allowSyntheticDefaultImports": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
   },
-  "include": ["vite.config.ts", "tailwind.config.ts", "postcss.config.js"]
+  "include": ["vite.config.ts", "vitest.config.ts", "tailwind.config.ts", "postcss.config.js"]
 }
