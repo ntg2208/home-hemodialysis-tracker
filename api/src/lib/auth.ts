@@ -2,7 +2,7 @@ import type { MiddlewareHandler } from 'hono';
 
 export function bearerAuth(getKey: () => string | undefined): MiddlewareHandler {
   return async (c, next) => {
-    const key = getKey();
+    const key = getKey()?.trim();
     if (!key) {
       return c.json({ error: 'server_misconfigured', message: 'API key env var not set.' }, 500);
     }
