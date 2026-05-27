@@ -58,7 +58,9 @@ export async function exchangeCode({
   }
   const data = (await res.json()) as Record<string, unknown>;
   if (typeof data['access_token'] !== 'string' || typeof data['refresh_token'] !== 'string') {
-    throw new Error(`Token exchange response missing tokens: ${JSON.stringify(data)}`);
+    throw new Error(
+      `Token exchange response missing tokens. Present keys: ${Object.keys(data).join(', ')}`
+    );
   }
   return { accessToken: data['access_token'], refreshToken: data['refresh_token'] };
 }
@@ -88,7 +90,9 @@ export async function refreshAccessToken({
   }
   const data = (await res.json()) as Record<string, unknown>;
   if (typeof data['access_token'] !== 'string') {
-    throw new Error(`Token refresh response missing access_token: ${JSON.stringify(data)}`);
+    throw new Error(
+      `Token refresh response missing access_token. Present keys: ${Object.keys(data).join(', ')}`
+    );
   }
   return data['access_token'];
 }
