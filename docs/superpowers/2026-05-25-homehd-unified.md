@@ -528,7 +528,7 @@ Mirroring the existing "light by design" stance — single-user app, manual acce
 
 ### Open questions (non-blocking)
 
-- Custom domain choice (`homehd.<yourdomain>` vs accept `homehd-personal.web.app`). Defaults to the `.web.app` URL until decided.
+- Custom domain choice (`homehd.<yourdomain>` vs accept `homehd.web.app`). Defaults to the `.web.app` URL until decided.
 - Whether to ship `apps-script/Code.gs` as a checked-in copy of the live Sheet-bound script for readability. Recommend yes — currently the live source is only visible inside the Sheet's editor, which is fragile.
 - Whether to add `GET /api/blood-tests/markers` (a thin endpoint returning the canonical marker list) in Phase 2 or defer. Defer — `useMemo` over the bulk-fetched rows is fine for now.
 - Whether placeholder routes should be visible-but-disabled tabs from day one or hidden until each feature lands. Recommend visible — clearer app shape, and the bottom-tab bar's column count is more stable as features land.
@@ -1934,11 +1934,11 @@ Expected: exits 0; `dist/` present.
 firebase deploy --only hosting
 ```
 
-Expected output includes `Hosting URL: https://homehd-personal.web.app` (or similar). Note the URL.
+Expected output includes `Hosting URL: https://homehd.web.app` (or similar). Note the URL.
 
 - [ ] **Step 3: Install as PWA on Android alongside the existing Cloudflare PWA**
 
-1. Open `https://homehd-personal.web.app` in Chrome on Android.
+1. Open `https://homehd.web.app` in Chrome on Android.
 2. Browser menu → "Add to home screen" → Install.
 3. Open the new app. You should reach the Setup screen.
 4. Enter: Main API key (any non-empty string for now), Apps Script URL, Apps Script secret (from macOS Keychain: `security find-generic-password -a "$USER" -s "hd-tracker-secret" -w`).
@@ -1960,7 +1960,7 @@ Expected: the session you just ran appears in `sessions`. Check the Sheet direct
 
 ```bash
 git add .firebase/ firebase.json .firebaserc
-git commit -m "chore: Phase 1 Firebase deploy — Treatment route live on homehd-personal.web.app"
+git commit -m "chore: Phase 1 Firebase deploy — Treatment route live on homehd.web.app"
 ```
 
 The old Cloudflare PWA stays installed on the phone for ~4 weeks as fallback. Do not uninstall it yet.
@@ -2719,7 +2719,7 @@ firebase deploy --only hosting
 - [ ] **Step 3: Verify the rewrite is live**
 
 ```bash
-export HOSTING_URL='https://homehd-personal.web.app'
+export HOSTING_URL='https://homehd.web.app'
 export MAIN_KEY=$(security find-generic-password -a "$USER" -s "homehd-main-key" -w)
 
 curl -s "$HOSTING_URL/api/health"
