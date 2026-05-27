@@ -1,7 +1,13 @@
 // Google Health API data types to sync.
 // Verify slugs at https://developers.google.com/health/data-types before first deploy.
-export const SYNC_TYPES = ['steps', 'resting-heart-rate', 'sleep', 'oxygen-saturation'] as const;
+// 'oxygen-saturation' slug unconfirmed for daily rollup — verify on first live call (may need 'daily-oxygen-saturation')
+export const SYNC_TYPES = ['steps', 'daily-resting-heart-rate', 'sleep', 'oxygen-saturation'] as const;
 export type SyncType = (typeof SYNC_TYPES)[number];
+
+function parseCivilDate(date: string): { year: number; month: number; day: number } {
+  const [year, month, day] = date.split('-').map(Number);
+  return { year, month, day };
+}
 
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const HEALTH_BASE = 'https://health.googleapis.com/v4';
@@ -120,7 +126,12 @@ export async function fetchDailyRollUp({
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ start_time: startDate, end_time: endDate }),
+    body: JSON.stringify({
+      range: {
+        start: parseCivilDate(startDate),
+        end: parseCivilDate(endDate),
+      },
+    }),
   });
   if (!res.ok) {
     const text = await res.text();

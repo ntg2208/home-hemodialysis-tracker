@@ -89,12 +89,22 @@ describe('refreshAccessToken', () => {
 describe('fetchDailyRollUp', () => {
   it('returns parsed JSON on 200', async () => {
     const mockData = { data: [{ date: '2026-05-27', value: 8000 }] };
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve(mockData),
-    }));
+    });
+    vi.stubGlobal('fetch', mockFetch);
     const result = await fetchDailyRollUp({ accessToken: 'at', dataType: 'steps', startDate: '2026-05-01', endDate: '2026-05-27' });
     expect(result).toEqual(mockData);
+
+    // Verify correct request body format (CivilDate range, not flat date strings)
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+    expect(body).toEqual({
+      range: {
+        start: { year: 2026, month: 5, day: 1 },
+        end:   { year: 2026, month: 5, day: 27 },
+      },
+    });
   });
 
   it('throws on HTTP error', async () => {
