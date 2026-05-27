@@ -4,6 +4,10 @@
     "public": "frontend/dist",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
+      {
+        "source": "/api/**",
+        "run": { "serviceId": "homehd-api", "region": "europe-west2" }
+      },
       { "source": "**", "destination": "/index.html" }
     ],
     "headers": [

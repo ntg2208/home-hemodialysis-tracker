@@ -42,7 +42,16 @@ export function SetupWizard({ onSaved, message }: Props) {
 
     setBusy(true);
     try {
+      // Probe the main key against /api/blood-tests (cheap: returns 0 rows for a far-future to date)
+      const apiRes = await fetch('/api/blood-tests?to=1900-01-01', {
+        headers: { Authorization: `Bearer ${mainKey.trim()}` },
+      });
+      if (apiRes.status === 401) throw new Error('Main API key rejected — check the value and try again.');
+      if (!apiRes.ok) throw new Error(`/api/blood-tests returned ${apiRes.status}. Is the API running?`);
+
+      // Probe the Apps Script
       await probeAppsScript(parsedUrl.toString(), secret.trim());
+
       const settings: AuthSettings = {
         mainKey: mainKey.trim(),
         appsScriptUrl: parsedUrl.toString(),
