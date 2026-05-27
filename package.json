@@ -1,11 +1,15 @@
 {
   "name": "homehd",
   "private": true,
-  "workspaces": ["frontend", "api"],
+  "workspaces": [
+    "frontend",
+    "api"
+  ],
   "scripts": {
     "build-data": "tsx scripts/build-data.ts"
   },
   "devDependencies": {
+    "csv-parse": "^6.2.1",
     "tsx": "^4.19.0"
   }
 }
