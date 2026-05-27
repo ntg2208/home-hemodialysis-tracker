@@ -41,7 +41,7 @@ export async function readJson(path: string): Promise<unknown | null> {
     const [contents] = await getStorage().bucket(BUCKET).file(path).download();
     return JSON.parse(contents.toString('utf8'));
   } catch (err: unknown) {
-    if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === '404') {
+    if (err instanceof Error && 'code' in err && (err as { code?: number }).code === 404) {
       return null;
     }
     throw err;
@@ -52,7 +52,7 @@ export type SyncState = Record<string, string>; // { steps: 'YYYY-MM-DD', ... }
 
 export async function readSyncState(): Promise<SyncState> {
   const raw = await readJson(syncStatePath());
-  if (!raw || typeof raw !== 'object') return {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
   return raw as SyncState;
 }
 
