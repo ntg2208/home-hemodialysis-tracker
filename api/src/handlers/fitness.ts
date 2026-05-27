@@ -97,14 +97,14 @@ export const fitness = new Hono()
       const syncState: SyncState = await readSyncState();
       const endDate = yesterday();
 
-      const summary: Record<string, { from: string; to: string; files: number }> = {};
+      const summary: Record<string, { from: string; to: string; days_covered: number }> = {};
 
       for (const type of SYNC_TYPES) {
         const lastSynced = syncState[type];
         const startDate = lastSynced ? nextDay(lastSynced) : daysAgo(backfillDays);
 
         if (startDate > endDate) {
-          summary[type] = { from: startDate, to: endDate, files: 0 };
+          summary[type] = { from: startDate, to: endDate, days_covered: 0 };
           continue;
         }
 
@@ -122,7 +122,7 @@ export const fitness = new Hono()
         });
 
         syncState[type] = endDate;
-        summary[type] = { from: startDate, to: endDate, files: dateRange(startDate, endDate).length };
+        summary[type] = { from: startDate, to: endDate, days_covered: dateRange(startDate, endDate).length };
       }
 
       await writeSyncState(syncState);

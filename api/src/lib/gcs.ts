@@ -9,8 +9,8 @@ function getStorage(): Storage {
 }
 
 // Pure path helpers — testable without GCP
-export function dataTypePath(type: string, date: string): string {
-  return `raw/${type}/${date}.json`;
+export function dataTypePath(type: string, segment: string): string {
+  return `raw/${type}/${segment}.json`;
 }
 
 export function syncStatePath(): string {
