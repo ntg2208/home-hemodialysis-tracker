@@ -19,3 +19,11 @@ export const BloodTestRowSchema = z.object({
 });
 
 export type BloodTestRow = z.infer<typeof BloodTestRowSchema>;
+
+export const BloodTestRowInputSchema = BloodTestRowSchema.omit({ created_at: true });
+export type BloodTestRowInput = z.infer<typeof BloodTestRowInputSchema>;
+
+export const PostBodySchema = z.object({
+  rows: z.array(BloodTestRowInputSchema).min(1).max(100),
+});
+export type PostBody = z.infer<typeof PostBodySchema>;
