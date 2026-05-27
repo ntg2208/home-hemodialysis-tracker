@@ -23,6 +23,11 @@ describe('buildOAuthUrl', () => {
     const scope = new URL(url).searchParams.get('scope') ?? '';
     expect(scope).toContain('googlehealth');
   });
+
+  it('includes state param when provided', () => {
+    const url = buildOAuthUrl({ clientId: 'x', redirectUri: 'https://x.com', state: 'test-state' });
+    expect(new URL(url).searchParams.get('state')).toBe('test-state');
+  });
 });
 
 describe('exchangeCode', () => {

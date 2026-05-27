@@ -15,9 +15,11 @@ const SCOPES = [
 export function buildOAuthUrl({
   clientId,
   redirectUri,
+  state,
 }: {
   clientId: string;
   redirectUri: string;
+  state?: string;
 }): string {
   const params = new URLSearchParams({
     client_id: clientId,
@@ -27,6 +29,7 @@ export function buildOAuthUrl({
     access_type: 'offline',
     prompt: 'consent', // forces refresh_token to always be returned
   });
+  if (state) params.set('state', state);
   return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
 }
 
