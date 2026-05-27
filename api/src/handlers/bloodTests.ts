@@ -48,7 +48,10 @@ export const bloodTests = new Hono()
     const snap = await getDb().collection('blood_tests').get();
     const firestoreRows: BloodTestRow[] = snap.docs
       .map((d) => BloodTestRowSchema.safeParse(d.data()))
-      .filter((r): r is { success: true; data: BloodTestRow } => r.success)
+      .filter((r): r is { success: true; data: BloodTestRow } => {
+        if (!r.success) console.warn('bloodTests GET: Firestore doc failed validation', r.error.issues);
+        return r.success;
+      })
       .map((r) => r.data);
 
     const merged = mergeRows(staticRows, firestoreRows);

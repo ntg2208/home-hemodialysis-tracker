@@ -45,6 +45,7 @@ const validRow = {
 
 describe('GET /api/blood-tests', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     mockGet.mockResolvedValue({ docs: [] });
   });
 
@@ -79,6 +80,7 @@ describe('GET /api/blood-tests', () => {
 
 describe('POST /api/blood-tests', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     mockCommit.mockResolvedValue(undefined);
     mockSet.mockReturnValue(undefined);
     mockDoc.mockReturnValue({});
