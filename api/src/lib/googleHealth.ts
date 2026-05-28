@@ -1,12 +1,23 @@
-// Google Health API data types to sync.
-// Verify slugs at https://developers.google.com/health/data-types before first deploy.
-// 'oxygen-saturation' slug unconfirmed for daily rollup — verify on first live call (may need 'daily-oxygen-saturation')
 export const SYNC_TYPES = ['steps', 'daily-resting-heart-rate', 'sleep', 'oxygen-saturation'] as const;
 export type SyncType = (typeof SYNC_TYPES)[number];
 
-function parseCivilDate(date: string): { year: number; month: number; day: number } {
+// Per-type fetch strategy. dailyRollUp supports interval types (≤90 days/call);
+// list supports daily/sample/session types via filter expressions.
+export type FetchStrategy =
+  | { method: 'dailyRollUp' }
+  | { method: 'list'; filterField: string; filterDateField: 'date' | 'civil_start_time' | 'civil_end_time' | 'civil_time' };
+
+export const SYNC_TYPE_STRATEGY: Record<SyncType, FetchStrategy> = {
+  'steps':                   { method: 'dailyRollUp' },
+  'daily-resting-heart-rate':{ method: 'list', filterField: 'daily_resting_heart_rate', filterDateField: 'date' },
+  'sleep':                   { method: 'list', filterField: 'sleep',                    filterDateField: 'civil_end_time' },
+  'oxygen-saturation':       { method: 'list', filterField: 'oxygen_saturation',        filterDateField: 'civil_time' },
+};
+
+
+function parseCivilDate(date: string): { date: { year: number; month: number; day: number } } {
   const [year, month, day] = date.split('-').map(Number);
-  return { year, month, day };
+  return { date: { year, month, day } };
 }
 
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
@@ -15,6 +26,7 @@ const HEALTH_BASE = 'https://health.googleapis.com/v4';
 const SCOPES = [
   'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly',
   'https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly',
+  'https://www.googleapis.com/auth/googlehealth.sleep.readonly',
 ].join(' ');
 
 export function buildOAuthUrl({
@@ -137,4 +149,60 @@ export async function fetchDailyRollUp({
     throw new Error(`fetchDailyRollUp(${dataType}) failed: ${res.status} ${text}`);
   }
   return res.json();
+}
+
+// Fetch all data points for a type using the list endpoint (with pagination).
+// filterField: snake_case type name (e.g. 'daily_resting_heart_rate')
+// filterDateField: which date sub-field to filter on
+// startDate/endDate: YYYY-MM-DD inclusive range (endDate converted to exclusive internally)
+export async function fetchListAll({
+  accessToken,
+  dataType,
+  filterField,
+  filterDateField,
+  startDate,
+  endDate,
+}: {
+  accessToken: string;
+  dataType: string;
+  filterField: string;
+  filterDateField: 'date' | 'civil_start_time' | 'civil_end_time' | 'civil_time';
+  startDate: string;
+  endDate: string;  // inclusive
+}): Promise<unknown[]> {
+  const baseUrl = `${HEALTH_BASE}/users/me/dataTypes/${dataType}/dataPoints`;
+  const filterKey = filterDateField === 'date'
+    ? `${filterField}.date`
+    : filterDateField === 'civil_start_time'
+      ? `${filterField}.interval.civil_start_time`
+      : filterDateField === 'civil_end_time'
+        ? `${filterField}.interval.civil_end_time`
+        : `${filterField}.sample_time.civil_time`;
+
+  // Compute exclusive end date for filter
+  const endExclusive = new Date(endDate);
+  endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+  const endExclusiveStr = endExclusive.toISOString().slice(0, 10);
+
+  const filter = `${filterKey} >= "${startDate}" AND ${filterKey} < "${endExclusiveStr}"`;
+
+  const allPoints: unknown[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const params = new URLSearchParams({ filter, pageSize: '10000' });
+    if (pageToken) params.set('pageToken', pageToken);
+    const res = await fetch(`${baseUrl}?${params}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`fetchList(${dataType}) failed: ${res.status} ${text}`);
+    }
+    const data = (await res.json()) as { dataPoints?: unknown[]; nextPageToken?: string };
+    if (Array.isArray(data.dataPoints)) allPoints.push(...data.dataPoints);
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  return allPoints;
 }

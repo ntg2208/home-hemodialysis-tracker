@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
-import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
-import { randomBytes } from 'node:crypto';
 import {
   buildOAuthUrl,
   exchangeCode,
   SYNC_TYPES,
+  SYNC_TYPE_STRATEGY,
   refreshAccessToken,
   fetchDailyRollUp,
+  fetchListAll,
 } from '../lib/googleHealth.js';
 import { getRefreshToken, setRefreshToken } from '../lib/secretManager.js';
 import {
@@ -44,19 +44,25 @@ function nextDay(date: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Split an inclusive date range into chunks of at most `chunkDays` days each.
+function chunkDateRange(startInclusive: string, endInclusive: string, chunkDays: number): Array<[string, string]> {
+  const chunks: Array<[string, string]> = [];
+  let cursor = startInclusive;
+  while (cursor <= endInclusive) {
+    const chunkEnd = new Date(cursor);
+    chunkEnd.setUTCDate(chunkEnd.getUTCDate() + chunkDays - 1);
+    const chunkEndStr = chunkEnd.toISOString().slice(0, 10);
+    chunks.push([cursor, chunkEndStr < endInclusive ? chunkEndStr : endInclusive]);
+    cursor = nextDay(chunks[chunks.length - 1][1]);
+  }
+  return chunks;
+}
+
 // Routes registered pre-auth on `app` in index.ts — no bearer token needed
 export const fitnessOAuth = new Hono()
   .get('/oauth/start', (c) => {
     const { clientId, redirectUri } = getOAuthConfig();
-    const state = randomBytes(16).toString('hex');
-    setCookie(c, 'oauth_state', state, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'Lax',
-      path: '/',
-      maxAge: 600,
-    });
-    return c.redirect(buildOAuthUrl({ clientId, redirectUri, state }));
+    return c.redirect(buildOAuthUrl({ clientId, redirectUri }));
   })
   .get('/oauth/callback', async (c) => {
     try {
@@ -65,13 +71,6 @@ export const fitnessOAuth = new Hono()
 
       const code = c.req.query('code');
       if (!code) return c.text('Missing code param', 400);
-
-      const stateParam = c.req.query('state');
-      const stateCookie = getCookie(c, 'oauth_state');
-      if (!stateParam || !stateCookie || stateParam !== stateCookie) {
-        return c.text('State mismatch — possible CSRF. Please try again from /oauth/start.', 400);
-      }
-      deleteCookie(c, 'oauth_state', { path: '/' });
 
       const { clientId, clientSecret, redirectUri } = getOAuthConfig();
       const { refreshToken } = await exchangeCode({ code, clientId, clientSecret, redirectUri });
@@ -95,7 +94,7 @@ export const fitness = new Hono()
       const accessToken = await refreshAccessToken({ refreshToken, clientId, clientSecret });
 
       const syncState: SyncState = await readSyncState();
-      const endDate = yesterday();
+      const lastInclusiveDate = yesterday();
 
       const summary: Record<string, { from: string; to: string; days_covered: number }> = {};
 
@@ -103,26 +102,54 @@ export const fitness = new Hono()
         const lastSynced = syncState[type];
         const startDate = lastSynced ? nextDay(lastSynced) : daysAgo(backfillDays);
 
-        if (startDate > endDate) {
-          summary[type] = { from: startDate, to: endDate, days_covered: 0 };
+        if (startDate > lastInclusiveDate) {
+          summary[type] = { from: startDate, to: lastInclusiveDate, days_covered: 0 };
           continue;
         }
 
-        const raw = await fetchDailyRollUp({ accessToken, dataType: type, startDate, endDate });
+        const strategy = SYNC_TYPE_STRATEGY[type];
+        let totalDays = 0;
 
-        // Store one file per date range (not per day) — the dailyRollUp response covers the full
-        // range in a single payload. Per-day splitting deferred to a later processing step once
-        // the actual response shape is understood from the first live call.
-        const path = dataTypePath(type, `${startDate}_to_${endDate}`);
-        await uploadJson(path, {
-          fetched_at: new Date().toISOString(),
-          start: startDate,
-          end: endDate,
-          data: raw,
-        });
+        if (strategy.method === 'dailyRollUp') {
+          const chunks = chunkDateRange(startDate, lastInclusiveDate, 90);
+          for (const [chunkStart, chunkEnd] of chunks) {
+            const raw = await fetchDailyRollUp({
+              accessToken,
+              dataType: type,
+              startDate: chunkStart,
+              endDate: nextDay(chunkEnd), // API end is exclusive
+            });
+            const path = dataTypePath(type, `${chunkStart}_to_${chunkEnd}`);
+            await uploadJson(path, {
+              fetched_at: new Date().toISOString(),
+              start: chunkStart,
+              end: chunkEnd,
+              data: raw,
+            });
+            totalDays += dateRange(chunkStart, chunkEnd).length;
+          }
+        } else {
+          const points = await fetchListAll({
+            accessToken,
+            dataType: type,
+            filterField: strategy.filterField,
+            filterDateField: strategy.filterDateField,
+            startDate,
+            endDate: lastInclusiveDate,
+          });
+          const path = dataTypePath(type, `${startDate}_to_${lastInclusiveDate}`);
+          await uploadJson(path, {
+            fetched_at: new Date().toISOString(),
+            start: startDate,
+            end: lastInclusiveDate,
+            count: points.length,
+            data: points,
+          });
+          totalDays = dateRange(startDate, lastInclusiveDate).length;
+        }
 
-        syncState[type] = endDate;
-        summary[type] = { from: startDate, to: endDate, days_covered: dateRange(startDate, endDate).length };
+        syncState[type] = lastInclusiveDate;
+        summary[type] = { from: startDate, to: lastInclusiveDate, days_covered: totalDays };
       }
 
       await writeSyncState(syncState);

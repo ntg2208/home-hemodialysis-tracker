@@ -94,9 +94,9 @@ describe('POST /api/blood-tests', () => {
     expect(body.count).toBe(1);
   });
 
-  it('writes to Firestore keyed by lab_id with server-set created_at', async () => {
+  it('writes to Firestore keyed by lab_id_marker with server-set created_at', async () => {
     await post(makeApp(), { rows: [validRow] });
-    expect(mockDoc).toHaveBeenCalledWith('99261234567');
+    expect(mockDoc).toHaveBeenCalledWith('99261234567_creatinine');
     expect(mockSet).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ lab_id: '99261234567', created_at: expect.any(String) }),

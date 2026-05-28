@@ -18,7 +18,7 @@ export const ApplyDeliveryBodySchema = z.object({
 });
 export type ApplyDeliveryBody = z.infer<typeof ApplyDeliveryBodySchema>;
 
-const CycleSchema = z.object({
+export const CycleSchema = z.object({
   call_date: z.string(),
   delivery_date: z.string(),
   order: z.record(z.string(), z.number()).optional(),

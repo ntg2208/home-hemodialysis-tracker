@@ -76,7 +76,7 @@ export const bloodTests = new Hono()
     const col = db.collection('blood_tests');
     const batch = db.batch();
     for (const row of parsed.data.rows) {
-      batch.set(col.doc(row.lab_id), { ...row, created_at: now });
+      batch.set(col.doc(`${row.lab_id}_${row.marker}`), { ...row, created_at: now });
     }
     await batch.commit();
 
