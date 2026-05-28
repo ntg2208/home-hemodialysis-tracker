@@ -39,3 +39,31 @@ export async function cloudGet<T>(
   }
   return body as T;
 }
+
+export async function cloudPost<T>(
+  auth: AuthSettings,
+  path: string,
+  body: unknown,
+): Promise<T> {
+  const url = new URL(path, window.location.origin).toString();
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${auth.mainKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new CloudRunError('network', 'Could not reach the server.');
+  }
+  if (res.status === 401) throw new CloudRunError('unauthorized', 'Access key rejected.');
+  if (!res.ok) throw new CloudRunError('server', `Server error (${res.status}).`);
+  let responseBody: unknown;
+  try { responseBody = await res.json(); } catch {
+    throw new CloudRunError('bad_data', 'Server returned invalid JSON.');
+  }
+  return responseBody as T;
+}

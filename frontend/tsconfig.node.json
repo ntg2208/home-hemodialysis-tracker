@@ -6,7 +6,6 @@
     "moduleResolution": "bundler",
     "skipLibCheck": true,
     "strict": true,
-    "composite": true,
     "allowSyntheticDefaultImports": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true
