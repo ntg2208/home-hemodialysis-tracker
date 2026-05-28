@@ -48,6 +48,14 @@ describe('ConfirmOrderBodySchema', () => {
     const r = ConfirmOrderBodySchema.safeParse({ call_date: '23-06-2026', order: {} });
     expect(r.success).toBe(false);
   });
+
+  it('rejects negative order values', () => {
+    const r = ConfirmOrderBodySchema.safeParse({
+      call_date: '2026-06-23',
+      order: { 'SAK-303': -1 },
+    });
+    expect(r.success).toBe(false);
+  });
 });
 
 describe('ApplyDeliveryBodySchema', () => {
@@ -59,6 +67,11 @@ describe('ApplyDeliveryBodySchema', () => {
   it('accepts adjustments', () => {
     const r = ApplyDeliveryBodySchema.safeParse({ adjustments: { 'SAK-303': 14 } });
     expect(r.success).toBe(true);
+  });
+
+  it('rejects float adjustments', () => {
+    const r = ApplyDeliveryBodySchema.safeParse({ adjustments: { 'SAK-303': 2.5 } });
+    expect(r.success).toBe(false);
   });
 });
 

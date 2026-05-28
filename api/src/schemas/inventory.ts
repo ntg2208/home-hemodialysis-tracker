@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const EventBodySchema = z.object({
   type: z.enum(['session', 'manual', 'stock_count']),
-  deltas: z.record(z.string(), z.number()),
+  deltas: z.record(z.string(), z.number().int()),
   note: z.string().optional(),
 });
 export type EventBody = z.infer<typeof EventBodySchema>;
@@ -19,8 +19,8 @@ export const ApplyDeliveryBodySchema = z.object({
 export type ApplyDeliveryBody = z.infer<typeof ApplyDeliveryBodySchema>;
 
 export const CycleSchema = z.object({
-  call_date: z.string(),
-  delivery_date: z.string(),
+  call_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  delivery_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   order: z.record(z.string(), z.number()).optional(),
   order_placed_at: z.string().nullable(),
   delivery_applied_at: z.string().nullable(),
