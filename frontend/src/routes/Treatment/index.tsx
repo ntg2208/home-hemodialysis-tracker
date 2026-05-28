@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAuth } from '../../auth/storage';
+import { getAuth, type AuthSettings } from '../../auth/storage';
 import {
   clearActiveState,
   getActiveState,
   saveActiveState,
 } from './storage';
+import type { SessionConsumed } from './storage';
 import type { PendingReading, Session, Settings } from './schemas';
 import { Home } from './screens/Home';
 import { PreTreatment } from './screens/PreTreatment';
@@ -16,17 +17,19 @@ type Screen =
   | { name: 'loading' }
   | { name: 'home' }
   | { name: 'pre'; existingIds: string[] }
-  | { name: 'active'; session: Session; readings: PendingReading[] }
-  | { name: 'post'; session: Session };
+  | { name: 'active'; session: Session; readings: PendingReading[]; heparinUsed: boolean }
+  | { name: 'post'; session: Session; consumed: SessionConsumed };
 
 export default function Treatment() {
   const navigate = useNavigate();
   const [screen, setScreen] = useState<Screen>({ name: 'loading' });
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [auth, setAuth] = useState<AuthSettings | null>(null);
 
   useEffect(() => {
     getAuth().then(auth => {
       if (!auth) { navigate('/setup', { replace: true }); return; }
+      setAuth(auth);
       const s: Settings = {
         script_url: auth.appsScriptUrl,
         shared_secret: auth.appsScriptSecret,
@@ -39,9 +42,10 @@ export default function Treatment() {
         const readings = (active.readings ?? []).map(r =>
           r.status === 'pending' ? { ...r, status: 'error' as const, errorMsg: 'interrupted' } : r
         );
-        setScreen({ name: 'active', session: active.session, readings });
+        setScreen({ name: 'active', session: active.session, readings, heparinUsed: active.heparinUsed ?? false });
       } else if (active?.screen === 'post' && active.session) {
-        setScreen({ name: 'post', session: active.session });
+        const consumed: SessionConsumed = active.consumed ?? { needles: 2, onOffPacks: 1, heparinUsed: false };
+        setScreen({ name: 'post', session: active.session, consumed });
       } else {
         setScreen({ name: 'home' });
       }
@@ -52,9 +56,9 @@ export default function Treatment() {
     if (screen.name === 'pre') {
       saveActiveState({ screen: 'pre', existingIds: screen.existingIds });
     } else if (screen.name === 'active') {
-      saveActiveState({ screen: 'active', session: screen.session, readings: screen.readings });
+      saveActiveState({ screen: 'active', session: screen.session, readings: screen.readings, heparinUsed: screen.heparinUsed });
     } else if (screen.name === 'post') {
-      saveActiveState({ screen: 'post', session: screen.session });
+      saveActiveState({ screen: 'post', session: screen.session, consumed: screen.consumed });
     } else if (screen.name === 'home') {
       clearActiveState();
     }
@@ -76,8 +80,11 @@ export default function Treatment() {
     return (
       <PreTreatment
         settings={settings}
+        auth={auth}
         existingIds={screen.existingIds}
-        onSaved={session => setScreen({ name: 'active', session, readings: [] })}
+        onSaved={(session, heparinUsed) =>
+          setScreen({ name: 'active', session, readings: [], heparinUsed })
+        }
         onCancel={() => setScreen({ name: 'home' })}
       />
     );
@@ -91,7 +98,9 @@ export default function Treatment() {
         onReadingsChange={rs =>
           setScreen(s => (s.name === 'active' ? { ...s, readings: rs } : s))
         }
-        onEnd={() => setScreen({ name: 'post', session: screen.session })}
+        onEnd={consumed =>
+          setScreen({ name: 'post', session: screen.session, consumed: { ...consumed, heparinUsed: screen.heparinUsed } })
+        }
       />
     );
   }
@@ -99,7 +108,9 @@ export default function Treatment() {
     return (
       <PostTreatment
         settings={settings}
+        auth={auth}
         session={screen.session}
+        consumed={screen.consumed}
         onSaved={() => setScreen({ name: 'home' })}
       />
     );

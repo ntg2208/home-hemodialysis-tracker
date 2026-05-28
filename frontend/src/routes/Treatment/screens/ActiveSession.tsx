@@ -3,19 +3,22 @@ import { Activity, AlertCircle, Check, Droplets, Heart, Loader2, Plus, Scale, Sq
 import { ApiError, saveReading } from '../api';
 import { AddReadingModal } from '../components/AddReadingModal';
 import type { PendingReading, Reading, Session, Settings } from '../schemas';
+import type { SessionConsumed } from '../storage';
 
 interface Props {
   settings: Settings;
   session: Session;
   initialReadings?: PendingReading[];
   onReadingsChange?: (rs: PendingReading[]) => void;
-  onEnd: () => void;
+  onEnd: (consumed: Omit<SessionConsumed, 'heparinUsed'>) => void;
 }
 
 export function ActiveSession({ settings, session, initialReadings, onReadingsChange, onEnd }: Props) {
   const sessionId = session.session_id;
   const [readings, setReadings] = useState<PendingReading[]>(initialReadings ?? []);
   const [modalOpen, setModalOpen] = useState(false);
+  const [needles, setNeedles] = useState(2);
+  const [onOffPacks, setOnOffPacks] = useState(1);
 
   // Skip notifying on mount — the initial readings already came from the
   // parent's persisted state, echoing them back would be a no-op write.
@@ -78,7 +81,7 @@ export function ActiveSession({ settings, session, initialReadings, onReadingsCh
         </h1>
         <button
           type="button"
-          onClick={onEnd}
+          onClick={() => onEnd({ needles, onOffPacks })}
           className="text-sm text-accent inline-flex items-center gap-1"
         >
           <Square size={14} fill="currentColor" /> End
@@ -111,6 +114,35 @@ export function ActiveSession({ settings, session, initialReadings, onReadingsCh
       >
         <Plus size={22} /> Add reading
       </button>
+
+      {/* Consumed this session */}
+      <div className="bg-panel border border-slate-700 rounded-lg px-3 py-2">
+        <p className="text-xs text-slate-500 mb-2">Consumed this session</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Needles used</label>
+            <input
+              type="number"
+              min="0"
+              inputMode="numeric"
+              value={needles}
+              onChange={e => setNeedles(Math.max(0, parseInt(e.target.value, 10) || 0))}
+              className="w-full bg-bg border border-slate-600 rounded px-2 py-1 text-sm text-slate-200 text-center"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">On/Off packs</label>
+            <input
+              type="number"
+              min="0"
+              inputMode="numeric"
+              value={onOffPacks}
+              onChange={e => setOnOffPacks(Math.max(0, parseInt(e.target.value, 10) || 0))}
+              className="w-full bg-bg border border-slate-600 rounded px-2 py-1 text-sm text-slate-200 text-center"
+            />
+          </div>
+        </div>
+      </div>
 
       <ul className="space-y-2">
         {sorted.length === 0 && <li className="text-slate-500 text-sm">No readings yet.</li>}

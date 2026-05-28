@@ -4,10 +4,14 @@ import { ApiError, updateSession } from '../api';
 import { NumberField } from '../components/NumberField';
 import { SaveButton } from '../components/SaveButton';
 import type { Session, Settings } from '../schemas';
+import type { AuthSettings } from '../../../auth/storage';
+import type { SessionConsumed } from '../storage';
 
 interface Props {
   settings: Settings;
+  auth: AuthSettings | null;
   session: Session;
+  consumed: SessionConsumed;
   onSaved: () => void;
 }
 
@@ -28,7 +32,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 const DEFAULT_DURATION_MIN = 255;
 const DEFAULT_DIALYSATE_VOLUME = 49;
 
-export function PostTreatment({ settings, session, onSaved }: Props) {
+export function PostTreatment({ settings, auth: _auth, session, consumed: _consumed, onSaved }: Props) {
   const sessionId = session.session_id;
   const [form, setForm] = useState<FormState>({
     duration_min: DEFAULT_DURATION_MIN,

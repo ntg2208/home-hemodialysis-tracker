@@ -6,11 +6,13 @@ import { nextSessionId, todayIso } from '../sessionId';
 import { NumberField } from '../components/NumberField';
 import { SaveButton } from '../components/SaveButton';
 import type { Session, Settings } from '../schemas';
+import type { AuthSettings } from '../../../auth/storage';
 
 interface Props {
   settings: Settings;
+  auth: AuthSettings | null;
   existingIds: string[];
-  onSaved: (session: Session) => void;
+  onSaved: (session: Session, heparinUsed: boolean) => void;
   onCancel: () => void;
 }
 
@@ -25,7 +27,7 @@ interface FormState {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-export function PreTreatment({ settings, existingIds, onSaved, onCancel }: Props) {
+export function PreTreatment({ settings, auth: _auth, existingIds, onSaved, onCancel }: Props) {
   const [form, setForm] = useState<FormState>({});
   const [goalTouched, setGoalTouched] = useState(false);
   const [rateTouched, setRateTouched] = useState(false);
@@ -75,7 +77,7 @@ export function PreTreatment({ settings, existingIds, onSaved, onCancel }: Props
       await saveSession(settings, session);
       // Local cache is a UX nicety; don't fail the submit if IDB write fails.
       saveLastSession(session).catch(() => {});
-      onSaved(session);
+      onSaved(session, false);
     } catch (e) {
       setError(e instanceof ApiError ? `Save failed: ${e.code}` : String(e));
     } finally {

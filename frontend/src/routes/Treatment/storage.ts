@@ -3,11 +3,19 @@ import type { PendingReading, Session } from './schemas';
 
 const ACTIVE_TTL_MS = 24 * 60 * 60 * 1000;
 
+export interface SessionConsumed {
+  needles: number;
+  onOffPacks: number;
+  heparinUsed: boolean;
+}
+
 export interface ActiveState {
   screen: 'pre' | 'active' | 'post';
   session?: Session;
   existingIds?: string[];
   readings?: PendingReading[];
+  heparinUsed?: boolean;    // carried from pre → active
+  consumed?: SessionConsumed;  // carried from active → post
   savedAt: number;
 }
 
