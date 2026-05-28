@@ -24,6 +24,7 @@ export default function Inventory() {
   const [modal, setModal] = useState<'log' | 'order' | 'delivery' | 'setup' | null>(null);
   const [setupDate, setSetupDate] = useState('');
   const [setupSaving, setSetupSaving] = useState(false);
+  const [setupError, setSetupError] = useState<string | null>(null);
 
   // Initial load
   useEffect(() => {
@@ -96,12 +97,13 @@ export default function Inventory() {
   async function handleSetupCycle() {
     if (!auth || !setupDate) return;
     setSetupSaving(true);
+    setSetupError(null);
     try {
       await initCycle(auth, setupDate);
       const fresh = await fetchInventory(auth);
       setState(s => s.status !== 'ready' ? s : { ...s, cycle: fresh.cycle });
       setModal(null);
-    } catch { /* show inline */ }
+    } catch { setSetupError('Save failed — please try again.'); }
     finally { setSetupSaving(false); }
   }
 
@@ -185,6 +187,7 @@ export default function Inventory() {
               onChange={e => setSetupDate(e.target.value)}
               className="w-full bg-panel border border-slate-600 rounded px-3 py-2 text-sm text-slate-200"
             />
+            {setupError && <p className="text-red-400 text-sm">{setupError}</p>}
             <div className="flex gap-2">
               <button type="button" onClick={() => setModal(null)} className="flex-1 border border-slate-600 text-slate-300 rounded-lg py-2 text-sm">Cancel</button>
               <button type="button" onClick={handleSetupCycle} disabled={!setupDate || setupSaving} className="flex-1 bg-accent text-bg font-semibold rounded-lg py-2 text-sm disabled:opacity-40">
