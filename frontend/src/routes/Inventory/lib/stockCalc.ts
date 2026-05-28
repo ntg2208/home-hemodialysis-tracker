@@ -1,4 +1,4 @@
-import { ITEMS, getItem } from '../constants';
+import { getItem } from '../constants';
 
 const RED_THRESHOLD = 8;    // < 2 weeks of sessions
 const AMBER_THRESHOLD = 16; // < 4 weeks of sessions

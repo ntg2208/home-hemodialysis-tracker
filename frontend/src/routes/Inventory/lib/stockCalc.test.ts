@@ -3,7 +3,6 @@ import {
   sessionsRemaining,
   stockStatus,
   needsOrdering,
-  orderUnits,
   orderBoxes,
   sortStock,
 } from './stockCalc';
