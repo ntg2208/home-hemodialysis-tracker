@@ -59,4 +59,84 @@ export const inventory = new Hono()
     await db.collection('inventory_events').add({ type, deltas, note: note ?? '', timestamp: now });
 
     return c.json({ ok: true });
+  })
+
+  .post('/confirm-order', async (c) => {
+    let body: unknown;
+    try { body = await c.req.json(); } catch {
+      return c.json({ error: 'invalid JSON' }, 400);
+    }
+    const parsed = ConfirmOrderBodySchema.safeParse(body);
+    if (!parsed.success) return c.json({ error: 'invalid request', details: parsed.error.issues }, 400);
+
+    const { call_date, order } = parsed.data;
+    const deliveryDate = addDays(call_date, 7);
+    const now = new Date().toISOString();
+    const hasOrder = Object.keys(order).length > 0;
+
+    await getDb().collection('inventory_config').doc('cycle').set({
+      call_date,
+      delivery_date: deliveryDate,
+      order,
+      order_placed_at: hasOrder ? now : null,
+      delivery_applied_at: null,
+    });
+
+    return c.json({ ok: true });
+  })
+
+  .post('/apply-delivery', async (c) => {
+    let body: unknown;
+    try { body = await c.req.json(); } catch {
+      return c.json({ error: 'invalid JSON' }, 400);
+    }
+    const parsed = ApplyDeliveryBodySchema.safeParse(body);
+    if (!parsed.success) return c.json({ error: 'invalid request', details: parsed.error.issues }, 400);
+
+    const db = getDb();
+    const cycleDoc = await db.collection('inventory_config').doc('cycle').get();
+    if (!cycleDoc.exists) return c.json({ error: 'no active cycle' }, 404);
+
+    const cycle = cycleDoc.data() as {
+      call_date: string;
+      order?: Record<string, number>;
+      order_placed_at: string | null;
+    };
+
+    const baseOrder = cycle.order ?? {};
+    const adjustments = parsed.data.adjustments ?? {};
+    const finalDelivery: Record<string, number> = { ...baseOrder, ...adjustments };
+
+    const now = new Date().toISOString();
+    const batch = db.batch();
+    for (const [code, qty] of Object.entries(finalDelivery)) {
+      const ref = db.collection('inventory_stock').doc(code);
+      batch.set(ref, { qty: FieldValue.increment(qty), updated_at: now }, { merge: true });
+    }
+    await batch.commit();
+
+    await db.collection('inventory_events').add({
+      type: 'delivery',
+      deltas: Object.fromEntries(Object.entries(finalDelivery).map(([k, v]) => [k, v])),
+      note: 'delivery applied',
+      timestamp: now,
+    });
+
+    const nextCallDate = addDays(cycle.call_date, 28);
+    const nextDeliveryDate = addDays(nextCallDate, 7);
+    await db.collection('inventory_config').doc('cycle').set({
+      call_date: nextCallDate,
+      delivery_date: nextDeliveryDate,
+      order: {},
+      order_placed_at: null,
+      delivery_applied_at: now,
+    });
+
+    return c.json({ ok: true });
   });
+
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}

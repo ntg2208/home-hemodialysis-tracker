@@ -149,3 +149,107 @@ describe('POST /api/inventory/event', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('POST /api/inventory/confirm-order', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.docSet.mockResolvedValue(undefined);
+    mocks.docGet.mockResolvedValue({ exists: false, data: () => undefined });
+    mocks.colGet.mockResolvedValue({ docs: [] });
+  });
+
+  it('returns ok:true on valid input', async () => {
+    const res = await post(makeApp(), '/confirm-order', {
+      call_date: '2026-06-23',
+      order: { 'SAK-303': 16 },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { ok: boolean };
+    expect(body.ok).toBe(true);
+  });
+
+  it('writes cycle doc with delivery_date = call_date + 7 days', async () => {
+    await post(makeApp(), '/confirm-order', {
+      call_date: '2026-06-23',
+      order: { 'SAK-303': 16 },
+    });
+    expect(mocks.docSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        call_date: '2026-06-23',
+        delivery_date: '2026-06-30',
+      }),
+    );
+  });
+
+  it('sets order_placed_at when order is non-empty', async () => {
+    await post(makeApp(), '/confirm-order', { call_date: '2026-06-23', order: { 'SAK-303': 16 } });
+    expect(mocks.docSet).toHaveBeenCalledWith(
+      expect.objectContaining({ order_placed_at: expect.any(String) }),
+    );
+  });
+
+  it('leaves order_placed_at null when order is empty (initial setup)', async () => {
+    await post(makeApp(), '/confirm-order', { call_date: '2026-06-23', order: {} });
+    expect(mocks.docSet).toHaveBeenCalledWith(
+      expect.objectContaining({ order_placed_at: null }),
+    );
+  });
+
+  it('returns 400 for malformed call_date', async () => {
+    const res = await post(makeApp(), '/confirm-order', { call_date: '23/06/2026', order: {} });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('POST /api/inventory/apply-delivery', () => {
+  const existingCycle = {
+    call_date: '2026-05-26',
+    delivery_date: '2026-06-02',
+    order: { 'SAK-303': 16, 'CAR-172-C': 18 },
+    order_placed_at: '2026-05-26T10:00:00Z',
+    delivery_applied_at: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.batchCommit.mockResolvedValue(undefined);
+    mocks.batchSet.mockReturnValue(undefined);
+    mocks.docGet.mockResolvedValue({ exists: true, data: () => existingCycle });
+    mocks.docSet.mockResolvedValue(undefined);
+    mocks.colAdd.mockResolvedValue({ id: 'event-id' });
+    mocks.colGet.mockResolvedValue({ docs: [] });
+  });
+
+  it('returns ok:true', async () => {
+    const res = await post(makeApp(), '/apply-delivery', {});
+    expect(res.status).toBe(200);
+    const body = await res.json() as { ok: boolean };
+    expect(body.ok).toBe(true);
+  });
+
+  it('applies order quantities as positive deltas to stock', async () => {
+    await post(makeApp(), '/apply-delivery', {});
+    // batchSet called for each item in order (SAK-303 and CAR-172-C)
+    expect(mocks.batchSet).toHaveBeenCalledTimes(2);
+    expect(mocks.batchCommit).toHaveBeenCalled();
+  });
+
+  it('applies adjustments that override the stored order', async () => {
+    await post(makeApp(), '/apply-delivery', { adjustments: { 'SAK-303': 14 } });
+    // SAK-303 should use 14 (adjustment), CAR-172-C should use 18 (from order)
+    expect(mocks.batchSet).toHaveBeenCalledTimes(2);
+  });
+
+  it('advances cycle call_date by 28 days', async () => {
+    await post(makeApp(), '/apply-delivery', {});
+    expect(mocks.docSet).toHaveBeenCalledWith(
+      expect.objectContaining({ call_date: '2026-06-23' }),
+    );
+  });
+
+  it('returns 404 when no cycle exists', async () => {
+    mocks.docGet.mockResolvedValue({ exists: false, data: () => undefined });
+    const res = await post(makeApp(), '/apply-delivery', {});
+    expect(res.status).toBe(404);
+  });
+});
