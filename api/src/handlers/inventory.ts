@@ -117,7 +117,7 @@ export const inventory = new Hono()
 
     await db.collection('inventory_events').add({
       type: 'delivery',
-      deltas: Object.fromEntries(Object.entries(finalDelivery).map(([k, v]) => [k, v])),
+      deltas: finalDelivery,
       note: 'delivery applied',
       timestamp: now,
     });
