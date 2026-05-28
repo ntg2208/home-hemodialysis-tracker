@@ -12,10 +12,9 @@ function parseCivilDate(date: string): { year: number; month: number; day: numbe
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const HEALTH_BASE = 'https://health.googleapis.com/v4';
 
-// Scopes — verify at https://developers.google.com/health/scopes
 const SCOPES = [
-  'https://www.googleapis.com/auth/googlehealth.activityandfitness',
-  'https://www.googleapis.com/auth/googlehealth.healthmetrics',
+  'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly',
+  'https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly',
 ].join(' ');
 
 export function buildOAuthUrl({
