@@ -16,3 +16,4 @@ export const InventoryResponseSchema = z.object({
 export type InventoryResponse = z.infer<typeof InventoryResponseSchema>;
 
 export const OkResponseSchema = z.object({ ok: z.literal(true) });
+export type OkResponse = z.infer<typeof OkResponseSchema>;
