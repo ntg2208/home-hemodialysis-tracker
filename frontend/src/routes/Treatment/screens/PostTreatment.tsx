@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { ApiError, updateSession } from '../api';
 import { NumberField } from '../components/NumberField';
 import { SaveButton } from '../components/SaveButton';
+import { cloudGet } from '../../../api/cloudRun';
+import { logEvent } from '../../Inventory/api';
+import { SESSION_FIXED_DELTAS } from '../../Inventory/constants';
 import type { Session, Settings } from '../schemas';
 import type { AuthSettings } from '../../../auth/storage';
 import type { SessionConsumed } from '../storage';
@@ -32,15 +35,24 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 const DEFAULT_DURATION_MIN = 255;
 const DEFAULT_DIALYSATE_VOLUME = 49;
 
-export function PostTreatment({ settings, auth: _auth, session, consumed: _consumed, onSaved }: Props) {
+export function PostTreatment({ settings, auth, session, consumed, onSaved }: Props) {
   const sessionId = session.session_id;
   const [form, setForm] = useState<FormState>({
-    duration_min: DEFAULT_DURATION_MIN,
+    duration_min: consumed.durationMin ?? DEFAULT_DURATION_MIN,
     dialysate_volume: DEFAULT_DIALYSATE_VOLUME,
   });
   const [totalUfTouched, setTotalUfTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [epoUsed, setEpoUsed] = useState(true);
+  const [epoStock, setEpoStock] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!auth) return;
+    cloudGet<{ stock: Record<string, number> }>(auth, '/api/inventory')
+      .then(data => setEpoStock(data.stock['epo'] ?? 0))
+      .catch(() => {});
+  }, [auth]);
 
   function update<K extends keyof FormState>(k: K, v: FormState[K]) {
     setForm(f => ({ ...f, [k]: v }));
@@ -64,6 +76,18 @@ export function PostTreatment({ settings, auth: _auth, session, consumed: _consu
         ...form,
         total_uf: effectiveTotalUf,
       });
+
+      if (auth) {
+        const deltas: Record<string, number> = {
+          ...SESSION_FIXED_DELTAS,
+          'P00012326': -consumed.needles,
+          'UK00000774': -consumed.onOffPacks,
+        };
+        if (consumed.heparinUsed) deltas['heparin'] = -1;
+        if (epoUsed) deltas['epo'] = -1;
+        logEvent(auth, 'session', deltas).catch(() => {});
+      }
+
       onSaved();
     } catch (e) {
       setError(e instanceof ApiError ? `Save failed: ${e.code}` : String(e));
@@ -92,6 +116,26 @@ export function PostTreatment({ settings, auth: _auth, session, consumed: _consu
           value={effectiveTotalUf}
           onChange={v => { setTotalUfTouched(v != null); update('total_uf', v); }}
         />
+      </div>
+
+      <div className="flex items-center justify-between bg-panel border border-slate-700 rounded-lg px-3 py-2">
+        <div>
+          <span className="text-sm text-slate-200">EPO</span>
+          {epoStock !== null && (
+            <span className="ml-2 text-xs text-slate-500">{epoStock} remaining</span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setEpoUsed(e => !e)}
+          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+            epoUsed
+              ? 'bg-accent text-bg'
+              : 'bg-slate-700 text-slate-400'
+          }`}
+        >
+          {epoUsed ? 'Used' : 'Not used'}
+        </button>
       </div>
 
       <SaveButton

@@ -27,8 +27,15 @@ export const CycleSchema = z.object({
 });
 export type Cycle = z.infer<typeof CycleSchema>;
 
+export const SetPakInstallBodySchema = z.object({
+  installed_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'installed_at must be YYYY-MM-DD'),
+});
+export type SetPakInstallBody = z.infer<typeof SetPakInstallBodySchema>;
+
 export const StockGetResponseSchema = z.object({
   stock: z.record(z.string(), z.number()),
   cycle: CycleSchema.nullable(),
+  pak_installed_at: z.string().nullable(),
+  pak_sessions: z.number(),
 });
 export type StockGetResponse = z.infer<typeof StockGetResponseSchema>;

@@ -17,7 +17,7 @@ type Screen =
   | { name: 'loading' }
   | { name: 'home' }
   | { name: 'pre'; existingIds: string[] }
-  | { name: 'active'; session: Session; readings: PendingReading[]; heparinUsed: boolean }
+  | { name: 'active'; session: Session; readings: PendingReading[]; heparinUsed: boolean; countdownStartedAt?: number; targetMin?: number }
   | { name: 'post'; session: Session; consumed: SessionConsumed };
 
 export default function Treatment() {
@@ -42,7 +42,7 @@ export default function Treatment() {
         const readings = (active.readings ?? []).map(r =>
           r.status === 'pending' ? { ...r, status: 'error' as const, errorMsg: 'interrupted' } : r
         );
-        setScreen({ name: 'active', session: active.session, readings, heparinUsed: active.heparinUsed ?? false });
+        setScreen({ name: 'active', session: active.session, readings, heparinUsed: active.heparinUsed ?? false, countdownStartedAt: active.countdownStartedAt, targetMin: active.targetMin });
       } else if (active?.screen === 'post' && active.session) {
         const consumed: SessionConsumed = active.consumed ?? { needles: 2, onOffPacks: 1, heparinUsed: false };
         setScreen({ name: 'post', session: active.session, consumed });
@@ -56,7 +56,7 @@ export default function Treatment() {
     if (screen.name === 'pre') {
       saveActiveState({ screen: 'pre', existingIds: screen.existingIds });
     } else if (screen.name === 'active') {
-      saveActiveState({ screen: 'active', session: screen.session, readings: screen.readings, heparinUsed: screen.heparinUsed });
+      saveActiveState({ screen: 'active', session: screen.session, readings: screen.readings, heparinUsed: screen.heparinUsed, countdownStartedAt: screen.countdownStartedAt, targetMin: screen.targetMin });
     } else if (screen.name === 'post') {
       saveActiveState({ screen: 'post', session: screen.session, consumed: screen.consumed });
     } else if (screen.name === 'home') {
@@ -95,8 +95,13 @@ export default function Treatment() {
         settings={settings}
         session={screen.session}
         initialReadings={screen.readings}
+        initialCountdownStartedAt={screen.countdownStartedAt}
+        initialTargetMin={screen.targetMin}
         onReadingsChange={rs =>
           setScreen(s => (s.name === 'active' ? { ...s, readings: rs } : s))
+        }
+        onCountdownChange={(startedAt, targetMin) =>
+          setScreen(s => s.name === 'active' ? { ...s, countdownStartedAt: startedAt ?? undefined, targetMin } : s)
         }
         onEnd={consumed =>
           setScreen({ name: 'post', session: screen.session, consumed: { ...consumed, heparinUsed: screen.heparinUsed } })

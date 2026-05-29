@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+const FAV_KEY = 'blood_test_favorites';
+function loadFavorites(): Set<string> {
+  try {
+    const raw = localStorage.getItem(FAV_KEY);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw) as string[]);
+  } catch { return new Set(); }
+}
+function saveFavorites(s: Set<string>): void {
+  try { localStorage.setItem(FAV_KEY, JSON.stringify([...s])); } catch {}
+}
 import { getAuth } from '../../auth/storage';
 import { fetchAll, ApiError } from './api';
 import type { BloodTestRow } from './schemas';
@@ -59,6 +71,7 @@ function ResultsTable({ rows }: { rows: BloodTestRow[] }) {
 function Dashboard({ rows }: { rows: BloodTestRow[] }) {
   const markers = useMemo(() => [...new Set(rows.map((r) => r.marker))].sort(), [rows]);
   const [tab, setTab] = useState<Tab>('scorecard');
+  const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites());
   const [filter, setFilter] = useState<FilterState>({
     phases: ['home-hd'],
     from: '',
@@ -73,19 +86,48 @@ function Dashboard({ rows }: { rows: BloodTestRow[] }) {
   );
   const trendRows = useMemo(() => scoped.filter((r) => r.marker === filter.marker), [scoped, filter.marker]);
 
+  function selectMarker(marker: string) {
+    setFilter(f => ({ ...f, marker }));
+    if (tab !== 'trend') {
+      window.history.pushState({ bloodTestTrend: true }, '');
+      setTab('trend');
+    }
+  }
+
+  // Intercept back button while in trend view to return to scorecard
+  useEffect(() => {
+    if (tab !== 'trend') return;
+    const handler = () => setTab('scorecard');
+    window.addEventListener('popstate', handler);
+    return () => window.removeEventListener('popstate', handler);
+  }, [tab]);
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100">
       <FilterBar filter={filter} markers={markers} onChange={setFilter} />
       <div className="flex gap-2 border-b border-slate-700 bg-slate-800 px-3">
         {(['scorecard', 'trend'] as Tab[]).map((t) => (
-          <button key={t} type="button" onClick={() => setTab(t)}
+          <button key={t} type="button"
+            onClick={() => { if (t === 'trend') selectMarker(filter.marker); else setTab('scorecard'); }}
             className={`px-3 py-2 text-sm capitalize ${tab === t ? 'border-b-2 border-cyan-400 text-cyan-300' : 'text-slate-400'}`}>
             {t}
           </button>
         ))}
       </div>
       {tab === 'scorecard' ? (
-        <Scorecard rows={scoped} onSelectMarker={(marker) => { setFilter((f) => ({ ...f, marker })); setTab('trend'); }} />
+        <Scorecard
+          rows={scoped}
+          favorites={favorites}
+          onSelectMarker={selectMarker}
+          onToggleFavorite={(marker) => {
+            setFavorites(prev => {
+              const next = new Set(prev);
+              if (next.has(marker)) next.delete(marker); else next.add(marker);
+              saveFavorites(next);
+              return next;
+            });
+          }}
+        />
       ) : (
         <>
           <TrendChart marker={filter.marker} rows={trendRows} />

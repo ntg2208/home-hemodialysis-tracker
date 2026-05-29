@@ -2,6 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --kb: 0px;
+}
+
 body {
   @apply bg-bg text-slate-100 min-h-screen;
+}
+
+/* Modal overlays: shrink to end at keyboard top so content stays visible */
+.kb-overlay {
+  bottom: var(--kb) !important;
+}
+
+/* Main scroll area: keep content scrollable above the keyboard + bottom nav */
+.main-scroll {
+  padding-bottom: max(4rem, var(--kb));
+}
+@media (min-width: 768px) {
+  .main-scroll {
+    padding-bottom: 0;
+  }
 }

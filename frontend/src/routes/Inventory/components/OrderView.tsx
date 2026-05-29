@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { X, Copy, Check } from 'lucide-react';
+import { X, Copy, Check, Minus, Plus } from 'lucide-react';
 import { ITEMS } from '../constants';
-import { orderBoxes, orderUnits } from '../lib/stockCalc';
+import { orderBoxes } from '../lib/stockCalc';
 
 interface Props {
   stock: Record<string, number>;
   callDate: string;
+  cycleOrder?: Record<string, number>;
   onStockCount: (deltas: Record<string, number>) => Promise<void>;
   onConfirmOrder: (callDate: string, order: Record<string, number>) => Promise<void>;
   onApplyDelivery: (adjustments?: Record<string, number>) => Promise<void>;
@@ -15,12 +16,20 @@ interface Props {
 
 type Step = 'count' | 'order_list' | 'confirm_delivery';
 
-export function OrderView({ stock, callDate, onStockCount, onConfirmOrder, onApplyDelivery, mode, onClose }: Props) {
+export function OrderView({ stock, callDate, cycleOrder, onStockCount, onConfirmOrder, onApplyDelivery, mode, onClose }: Props) {
   const [step, setStep] = useState<Step>(mode === 'delivery' ? 'confirm_delivery' : 'count');
   const [counts, setCounts] = useState<Record<string, string>>(() =>
     Object.fromEntries(ITEMS.filter(i => i.section === 'nxstage').map(i => [i.code, String(stock[i.code] ?? 0)]))
   );
-  const [adjustments, setAdjustments] = useState<Record<string, string>>({});
+  // order_list: box counts per item (set when advancing from stock count step)
+  const [orderCounts, setOrderCounts] = useState<Record<string, number>>({});
+  // confirm_delivery: unit counts per item (initialized from cycleOrder)
+  const [deliveryCounts, setDeliveryCounts] = useState<Record<string, number>>(() =>
+    Object.fromEntries(
+      ITEMS.filter(i => i.section === 'nxstage' && (cycleOrder?.[i.code] ?? 0) > 0)
+        .map(i => [i.code, cycleOrder?.[i.code] ?? 0])
+    )
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -35,25 +44,29 @@ export function OrderView({ stock, callDate, onStockCount, onConfirmOrder, onApp
         if (!isNaN(n) && n >= 0) deltas[code] = n;
       }
       await onStockCount(deltas);
+      // Initialise order box counts from calculated values
+      const initial: Record<string, number> = {};
+      for (const i of ITEMS.filter(x => x.section === 'nxstage')) {
+        const current = parseInt(counts[i.code] ?? '0', 10) || 0;
+        const boxes = orderBoxes(i.code, current);
+        if (boxes > 0) initial[i.code] = boxes;
+      }
+      setOrderCounts(initial);
       setStep('order_list');
     } catch { setError('Save failed'); }
     finally { setSaving(false); }
   }
 
-  // Computed order using the entered counts as current stock
-  const orderedItems = ITEMS.filter(i => i.section === 'nxstage').map(i => {
-    const current = parseInt(counts[i.code] ?? '0', 10) || 0;
-    const boxes = orderBoxes(i.code, current);
-    const units = orderUnits(i.code, current);
-    return { item: i, current, boxes, units };
-  }).filter(r => r.boxes > 0);
+  // Items shown in order list: those with a box count > 0
+  const orderListItems = ITEMS.filter(i => i.section === 'nxstage' && (orderCounts[i.code] ?? 0) > 0)
+    .map(i => ({ item: i, current: parseInt(counts[i.code] ?? '0', 10) || 0, boxes: orderCounts[i.code] ?? 0 }));
 
   // Step 2: confirm the order
   async function handleConfirmOrder() {
     setSaving(true); setError(null);
     try {
       const order: Record<string, number> = {};
-      for (const { item, units } of orderedItems) order[item.code] = units;
+      for (const { item, boxes } of orderListItems) order[item.code] = boxes * item.boxSize;
       await onConfirmOrder(callDate, order);
       onClose();
     } catch { setError('Save failed'); }
@@ -62,7 +75,7 @@ export function OrderView({ stock, callDate, onStockCount, onConfirmOrder, onApp
 
   // Copy order list to clipboard
   function copyToClipboard() {
-    const lines = orderedItems.map(({ item, boxes }) =>
+    const lines = orderListItems.map(({ item, boxes }) =>
       `${item.label}: ${boxes} ${boxes === 1 ? item.boxLabel : item.boxLabel + 's'}`
     );
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
@@ -71,14 +84,13 @@ export function OrderView({ stock, callDate, onStockCount, onConfirmOrder, onApp
     });
   }
 
-  // Delivery mode: show adjusted quantities, confirm apply
+  // Delivery mode: apply delivery using current deliveryCounts
   async function handleApplyDelivery() {
     setSaving(true); setError(null);
     try {
       const adj: Record<string, number> = {};
-      for (const [code, val] of Object.entries(adjustments)) {
-        const n = parseInt(val, 10);
-        if (!isNaN(n) && n >= 0) adj[code] = n;
+      for (const [code, qty] of Object.entries(deliveryCounts)) {
+        if (qty >= 0) adj[code] = qty;
       }
       await onApplyDelivery(Object.keys(adj).length > 0 ? adj : undefined);
       onClose();
@@ -86,8 +98,21 @@ export function OrderView({ stock, callDate, onStockCount, onConfirmOrder, onApp
     finally { setSaving(false); }
   }
 
+  function adjBtn(className: string, children: React.ReactNode, onClick: () => void, disabled?: boolean) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className={`w-7 h-7 rounded-full border border-slate-600 flex items-center justify-center text-slate-400 hover:text-slate-200 disabled:opacity-30 flex-shrink-0 ${className}`}
+      >
+        {children}
+      </button>
+    );
+  }
+
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-end md:items-center justify-center z-50 p-4">
+    <div className="kb-overlay fixed inset-0 bg-black/60 flex items-end md:items-center justify-center z-50 p-4">
       <div className="bg-bg border border-slate-700 rounded-xl w-full max-w-sm max-h-[85vh] flex flex-col">
         <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
           <span className="font-semibold text-slate-200">
@@ -131,29 +156,24 @@ export function OrderView({ stock, callDate, onStockCount, onConfirmOrder, onApp
 
           {step === 'order_list' && (
             <>
-              {orderedItems.length === 0 ? (
+              {orderListItems.length === 0 ? (
                 <p className="text-sm text-slate-400 text-center py-4">Stock is sufficient — nothing to order.</p>
               ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-xs text-slate-500 uppercase">
-                      <th className="text-left py-1">Item</th>
-                      <th className="text-right py-1">Have</th>
-                      <th className="text-right py-1">Order</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orderedItems.map(({ item, current, boxes }) => (
-                      <tr key={item.code} className="border-t border-slate-800 text-slate-300">
-                        <td className="py-1.5">{item.label}</td>
-                        <td className="text-right text-slate-500">{current}</td>
-                        <td className="text-right font-semibold text-accent">
-                          {boxes} {boxes === 1 ? item.boxLabel : item.boxLabel + 's'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="space-y-2">
+                  {orderListItems.map(({ item, current, boxes }) => (
+                    <div key={item.code} className="flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm text-slate-200 truncate block">{item.label}</span>
+                        <span className="text-xs text-slate-500">have {current}</span>
+                      </div>
+                      {adjBtn('', <Minus size={12} />, () => setOrderCounts(o => ({ ...o, [item.code]: Math.max(0, (o[item.code] ?? boxes) - 1) })), (orderCounts[item.code] ?? boxes) <= 0)}
+                      <span className="text-sm font-semibold text-accent w-16 text-center">
+                        {orderCounts[item.code] ?? boxes} {(orderCounts[item.code] ?? boxes) === 1 ? item.boxLabel : item.boxLabel + 's'}
+                      </span>
+                      {adjBtn('', <Plus size={12} />, () => setOrderCounts(o => ({ ...o, [item.code]: (o[item.code] ?? boxes) + 1 })))}
+                    </div>
+                  ))}
+                </div>
               )}
               <div className="flex gap-2">
                 <button
@@ -166,8 +186,8 @@ export function OrderView({ stock, callDate, onStockCount, onConfirmOrder, onApp
                 <button
                   type="button"
                   onClick={handleConfirmOrder}
-                  disabled={saving}
-                  className="flex-1 bg-accent text-bg font-semibold rounded-lg py-2 text-sm"
+                  disabled={saving || orderListItems.length === 0}
+                  className="flex-1 bg-accent text-bg font-semibold rounded-lg py-2 text-sm disabled:opacity-40"
                 >
                   {saving ? 'Saving…' : 'Confirm order'}
                 </button>
@@ -177,26 +197,28 @@ export function OrderView({ stock, callDate, onStockCount, onConfirmOrder, onApp
 
           {step === 'confirm_delivery' && (
             <>
-              <p className="text-xs text-slate-500">Edit quantities if anything arrived differently. Leave blank to use the ordered amounts.</p>
-              {ITEMS.filter(i => i.section === 'nxstage' && stock[i.code] !== undefined).map(i => (
-                <div key={i.code} className="flex items-center gap-3">
-                  <span className="flex-1 text-sm text-slate-300 truncate">{i.label}</span>
-                  <input
-                    type="number"
-                    min="0"
-                    inputMode="numeric"
-                    value={adjustments[i.code] ?? ''}
-                    placeholder="as ordered"
-                    onChange={e => setAdjustments(a => ({ ...a, [i.code]: e.target.value }))}
-                    className="w-24 bg-panel border border-slate-600 rounded px-2 py-1 text-sm text-slate-200 text-right placeholder:text-slate-600"
-                  />
+              <p className="text-xs text-slate-500">Adjust quantities if anything arrived differently from what was ordered.</p>
+              {Object.keys(deliveryCounts).length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-4">No order on record — use Log event → Manual use to adjust stock.</p>
+              ) : (
+                <div className="space-y-2">
+                  {ITEMS.filter(i => i.section === 'nxstage' && deliveryCounts[i.code] !== undefined).map(i => (
+                    <div key={i.code} className="flex items-center gap-2">
+                      <span className="flex-1 text-sm text-slate-200 truncate">{i.label}</span>
+                      {adjBtn('', <Minus size={12} />, () => setDeliveryCounts(d => ({ ...d, [i.code]: Math.max(0, (d[i.code] ?? 0) - 1) })), (deliveryCounts[i.code] ?? 0) <= 0)}
+                      <span className="text-sm font-semibold text-accent w-14 text-center">
+                        {deliveryCounts[i.code] ?? 0} {i.unit}
+                      </span>
+                      {adjBtn('', <Plus size={12} />, () => setDeliveryCounts(d => ({ ...d, [i.code]: (d[i.code] ?? 0) + 1 })))}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
               <button
                 type="button"
                 onClick={handleApplyDelivery}
-                disabled={saving}
-                className="w-full bg-accent text-bg font-semibold rounded-lg py-2"
+                disabled={saving || Object.keys(deliveryCounts).length === 0}
+                className="w-full bg-accent text-bg font-semibold rounded-lg py-2 disabled:opacity-40"
               >
                 {saving ? 'Applying…' : 'Apply delivery'}
               </button>

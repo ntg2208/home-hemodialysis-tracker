@@ -5,6 +5,7 @@ import { getDriedWeight, getLastSession, saveLastSession } from '../storage';
 import { nextSessionId, todayIso } from '../sessionId';
 import { NumberField } from '../components/NumberField';
 import { SaveButton } from '../components/SaveButton';
+import { cloudGet } from '../../../api/cloudRun';
 import type { Session, Settings } from '../schemas';
 import type { AuthSettings } from '../../../auth/storage';
 
@@ -27,13 +28,15 @@ interface FormState {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-export function PreTreatment({ settings, auth: _auth, existingIds, onSaved, onCancel }: Props) {
+export function PreTreatment({ settings, auth, existingIds, onSaved, onCancel }: Props) {
   const [form, setForm] = useState<FormState>({});
   const [goalTouched, setGoalTouched] = useState(false);
   const [rateTouched, setRateTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [driedWeight, setDriedWeight] = useState<number | null>(null);
+  const [heparinUsed, setHeparinUsed] = useState(true);
+  const [heparinStock, setHeparinStock] = useState<number | null>(null);
 
   useEffect(() => {
     // Last-session prefill is no longer used for uf_goal / uf_rate —
@@ -41,6 +44,13 @@ export function PreTreatment({ settings, auth: _auth, existingIds, onSaved, onCa
     getLastSession().catch(() => {});
     getDriedWeight().then(setDriedWeight).catch(() => setDriedWeight(59));
   }, []);
+
+  useEffect(() => {
+    if (!auth) return;
+    cloudGet<{ stock: Record<string, number> }>(auth, '/api/inventory')
+      .then(data => setHeparinStock(data.stock['heparin'] ?? 0))
+      .catch(() => {});
+  }, [auth]);
 
   function update<K extends keyof FormState>(k: K, v: FormState[K]) {
     setForm(f => ({ ...f, [k]: v }));
@@ -77,7 +87,7 @@ export function PreTreatment({ settings, auth: _auth, existingIds, onSaved, onCa
       await saveSession(settings, session);
       // Local cache is a UX nicety; don't fail the submit if IDB write fails.
       saveLastSession(session).catch(() => {});
-      onSaved(session, false);
+      onSaved(session, heparinUsed);
     } catch (e) {
       setError(e instanceof ApiError ? `Save failed: ${e.code}` : String(e));
     } finally {
@@ -117,6 +127,26 @@ export function PreTreatment({ settings, auth: _auth, existingIds, onSaved, onCa
         <NumberField label="BP sys" value={form.pre_bp_sys} onChange={v => update('pre_bp_sys', v)} step="1" required />
         <NumberField label="BP dia" value={form.pre_bp_dia} onChange={v => update('pre_bp_dia', v)} step="1" required />
         <NumberField label="Pulse" value={form.pre_pulse} onChange={v => update('pre_pulse', v)} step="1" />
+      </div>
+
+      <div className="flex items-center justify-between bg-panel border border-slate-700 rounded-lg px-3 py-2">
+        <div>
+          <span className="text-sm text-slate-200">Heparin</span>
+          {heparinStock !== null && (
+            <span className="ml-2 text-xs text-slate-500">{heparinStock} remaining</span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setHeparinUsed(h => !h)}
+          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+            heparinUsed
+              ? 'bg-accent text-bg'
+              : 'bg-slate-700 text-slate-400'
+          }`}
+        >
+          {heparinUsed ? 'Used' : 'Not used'}
+        </button>
       </div>
 
       <SaveButton

@@ -1,6 +1,6 @@
 import { cloudGet, cloudPost, CloudRunError } from '../../api/cloudRun';
 import type { AuthSettings } from '../../auth/storage';
-import { InventoryResponseSchema, OkResponseSchema, type InventoryResponse } from './schemas';
+import { InventoryResponseSchema, OkResponseSchema, DeliveriesResponseSchema, type InventoryResponse, type DeliveriesResponse } from './schemas';
 
 export { CloudRunError as ApiError };
 
@@ -43,4 +43,17 @@ export async function applyDelivery(
 
 export async function initCycle(auth: AuthSettings, call_date: string): Promise<void> {
   await confirmOrder(auth, call_date, {});
+}
+
+export async function fetchDeliveries(auth: AuthSettings): Promise<DeliveriesResponse> {
+  const data = await cloudGet<unknown>(auth, '/api/inventory/deliveries');
+  const parsed = DeliveriesResponseSchema.safeParse(data);
+  if (!parsed.success) throw new CloudRunError('bad_data', 'Deliveries response shape mismatch.');
+  return parsed.data;
+}
+
+export async function setPakInstall(auth: AuthSettings, installed_at: string): Promise<void> {
+  const data = await cloudPost<unknown>(auth, '/api/inventory/set-pak-install', { installed_at });
+  const parsed = OkResponseSchema.safeParse(data);
+  if (!parsed.success) throw new CloudRunError('bad_data', 'Unexpected set-pak-install response.');
 }

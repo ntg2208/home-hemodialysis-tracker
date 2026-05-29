@@ -1,6 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { Activity, FlaskConical, BookOpen, Package, Dumbbell, MessageSquare } from 'lucide-react';
 import { clearAuth } from '../auth/storage';
+import { useKeyboardAvoidance } from '../hooks/useKeyboardAvoidance';
 import { ErrorBoundary } from './ErrorBoundary';
 
 const TABS = [
@@ -14,6 +15,7 @@ const TABS = [
 
 export function AppShell() {
   const navigate = useNavigate();
+  useKeyboardAvoidance();
 
   async function handleResetAuth() {
     if (!confirm('Clear all saved credentials on this device?')) return;
@@ -46,7 +48,7 @@ export function AppShell() {
       </nav>
 
       {/* Page content */}
-      <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
+      <main className="flex-1 overflow-y-auto main-scroll">
         <ErrorBoundary>
           <Outlet />
         </ErrorBoundary>

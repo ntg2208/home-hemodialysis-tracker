@@ -17,7 +17,6 @@ interface Props {
 
 export function Home({ settings, onStartSession }: Props) {
   const [sessions, setSessions] = useState<Session[] | null>(null);
-  const [freshLoaded, setFreshLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [driedWeight, setDriedWeight] = useState<number | null>(null);
@@ -48,7 +47,6 @@ export function Home({ settings, onStartSession }: Props) {
       const r = await getAll(settings);
       const sorted = [...r.sessions].sort((a, b) => b.date.localeCompare(a.date));
       setSessions(sorted);
-      setFreshLoaded(true);
       saveCachedSessions(sorted).catch(() => {});
     } catch (e) {
       setError(e instanceof ApiError ? `Load failed: ${e.code}` : String(e));
@@ -80,7 +78,7 @@ export function Home({ settings, onStartSession }: Props) {
       <button
         type="button"
         onClick={() => onStartSession(ids)}
-        disabled={!freshLoaded}
+        disabled={sessions === null}
         className="w-full bg-accent text-bg font-semibold rounded-lg py-4 text-lg disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
       >
         <Play size={22} fill="currentColor" /> Start session

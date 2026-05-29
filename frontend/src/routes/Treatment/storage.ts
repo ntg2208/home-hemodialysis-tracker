@@ -7,6 +7,7 @@ export interface SessionConsumed {
   needles: number;
   onOffPacks: number;
   heparinUsed: boolean;
+  durationMin?: number;
 }
 
 export interface ActiveState {
@@ -16,6 +17,8 @@ export interface ActiveState {
   readings?: PendingReading[];
   heparinUsed?: boolean;    // carried from pre → active
   consumed?: SessionConsumed;  // carried from active → post
+  countdownStartedAt?: number;
+  targetMin?: number;
   savedAt: number;
 }
 

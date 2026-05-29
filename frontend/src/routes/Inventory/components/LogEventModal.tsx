@@ -11,20 +11,26 @@ interface Props {
     deltas: Record<string, number>,
     note?: string,
   ) => Promise<void>;
+  onSetPakInstall?: (installedAt: string) => Promise<void>;
   onClose: () => void;
 }
 
-export function LogEventModal({ stock, onLogEvent, onClose }: Props) {
+export function LogEventModal({ stock, onLogEvent, onSetPakInstall, onClose }: Props) {
   const [tab, setTab] = useState<Tab>('pak');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // PAK tab
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const [pakInstallDate, setPakInstallDate] = useState(todayIso);
   async function handlePakChange() {
     setSaving(true);
     setError(null);
     try {
       await onLogEvent('manual', { 'PAK-001': -1 }, 'PAK change');
+      if (onSetPakInstall && pakInstallDate) {
+        await onSetPakInstall(pakInstallDate);
+      }
       onClose();
     } catch { setError('Save failed'); }
     finally { setSaving(false); }
@@ -69,7 +75,7 @@ export function LogEventModal({ stock, onLogEvent, onClose }: Props) {
     }`;
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-end md:items-center justify-center z-50 p-4">
+    <div className="kb-overlay fixed inset-0 bg-black/60 flex items-end md:items-center justify-center z-50 p-4">
       <div className="bg-bg border border-slate-700 rounded-xl w-full max-w-sm">
         <div className="flex items-center justify-between px-4 pt-4">
           <span className="font-semibold text-slate-200">Log event</span>
@@ -87,7 +93,16 @@ export function LogEventModal({ stock, onLogEvent, onClose }: Props) {
         <div className="p-4 space-y-3">
           {tab === 'pak' && (
             <div className="space-y-3">
-              <p className="text-sm text-slate-400">Records −1 PAK from stock. Tap confirm when you have just changed the PAK.</p>
+              <p className="text-sm text-slate-400">Records −1 PAK from stock and resets the session counter.</p>
+              <div className="flex items-center gap-3">
+                <label className="text-sm text-slate-300 shrink-0">Install date</label>
+                <input
+                  type="date"
+                  value={pakInstallDate}
+                  onChange={e => setPakInstallDate(e.target.value)}
+                  className="flex-1 bg-panel border border-slate-600 rounded px-2 py-1 text-sm text-slate-200"
+                />
+              </div>
               <button
                 type="button"
                 onClick={handlePakChange}
@@ -138,13 +153,14 @@ export function LogEventModal({ stock, onLogEvent, onClose }: Props) {
                 {ITEMS.map(i => (
                   <div key={i.code} className="flex items-center gap-3">
                     <label className="flex-1 text-sm text-slate-300 truncate">{i.label}</label>
+                    <span className="text-xs text-slate-500 shrink-0">{i.unit}</span>
                     <input
                       type="number"
                       min="0"
                       inputMode="numeric"
                       value={counts[i.code] ?? '0'}
                       onChange={e => setCounts(c => ({ ...c, [i.code]: e.target.value }))}
-                      className="w-20 bg-panel border border-slate-600 rounded px-2 py-1 text-sm text-slate-200 text-right"
+                      className="w-16 bg-panel border border-slate-600 rounded px-2 py-1 text-sm text-slate-200 text-right"
                     />
                   </div>
                 ))}

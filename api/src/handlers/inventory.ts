@@ -5,6 +5,7 @@ import {
   EventBodySchema,
   ConfirmOrderBodySchema,
   ApplyDeliveryBodySchema,
+  SetPakInstallBodySchema,
 } from '../schemas/inventory.js';
 
 export const inventory = new Hono()
@@ -12,9 +13,10 @@ export const inventory = new Hono()
   .get('/', async (c) => {
     const db = getDb();
 
-    const [stockSnap, cycleDoc] = await Promise.all([
+    const [stockSnap, cycleDoc, pakDoc] = await Promise.all([
       db.collection('inventory_stock').get(),
       db.collection('inventory_config').doc('cycle').get(),
+      db.collection('inventory_config').doc('pak').get(),
     ]);
 
     const stock: Record<string, number> = {};
@@ -25,7 +27,21 @@ export const inventory = new Hono()
 
     const cycle = cycleDoc.exists ? (cycleDoc.data() ?? null) : null;
 
-    return c.json({ stock, cycle });
+    const pakData = pakDoc.exists ? (pakDoc.data() as { installed_at?: string }) : null;
+    const pak_installed_at = pakData?.installed_at ?? null;
+
+    let pak_sessions = 0;
+    if (pak_installed_at) {
+      const eventsSnap = await db.collection('inventory_events')
+        .where('type', '==', 'session')
+        .get();
+      pak_sessions = eventsSnap.docs.filter(d => {
+        const ts = (d.data() as { timestamp: string }).timestamp;
+        return typeof ts === 'string' && ts >= pak_installed_at;
+      }).length;
+    }
+
+    return c.json({ stock, cycle, pak_installed_at, pak_sessions });
   })
 
   .post('/event', async (c) => {
@@ -130,6 +146,31 @@ export const inventory = new Hono()
       order: {},
       order_placed_at: null,
       delivery_applied_at: now,
+    });
+
+    return c.json({ ok: true });
+  })
+
+  .get('/deliveries', async (c) => {
+    const snap = await getDb().collection('inventory_events')
+      .where('type', '==', 'delivery')
+      .get();
+    const deliveries = snap.docs
+      .map(d => d.data() as { timestamp: string; deltas: Record<string, number>; note?: string })
+      .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    return c.json({ deliveries });
+  })
+
+  .post('/set-pak-install', async (c) => {
+    let body: unknown;
+    try { body = await c.req.json(); } catch {
+      return c.json({ error: 'invalid JSON' }, 400);
+    }
+    const parsed = SetPakInstallBodySchema.safeParse(body);
+    if (!parsed.success) return c.json({ error: 'invalid request', details: parsed.error.issues }, 400);
+
+    await getDb().collection('inventory_config').doc('pak').set({
+      installed_at: parsed.data.installed_at,
     });
 
     return c.json({ ok: true });

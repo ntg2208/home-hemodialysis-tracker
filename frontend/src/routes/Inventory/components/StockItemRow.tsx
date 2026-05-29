@@ -3,10 +3,19 @@ import { Minus, Plus } from 'lucide-react';
 import { sessionsRemaining, stockStatus } from '../lib/stockCalc';
 import type { ItemDef } from '../constants';
 
+const PAK_REPLACE_SESSIONS = 10;
+
+function formatInstalledDate(iso: string): string {
+  const d = new Date(iso + 'T00:00:00Z');
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
+
 interface Props {
   item: ItemDef;
   qty: number;
   onAdjust: (delta: number) => Promise<void>;
+  pakInstalledAt?: string | null;
+  pakSessions?: number;
 }
 
 const STATUS_COLOUR: Record<string, string> = {
@@ -27,7 +36,7 @@ interface Toast {
   undoDelta: number;
 }
 
-export function StockItemRow({ item, qty, onAdjust }: Props) {
+export function StockItemRow({ item, qty, onAdjust, pakInstalledAt, pakSessions }: Props) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastId = useRef(0);
 
@@ -56,6 +65,12 @@ export function StockItemRow({ item, qty, onAdjust }: Props) {
 
   const sr = sessionsRemaining(item.code, qty);
   const status = stockStatus(item.code, qty);
+  const showPak = item.code === 'PAK-001' && pakInstalledAt != null;
+  const pakSessionColour = (pakSessions ?? 0) >= PAK_REPLACE_SESSIONS
+    ? 'text-red-400'
+    : (pakSessions ?? 0) >= PAK_REPLACE_SESSIONS - 2
+      ? 'text-amber-400'
+      : 'text-emerald-400';
 
   return (
     <div className="relative">
@@ -68,6 +83,13 @@ export function StockItemRow({ item, qty, onAdjust }: Props) {
             {qty} {item.unit}{qty !== 1 ? 's' : ''}
             {sr != null && <span className="text-slate-500 ml-1">~{sr} sess</span>}
           </span>
+          {showPak && (
+            <span className="block text-xs text-slate-500 mt-0.5">
+              Installed {formatInstalledDate(pakInstalledAt!)}
+              {' · '}
+              <span className={pakSessionColour}>{pakSessions ?? 0}/{PAK_REPLACE_SESSIONS} sess</span>
+            </span>
+          )}
         </span>
 
         <div className="flex items-center gap-1">
