@@ -31,8 +31,7 @@ export function getReferenceRange(rows: BloodTestRow[]): RefRange | null {
   return { low: latest.ref_low, high: latest.ref_high, unit: latest.unit };
 }
 
-export function getPointColor(datum: Pick<ChartDatum, 'inRange' | 'timing'>): string {
-  if (datum.inRange === false) return '#f87171';  // out of range — always red
+export function getPointColor(datum: Pick<ChartDatum, 'timing'>): string {
   if (datum.timing === 'pre')  return '#22d3ee';  // pre-dialysis — cyan
   if (datum.timing === 'post') return '#f59e0b';  // post-dialysis — amber
   return '#818cf8';                               // plain / unknown timing — indigo

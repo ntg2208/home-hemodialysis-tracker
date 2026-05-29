@@ -46,32 +46,24 @@ describe('getReferenceRange', () => {
 });
 
 describe('getPointColor', () => {
-  it('returns red for out-of-range points', () => {
-    expect(getPointColor({ inRange: false, timing: '' })).toBe('#f87171');
+  it('returns cyan for pre-dialysis', () => {
+    expect(getPointColor({ timing: 'pre' })).toBe('#22d3ee');
   });
 
-  it('returns red for out-of-range even if timing is pre', () => {
-    expect(getPointColor({ inRange: false, timing: 'pre' })).toBe('#f87171');
+  it('returns amber for post-dialysis', () => {
+    expect(getPointColor({ timing: 'post' })).toBe('#f59e0b');
   });
 
-  it('returns cyan for pre-dialysis in-range', () => {
-    expect(getPointColor({ inRange: true, timing: 'pre' })).toBe('#22d3ee');
+  it('returns indigo for plain timing', () => {
+    expect(getPointColor({ timing: '' })).toBe('#818cf8');
   });
 
-  it('returns amber for post-dialysis in-range', () => {
-    expect(getPointColor({ inRange: true, timing: 'post' })).toBe('#f59e0b');
+  it('returns cyan for pre even when out of range', () => {
+    expect(getPointColor({ timing: 'pre' })).toBe('#22d3ee');
   });
 
-  it('returns indigo for plain in-range', () => {
-    expect(getPointColor({ inRange: true, timing: '' })).toBe('#818cf8');
-  });
-
-  it('returns indigo for plain when inRange is null (no ref data)', () => {
-    expect(getPointColor({ inRange: null, timing: '' })).toBe('#818cf8');
-  });
-
-  it('returns cyan for pre when inRange is null', () => {
-    expect(getPointColor({ inRange: null, timing: 'pre' })).toBe('#22d3ee');
+  it('returns amber for post even when out of range', () => {
+    expect(getPointColor({ timing: 'post' })).toBe('#f59e0b');
   });
 });
 
