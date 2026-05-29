@@ -1,0 +1,151 @@
+<h2>Chart Design — Nivo Implementation</h2>
+<p class="subtitle">Single line, dot colours for pre/post/out-of-range, reference band, latest value badge. Does this look right?</p>
+
+<div class="split">
+
+  <!-- Mobile mockup -->
+  <div class="mockup">
+    <div class="mockup-header">Mobile (360px wide)</div>
+    <div class="mockup-body" style="background:#0f172a;padding:16px 12px 12px;font-family:sans-serif">
+
+      <!-- Header row -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:14px;font-weight:700;color:#e2e8f0">Haemoglobin</div>
+        <div style="font-size:11px;color:#64748b">g/L</div>
+      </div>
+
+      <!-- Chart -->
+      <svg width="100%" viewBox="0 0 300 160" style="overflow:visible">
+        <defs>
+          <linearGradient id="fill1" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#818cf8" stop-opacity="0.25"/>
+            <stop offset="100%" stop-color="#818cf8" stop-opacity="0.0"/>
+          </linearGradient>
+        </defs>
+        <!-- reference band -->
+        <rect x="28" y="16" width="260" height="76" fill="rgba(129,140,248,0.07)" rx="2"/>
+        <line x1="28" y1="16" x2="288" y2="16" stroke="#818cf8" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.5"/>
+        <line x1="28" y1="92" x2="288" y2="92" stroke="#818cf8" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.5"/>
+        <text x="30" y="13" fill="#818cf8" font-size="8" opacity="0.7">170</text>
+        <text x="30" y="103" fill="#818cf8" font-size="8" opacity="0.7">130</text>
+        <!-- line + fill -->
+        <path d="M28,118 C39,115 51,111 63,108 C75,104 87,116 99,110 C111,104 123,95 135,87 C147,79 159,81 171,82 C183,83 195,75 207,77 C219,79 231,65 243,63 C255,61 267,57 279,54"
+          fill="none" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M28,118 C39,115 51,111 63,108 C75,104 87,116 99,110 C111,104 123,95 135,87 C147,79 159,81 171,82 C183,83 195,75 207,77 C219,79 231,65 243,63 C255,61 267,57 279,54 L279,135 L28,135 Z"
+          fill="url(#fill1)"/>
+
+        <!-- out of range dots (red) - early points below 130 -->
+        <circle cx="28" cy="118" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"/>
+        <circle cx="63" cy="108" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"/>
+        <circle cx="99" cy="110" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"/>
+
+        <!-- pre dots (cyan) -->
+        <circle cx="135" cy="87" r="5" fill="#22d3ee" stroke="#0f172a" stroke-width="1.5"/>
+        <circle cx="171" cy="82" r="5" fill="#22d3ee" stroke="#0f172a" stroke-width="1.5"/>
+
+        <!-- post dots (amber) -->
+        <circle cx="207" cy="77" r="5" fill="#f59e0b" stroke="#0f172a" stroke-width="1.5"/>
+        <circle cx="243" cy="63" r="5" fill="#f59e0b" stroke="#0f172a" stroke-width="1.5"/>
+
+        <!-- latest dot (amber post, highlighted) -->
+        <circle cx="279" cy="54" r="6" fill="#f59e0b" stroke="#0f172a" stroke-width="2"/>
+        <circle cx="279" cy="54" r="10" fill="none" stroke="#f59e0b" stroke-width="1" opacity="0.3"/>
+
+        <!-- latest value badge -->
+        <rect x="252" y="36" width="54" height="16" rx="8" fill="#f59e0b"/>
+        <text x="279" y="47" text-anchor="middle" fill="#0f172a" font-size="10" font-weight="800">152 g/L</text>
+        <!-- badge connector -->
+        <line x1="279" y1="52" x2="279" y2="44" stroke="#f59e0b" stroke-width="1" opacity="0.6"/>
+
+        <!-- tooltip on one point -->
+        <rect x="42" y="90" width="72" height="38" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+        <text x="78" y="103" text-anchor="middle" fill="#94a3b8" font-size="8">Jan 2024</text>
+        <text x="78" y="114" text-anchor="middle" fill="#f87171" font-size="10" font-weight="700">118 g/L</text>
+        <text x="78" y="123" text-anchor="middle" fill="#f87171" font-size="8">↓ Out of range</text>
+        <line x1="63" y1="108" x2="63" y2="128" stroke="#334155" stroke-width="1" stroke-dasharray="3 2"/>
+
+        <!-- X axis -->
+        <line x1="28" y1="135" x2="288" y2="135" stroke="#334155" stroke-width="1"/>
+        <text x="28" y="148" text-anchor="middle" fill="#64748b" font-size="8">Jan '24</text>
+        <text x="99" y="148" text-anchor="middle" fill="#64748b" font-size="8">May '24</text>
+        <text x="207" y="148" text-anchor="middle" fill="#64748b" font-size="8">Jan '25</text>
+        <text x="279" y="148" text-anchor="middle" fill="#64748b" font-size="8">May '26</text>
+        <!-- Y axis -->
+        <text x="24" y="139" text-anchor="end" fill="#475569" font-size="8">100</text>
+        <text x="24" y="19" text-anchor="end" fill="#475569" font-size="8">175</text>
+      </svg>
+
+      <!-- Dot legend -->
+      <div style="display:flex;gap:12px;margin-top:10px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#94a3b8">
+          <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#22d3ee"/></svg> Pre-dialysis
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#94a3b8">
+          <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#f59e0b"/></svg> Post-dialysis
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#94a3b8">
+          <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#f87171"/></svg> Out of range
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Design notes -->
+  <div class="mockup">
+    <div class="mockup-header">Design decisions</div>
+    <div class="mockup-body" style="padding:16px">
+
+      <div class="section">
+        <div class="label">Library</div>
+        <p><strong>@nivo/line</strong> replaces <strong>recharts</strong>. Removing recharts saves ~120KB; nivo/line adds ~180KB net.</p>
+      </div>
+
+      <div class="section">
+        <div class="label">Single line, 3 dot states</div>
+        <ul style="margin:6px 0 0 16px;padding:0;color:#94a3b8;font-size:13px">
+          <li style="margin-bottom:4px"><span style="color:#f87171">●</span> Out of range — always red, overrides timing colour</li>
+          <li style="margin-bottom:4px"><span style="color:#22d3ee">●</span> Pre-dialysis, in range — cyan</li>
+          <li style="margin-bottom:4px"><span style="color:#f59e0b">●</span> Post-dialysis, in range — amber</li>
+          <li style="margin-bottom:4px"><span style="color:#818cf8">●</span> No timing, in range — indigo (matches line)</li>
+        </ul>
+      </div>
+
+      <div class="section">
+        <div class="label">Reference range band</div>
+        <p>Rendered as a custom Nivo layer. Uses ref_low / ref_high from the most recent reading with both values present. Dashed indigo lines top and bottom, semi-transparent fill.</p>
+      </div>
+
+      <div class="section">
+        <div class="label">Latest value badge</div>
+        <p>Amber pill above the last data point. Colour matches the dot. Shows value + unit.</p>
+      </div>
+
+      <div class="section">
+        <div class="label">Tooltip</div>
+        <p>Shows date (e.g. "15 Jan 2024"), value + unit, timing (pre/post/—), and in/out of range status.</p>
+      </div>
+
+      <div class="section">
+        <div class="label">No zoom / brush</div>
+        <p>All data visible at once. X-axis auto-scales to date range. Labels formatted as "Jan '24".</p>
+      </div>
+
+      <div class="section">
+        <div class="label">Legend</div>
+        <p>Small inline dot legend below chart (pre / post / out of range), only shown when pre/post data exists for the marker.</p>
+      </div>
+
+      <div class="section">
+        <div class="label">Results table</div>
+        <p>Kept as-is below the chart. No changes needed.</p>
+      </div>
+
+      <div class="section">
+        <div class="label">Phase boundary lines</div>
+        <p>Two vertical reference lines (Oct 2023, Feb 2026) kept as custom layer markers.</p>
+      </div>
+
+    </div>
+  </div>
+
+</div>

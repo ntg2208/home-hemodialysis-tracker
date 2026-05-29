@@ -1,0 +1,137 @@
+<h2>Chart Design v2 — Updated</h2>
+<p class="subtitle">Out-of-range: red dot only, no legend entry. Tooltip on hover only.</p>
+
+<div class="split">
+
+  <div class="mockup">
+    <div class="mockup-header">Mobile — idle state (no hover)</div>
+    <div class="mockup-body" style="background:#0f172a;padding:16px 12px 12px;font-family:sans-serif">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:14px;font-weight:700;color:#e2e8f0">Haemoglobin</div>
+        <div style="font-size:11px;color:#64748b">g/L</div>
+      </div>
+      <svg width="100%" viewBox="0 0 300 160" style="overflow:visible">
+        <defs>
+          <linearGradient id="fill2" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#818cf8" stop-opacity="0.25"/>
+            <stop offset="100%" stop-color="#818cf8" stop-opacity="0.0"/>
+          </linearGradient>
+        </defs>
+        <rect x="28" y="16" width="260" height="76" fill="rgba(129,140,248,0.07)" rx="2"/>
+        <line x1="28" y1="16" x2="288" y2="16" stroke="#818cf8" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.5"/>
+        <line x1="28" y1="92" x2="288" y2="92" stroke="#818cf8" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.5"/>
+        <text x="30" y="13" fill="#818cf8" font-size="8" opacity="0.7">170</text>
+        <text x="30" y="103" fill="#818cf8" font-size="8" opacity="0.7">130</text>
+        <path d="M28,118 C39,115 51,111 63,108 C75,104 87,116 99,110 C111,104 123,95 135,87 C147,79 159,81 171,82 C183,83 195,75 207,77 C219,79 231,65 243,63 C255,61 267,57 279,54"
+          fill="none" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M28,118 C39,115 51,111 63,108 C75,104 87,116 99,110 C111,104 123,95 135,87 C147,79 159,81 171,82 C183,83 195,75 207,77 C219,79 231,65 243,63 C255,61 267,57 279,54 L279,135 L28,135 Z"
+          fill="url(#fill2)"/>
+        <!-- out of range = red dots, no annotation, no ring -->
+        <circle cx="28" cy="118" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"/>
+        <circle cx="63" cy="108" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"/>
+        <circle cx="99" cy="110" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"/>
+        <!-- pre (cyan) -->
+        <circle cx="135" cy="87" r="5" fill="#22d3ee" stroke="#0f172a" stroke-width="1.5"/>
+        <circle cx="171" cy="82" r="5" fill="#22d3ee" stroke="#0f172a" stroke-width="1.5"/>
+        <!-- post (amber) -->
+        <circle cx="207" cy="77" r="5" fill="#f59e0b" stroke="#0f172a" stroke-width="1.5"/>
+        <circle cx="243" cy="63" r="5" fill="#f59e0b" stroke="#0f172a" stroke-width="1.5"/>
+        <!-- latest highlighted -->
+        <circle cx="279" cy="54" r="6" fill="#f59e0b" stroke="#0f172a" stroke-width="2"/>
+        <!-- latest badge -->
+        <rect x="252" y="36" width="54" height="16" rx="8" fill="#f59e0b"/>
+        <text x="279" y="47" text-anchor="middle" fill="#0f172a" font-size="10" font-weight="800">152 g/L</text>
+        <!-- NO tooltip shown in idle state -->
+        <line x1="28" y1="135" x2="288" y2="135" stroke="#334155" stroke-width="1"/>
+        <text x="28" y="148" text-anchor="middle" fill="#64748b" font-size="8">Jan '24</text>
+        <text x="135" y="148" text-anchor="middle" fill="#64748b" font-size="8">Jul '24</text>
+        <text x="243" y="148" text-anchor="middle" fill="#64748b" font-size="8">Feb '26</text>
+        <text x="279" y="148" text-anchor="middle" fill="#64748b" font-size="8">May '26</text>
+        <text x="24" y="139" text-anchor="end" fill="#475569" font-size="8">100</text>
+        <text x="24" y="19" text-anchor="end" fill="#475569" font-size="8">175</text>
+      </svg>
+      <!-- Legend: only pre / post -->
+      <div style="display:flex;gap:14px;margin-top:10px">
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#94a3b8">
+          <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#22d3ee"/></svg> Pre
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#94a3b8">
+          <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#f59e0b"/></svg> Post
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">Mobile — hovering a red dot</div>
+    <div class="mockup-body" style="background:#0f172a;padding:16px 12px 12px;font-family:sans-serif">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:14px;font-weight:700;color:#e2e8f0">Haemoglobin</div>
+        <div style="font-size:11px;color:#64748b">g/L</div>
+      </div>
+      <svg width="100%" viewBox="0 0 300 160" style="overflow:visible">
+        <defs>
+          <linearGradient id="fill3" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#818cf8" stop-opacity="0.25"/>
+            <stop offset="100%" stop-color="#818cf8" stop-opacity="0.0"/>
+          </linearGradient>
+        </defs>
+        <rect x="28" y="16" width="260" height="76" fill="rgba(129,140,248,0.07)" rx="2"/>
+        <line x1="28" y1="16" x2="288" y2="16" stroke="#818cf8" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.5"/>
+        <line x1="28" y1="92" x2="288" y2="92" stroke="#818cf8" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.5"/>
+        <text x="30" y="13" fill="#818cf8" font-size="8" opacity="0.7">170</text>
+        <text x="30" y="103" fill="#818cf8" font-size="8" opacity="0.7">130</text>
+        <!-- crosshair line at hovered point -->
+        <line x1="63" y1="16" x2="63" y2="135" stroke="#334155" stroke-width="1" stroke-dasharray="3 2"/>
+        <path d="M28,118 C39,115 51,111 63,108 C75,104 87,116 99,110 C111,104 123,95 135,87 C147,79 159,81 171,82 C183,83 195,75 207,77 C219,79 231,65 243,63 C255,61 267,57 279,54"
+          fill="none" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M28,118 C39,115 51,111 63,108 C75,104 87,116 99,110 C111,104 123,95 135,87 C147,79 159,81 171,82 C183,83 195,75 207,77 C219,79 231,65 243,63 C255,61 267,57 279,54 L279,135 L28,135 Z"
+          fill="url(#fill3)"/>
+        <!-- dots -->
+        <circle cx="28" cy="118" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"/>
+        <!-- hovered dot enlarged -->
+        <circle cx="63" cy="108" r="7" fill="#f87171" stroke="#0f172a" stroke-width="2"/>
+        <circle cx="99" cy="110" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"/>
+        <circle cx="135" cy="87" r="5" fill="#22d3ee" stroke="#0f172a" stroke-width="1.5"/>
+        <circle cx="171" cy="82" r="5" fill="#22d3ee" stroke="#0f172a" stroke-width="1.5"/>
+        <circle cx="207" cy="77" r="5" fill="#f59e0b" stroke="#0f172a" stroke-width="1.5"/>
+        <circle cx="243" cy="63" r="5" fill="#f59e0b" stroke="#0f172a" stroke-width="1.5"/>
+        <circle cx="279" cy="54" r="6" fill="#f59e0b" stroke="#0f172a" stroke-width="2"/>
+        <rect x="252" y="36" width="54" height="16" rx="8" fill="#f59e0b"/>
+        <text x="279" y="47" text-anchor="middle" fill="#0f172a" font-size="10" font-weight="800">152 g/L</text>
+        <!-- tooltip on hovered point -->
+        <rect x="70" y="82" width="80" height="44" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+        <text x="110" y="95" text-anchor="middle" fill="#94a3b8" font-size="8">Mar 2024</text>
+        <text x="110" y="108" text-anchor="middle" fill="#f87171" font-size="11" font-weight="700">122 g/L</text>
+        <text x="110" y="120" text-anchor="middle" fill="#64748b" font-size="8">Pre · ↓ low</text>
+        <line x1="28" y1="135" x2="288" y2="135" stroke="#334155" stroke-width="1"/>
+        <text x="28" y="148" text-anchor="middle" fill="#64748b" font-size="8">Jan '24</text>
+        <text x="135" y="148" text-anchor="middle" fill="#64748b" font-size="8">Jul '24</text>
+        <text x="243" y="148" text-anchor="middle" fill="#64748b" font-size="8">Feb '26</text>
+        <text x="279" y="148" text-anchor="middle" fill="#64748b" font-size="8">May '26</text>
+        <text x="24" y="139" text-anchor="end" fill="#475569" font-size="8">100</text>
+        <text x="24" y="19" text-anchor="end" fill="#475569" font-size="8">175</text>
+      </svg>
+      <!-- Legend: only pre / post -->
+      <div style="display:flex;gap:14px;margin-top:10px">
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#94a3b8">
+          <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#22d3ee"/></svg> Pre
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#94a3b8">
+          <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#f59e0b"/></svg> Post
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="section" style="margin-top:24px">
+  <h3>Changes from v1</h3>
+  <ul>
+    <li>Legend has only <strong>Pre</strong> and <strong>Post</strong> entries — no "Out of range" entry. Red dots are self-explanatory.</li>
+    <li>Tooltip appears <strong>only on hover/tap</strong> — nothing shown by default. Nivo's default <code>useMesh</code> behaviour handles this.</li>
+    <li>Tooltip shows: date · value + unit · timing (Pre / Post / —) · "↓ low" or "↑ high" if out of range.</li>
+    <li>Hovered dot enlarges slightly (Nivo default active state).</li>
+  </ul>
+</div>

@@ -1,0 +1,219 @@
+<h2>Blood Test Chart — 3 Approaches</h2>
+<p class="subtitle">All three use the same Haemoglobin data (monthly, 2024–2026). Tap/click to select your preferred direction.</p>
+
+<div class="cards">
+
+  <!-- OPTION A: Recharts redesigned -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:16px 12px 8px;border-radius:6px 6px 0 0">
+      <div style="font-size:11px;color:#94a3b8;margin-bottom:8px;font-weight:600">Haemoglobin (g/L)</div>
+      <svg width="100%" viewBox="0 0 320 160" style="overflow:visible">
+        <!-- Reference range band -->
+        <defs>
+          <linearGradient id="bandA" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.18"/>
+            <stop offset="100%" stop-color="#22d3ee" stop-opacity="0.06"/>
+          </linearGradient>
+        </defs>
+        <!-- Y gridlines -->
+        <line x1="30" y1="20" x2="310" y2="20" stroke="#1e293b" stroke-width="1"/>
+        <line x1="30" y1="50" x2="310" y2="50" stroke="#1e293b" stroke-width="1"/>
+        <line x1="30" y1="80" x2="310" y2="80" stroke="#1e293b" stroke-width="1"/>
+        <line x1="30" y1="110" x2="310" y2="110" stroke="#1e293b" stroke-width="1"/>
+        <line x1="30" y1="140" x2="310" y2="140" stroke="#334155" stroke-width="1"/>
+        <!-- Reference range band (130–170) mapped to chart coords -->
+        <!-- Y scale: min=100, max=175, range=75px mapped to 120px height (20-140) -->
+        <!-- 130 → y=120-((130-100)/75)*120 = 120-48=72; 170 → y=120-((170-100)/75)*120 = 120-112=8 -->
+        <rect x="30" y="16" width="280" height="80" fill="url(#bandA)" rx="2"/>
+        <line x1="30" y1="16" x2="310" y2="16" stroke="#22d3ee" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>
+        <line x1="30" y1="96" x2="310" y2="96" stroke="#22d3ee" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>
+        <!-- range labels -->
+        <text x="312" y="19" fill="#22d3ee" font-size="8" opacity="0.7">170</text>
+        <text x="312" y="99" fill="#22d3ee" font-size="8" opacity="0.7">130</text>
+        <!-- Data line: values 118,122,126,119,124,131,135,140,138,142,141,148,152 -->
+        <!-- mapped: v→ y=140-((v-100)/75)*120 -->
+        <!-- 118→121.6, 122→115.2, 126→108.8, 119→120, 124→112, 131→97.6, 135→88, 140→80, 138→83.2, 142→76.8, 141→78.4, 148→67.2, 152→59.2 -->
+        <polyline points="30,121 52,115 74,109 96,120 118,112 140,98 162,88 184,80 206,83 228,77 250,78 272,67 294,59"
+          fill="none" stroke="#22d3ee" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        <!-- dots -->
+        <circle cx="30" cy="121" r="2.5" fill="#22d3ee" opacity="0.7"/>
+        <circle cx="52" cy="115" r="2.5" fill="#22d3ee" opacity="0.7"/>
+        <circle cx="74" cy="109" r="2.5" fill="#22d3ee" opacity="0.7"/>
+        <circle cx="96" cy="120" r="2.5" fill="#22d3ee" opacity="0.7"/>
+        <circle cx="118" cy="112" r="2.5" fill="#22d3ee" opacity="0.7"/>
+        <circle cx="140" cy="98" r="2.5" fill="#22d3ee" opacity="0.7"/>
+        <circle cx="162" cy="88" r="2.5" fill="#22d3ee" opacity="0.7"/>
+        <circle cx="184" cy="80" r="2.5" fill="#22d3ee" opacity="0.7"/>
+        <circle cx="206" cy="83" r="2.5" fill="#22d3ee" opacity="0.7"/>
+        <circle cx="228" cy="77" r="2.5" fill="#22d3ee" opacity="0.7"/>
+        <circle cx="250" cy="78" r="2.5" fill="#22d3ee" opacity="0.7"/>
+        <circle cx="272" cy="67" r="2.5" fill="#22d3ee" opacity="0.7"/>
+        <!-- Latest point highlighted -->
+        <circle cx="294" cy="59" r="5" fill="#22d3ee" stroke="#0f172a" stroke-width="2"/>
+        <text x="294" y="50" text-anchor="middle" fill="#e2e8f0" font-size="10" font-weight="700">152</text>
+        <!-- out-of-range points (below 130, y>96) highlighted red -->
+        <circle cx="30" cy="121" r="4" fill="none" stroke="#f87171" stroke-width="1.5"/>
+        <circle cx="52" cy="115" r="4" fill="none" stroke="#f87171" stroke-width="1.5"/>
+        <circle cx="74" cy="109" r="4" fill="none" stroke="#f87171" stroke-width="1.5"/>
+        <circle cx="96" cy="120" r="4" fill="none" stroke="#f87171" stroke-width="1.5"/>
+        <circle cx="118" cy="112" r="4" fill="none" stroke="#f87171" stroke-width="1.5"/>
+        <!-- X axis -->
+        <line x1="30" y1="140" x2="310" y2="140" stroke="#334155" stroke-width="1"/>
+        <!-- X labels (formatted dates) -->
+        <text x="30" y="153" text-anchor="middle" fill="#64748b" font-size="9">Jan '24</text>
+        <text x="118" y="153" text-anchor="middle" fill="#64748b" font-size="9">May '24</text>
+        <text x="206" y="153" text-anchor="middle" fill="#64748b" font-size="9">Sep '24</text>
+        <text x="294" y="153" text-anchor="middle" fill="#64748b" font-size="9">May '26</text>
+        <!-- Y axis labels -->
+        <text x="26" y="144" text-anchor="end" fill="#64748b" font-size="9">100</text>
+        <text x="26" y="84" text-anchor="end" fill="#64748b" font-size="9">140</text>
+        <text x="26" y="24" text-anchor="end" fill="#64748b" font-size="9">175</text>
+      </svg>
+    </div>
+    <div class="card-body">
+      <h3>A — Recharts (redesigned)</h3>
+      <p>Same library, fixed config. Readable date labels, solid reference band, latest-value callout, red rings on out-of-range points. No new dependency.</p>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Pros</h4><ul><li>Zero new bundle weight</li><li>Already integrated</li><li>Fast to ship</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Still Recharts quirks on mobile</li><li>Limited annotation control</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPTION B: Nivo -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:16px 12px 8px;border-radius:6px 6px 0 0">
+      <div style="font-size:11px;color:#94a3b8;margin-bottom:8px;font-weight:600">Haemoglobin (g/L)</div>
+      <svg width="100%" viewBox="0 0 320 160" style="overflow:visible">
+        <defs>
+          <linearGradient id="fillB" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#818cf8" stop-opacity="0.3"/>
+            <stop offset="100%" stop-color="#818cf8" stop-opacity="0.02"/>
+          </linearGradient>
+        </defs>
+        <!-- subtle gridlines -->
+        <line x1="30" y1="20" x2="310" y2="20" stroke="#1e293b" stroke-width="1"/>
+        <line x1="30" y1="50" x2="310" y2="50" stroke="#1e293b" stroke-width="1"/>
+        <line x1="30" y1="80" x2="310" y2="80" stroke="#1e293b" stroke-width="1"/>
+        <line x1="30" y1="110" x2="310" y2="110" stroke="#1e293b" stroke-width="1"/>
+        <!-- Reference range as thin coloured lines + label -->
+        <rect x="30" y="16" width="280" height="80" fill="rgba(129,140,248,0.07)" rx="2"/>
+        <line x1="30" y1="16" x2="310" y2="16" stroke="#818cf8" stroke-width="1.5" opacity="0.6"/>
+        <line x1="30" y1="96" x2="310" y2="96" stroke="#818cf8" stroke-width="1.5" opacity="0.6"/>
+        <text x="33" y="12" fill="#818cf8" font-size="8" opacity="0.8">Normal range</text>
+        <!-- Smooth filled area (curve simulated) -->
+        <path d="M30,121 C41,118 63,113 74,109 C85,105 107,118 118,112 C129,106 151,96 162,88 C173,80 195,82 206,83 C217,84 239,76 250,78 C261,80 283,66 294,59"
+          fill="none" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <!-- Filled area under curve -->
+        <path d="M30,121 C41,118 63,113 74,109 C85,105 107,118 118,112 C129,106 151,96 162,88 C173,80 195,82 206,83 C217,84 239,76 250,78 C261,80 283,66 294,59 L294,140 L30,140 Z"
+          fill="url(#fillB)"/>
+        <!-- small dots -->
+        <circle cx="30" cy="121" r="3" fill="#818cf8" opacity="0.9"/>
+        <circle cx="74" cy="109" r="3" fill="#818cf8" opacity="0.9"/>
+        <circle cx="118" cy="112" r="3" fill="#818cf8" opacity="0.9"/>
+        <circle cx="162" cy="88" r="3" fill="#818cf8" opacity="0.9"/>
+        <circle cx="206" cy="83" r="3" fill="#818cf8" opacity="0.9"/>
+        <circle cx="250" cy="78" r="3" fill="#818cf8" opacity="0.9"/>
+        <!-- Latest highlighted with ring + value badge -->
+        <circle cx="294" cy="59" r="5" fill="#818cf8" stroke="#0f172a" stroke-width="2"/>
+        <circle cx="294" cy="59" r="8" fill="none" stroke="#818cf8" stroke-width="1" opacity="0.4"/>
+        <rect x="272" y="42" width="44" height="14" rx="7" fill="#818cf8"/>
+        <text x="294" y="52" text-anchor="middle" fill="#0f172a" font-size="9" font-weight="800">152 g/L</text>
+        <!-- out of range: red filled dots -->
+        <circle cx="30" cy="121" r="4" fill="#f87171" opacity="0.8"/>
+        <circle cx="52" cy="115" r="4" fill="#f87171" opacity="0.8"/>
+        <circle cx="74" cy="109" r="4" fill="#f87171" opacity="0.8"/>
+        <circle cx="96" cy="120" r="4" fill="#f87171" opacity="0.8"/>
+        <circle cx="118" cy="112" r="4" fill="#f87171" opacity="0.8"/>
+        <!-- X axis -->
+        <line x1="30" y1="140" x2="310" y2="140" stroke="#334155" stroke-width="1"/>
+        <text x="30" y="153" text-anchor="middle" fill="#64748b" font-size="9">Jan '24</text>
+        <text x="118" y="153" text-anchor="middle" fill="#64748b" font-size="9">May '24</text>
+        <text x="206" y="153" text-anchor="middle" fill="#64748b" font-size="9">Sep '24</text>
+        <text x="294" y="153" text-anchor="middle" fill="#64748b" font-size="9">May '26</text>
+        <text x="26" y="144" text-anchor="end" fill="#64748b" font-size="9">100</text>
+        <text x="26" y="84" text-anchor="end" fill="#64748b" font-size="9">140</text>
+        <text x="26" y="24" text-anchor="end" fill="#64748b" font-size="9">175</text>
+      </svg>
+    </div>
+    <div class="card-body">
+      <h3>B — Nivo (@nivo/line)</h3>
+      <p>Smooth curves, filled area under line, pill-badge on latest value, filled red dots for out-of-range. Beautiful defaults tuned for dark themes.</p>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Pros</h4><ul><li>Best defaults out of box</li><li>Built-in annotation layers</li><li>Great mobile tooltip</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>~180KB new dependency</li><li>Different API to learn</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPTION C: ECharts -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:16px 12px 8px;border-radius:6px 6px 0 0">
+      <div style="font-size:11px;color:#94a3b8;margin-bottom:8px;font-weight:600">Haemoglobin (g/L)</div>
+      <svg width="100%" viewBox="0 0 320 160" style="overflow:visible">
+        <defs>
+          <linearGradient id="fillC" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#34d399" stop-opacity="0.25"/>
+            <stop offset="100%" stop-color="#34d399" stop-opacity="0.02"/>
+          </linearGradient>
+        </defs>
+        <!-- Grid -->
+        <line x1="30" y1="20" x2="310" y2="20" stroke="#1e293b" stroke-width="1"/>
+        <line x1="30" y1="50" x2="310" y2="50" stroke="#1e293b" stroke-width="1"/>
+        <line x1="30" y1="80" x2="310" y2="80" stroke="#1e293b" stroke-width="1"/>
+        <line x1="30" y1="110" x2="310" y2="110" stroke="#1e293b" stroke-width="1"/>
+        <!-- reference range markArea -->
+        <rect x="30" y="16" width="280" height="80" fill="rgba(52,211,153,0.06)" rx="2"/>
+        <text x="33" y="27" fill="#34d399" font-size="8" opacity="0.6">▲ Upper: 170</text>
+        <text x="33" y="93" fill="#34d399" font-size="8" opacity="0.6">▼ Lower: 130</text>
+        <!-- Dashed reference lines -->
+        <line x1="30" y1="16" x2="310" y2="16" stroke="#34d399" stroke-width="1" stroke-dasharray="3 3" opacity="0.5"/>
+        <line x1="30" y1="96" x2="310" y2="96" stroke="#34d399" stroke-width="1" stroke-dasharray="3 3" opacity="0.5"/>
+        <!-- Smooth line -->
+        <path d="M30,121 C41,118 63,113 74,109 C85,105 107,118 118,112 C129,106 151,96 162,88 C173,80 195,82 206,83 C217,84 239,76 250,78 C261,80 283,66 294,59"
+          fill="none" stroke="#34d399" stroke-width="2.5" stroke-linecap="round"/>
+        <!-- Fill under -->
+        <path d="M30,121 C41,118 63,113 74,109 C85,105 107,118 118,112 C129,106 151,96 162,88 C173,80 195,82 206,83 C217,84 239,76 250,78 C261,80 283,66 294,59 L294,140 L30,140 Z"
+          fill="url(#fillC)"/>
+        <!-- square markers (ECharts style) -->
+        <rect x="27.5" y="118.5" width="5" height="5" fill="#34d399"/>
+        <rect x="71.5" y="106.5" width="5" height="5" fill="#34d399"/>
+        <rect x="115.5" y="109.5" width="5" height="5" fill="#34d399"/>
+        <rect x="159.5" y="85.5" width="5" height="5" fill="#34d399"/>
+        <rect x="203.5" y="80.5" width="5" height="5" fill="#34d399"/>
+        <rect x="247.5" y="75.5" width="5" height="5" fill="#34d399"/>
+        <!-- Zoom/brush indicator at bottom -->
+        <rect x="30" y="143" width="280" height="8" rx="4" fill="#1e293b"/>
+        <rect x="30" y="143" width="200" height="8" rx="4" fill="#334155"/>
+        <text x="315" y="150" fill="#475569" font-size="8">⇔</text>
+        <!-- out of range squares red -->
+        <rect x="27.5" y="118.5" width="5" height="5" fill="#f87171"/>
+        <rect x="49.5" y="112.5" width="5" height="5" fill="#f87171"/>
+        <rect x="71.5" y="106.5" width="5" height="5" fill="#f87171"/>
+        <rect x="93.5" y="117.5" width="5" height="5" fill="#f87171"/>
+        <rect x="115.5" y="109.5" width="5" height="5" fill="#f87171"/>
+        <!-- Latest value tooltip -->
+        <rect x="265" y="42" width="50" height="20" rx="4" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+        <text x="290" y="55" text-anchor="middle" fill="#e2e8f0" font-size="9">152 g/L</text>
+        <rect x="291" y="59" width="6" height="6" fill="#34d399" stroke="#0f172a" stroke-width="1.5"/>
+        <!-- X labels -->
+        <line x1="30" y1="140" x2="310" y2="140" stroke="#334155" stroke-width="1"/>
+        <text x="30" y="156" text-anchor="middle" fill="#64748b" font-size="9">Jan '24</text>
+        <text x="118" y="156" text-anchor="middle" fill="#64748b" font-size="9">May '24</text>
+        <text x="206" y="156" text-anchor="middle" fill="#64748b" font-size="9">Sep '24</text>
+        <text x="294" y="156" text-anchor="middle" fill="#64748b" font-size="9">May '26</text>
+        <text x="26" y="144" text-anchor="end" fill="#64748b" font-size="9">100</text>
+        <text x="26" y="24" text-anchor="end" fill="#64748b" font-size="9">175</text>
+      </svg>
+    </div>
+    <div class="card-body">
+      <h3>C — Apache ECharts</h3>
+      <p>Full-featured charting engine. Built-in pinch-to-zoom and pan on mobile, markArea for reference bands, clean data zoom slider. Most powerful option.</p>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Pros</h4><ul><li>Touch zoom/pan built in</li><li>Powerful reference band API</li><li>Very fast rendering</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>~400KB (tree-shakeable to ~150KB)</li><li>Different paradigm (config object)</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+</div>
