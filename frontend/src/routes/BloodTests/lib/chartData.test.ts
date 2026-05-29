@@ -129,4 +129,34 @@ describe('toNivoSeries', () => {
     expect(d.refLow).toBe(130);
     expect(d.refHigh).toBe(170);
   });
+
+  it('deduplicates same-day readings, keeping pre over post', () => {
+    const rows = [
+      row({ datetime: '2024-01-15T08:00:00', timing: 'pre', value: 115 }),
+      row({ datetime: '2024-01-15T14:00:00', timing: 'post', value: 120 }),
+    ];
+    const series = toNivoSeries('haemoglobin', rows);
+    expect(series.data).toHaveLength(1);
+    expect(series.data[0].timing).toBe('pre');
+    expect(series.data[0].y).toBe(115);
+  });
+
+  it('deduplicates same-day readings, keeping post over plain', () => {
+    const rows = [
+      row({ datetime: '2024-01-15T08:00:00', timing: '', value: 115 }),
+      row({ datetime: '2024-01-15T14:00:00', timing: 'post', value: 120 }),
+    ];
+    const series = toNivoSeries('haemoglobin', rows);
+    expect(series.data).toHaveLength(1);
+    expect(series.data[0].timing).toBe('post');
+  });
+
+  it('keeps separate points for different calendar dates', () => {
+    const rows = [
+      row({ datetime: '2024-01-15T08:00:00', timing: 'pre', value: 115 }),
+      row({ datetime: '2024-02-15T08:00:00', timing: 'pre', value: 118 }),
+    ];
+    const series = toNivoSeries('haemoglobin', rows);
+    expect(series.data).toHaveLength(2);
+  });
 });

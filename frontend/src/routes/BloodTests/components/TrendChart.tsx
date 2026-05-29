@@ -178,7 +178,7 @@ export function TrendChart({ marker, rows }: Props) {
           enableArea
           areaOpacity={0.12}
           colors={['#818cf8']}
-          lineWidth={2.5}
+          lineWidth={3}
           pointSize={10}
           pointColor={(context) => getPointColor(context.point.data as ChartDatum)}
           pointBorderWidth={2}

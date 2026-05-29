@@ -38,9 +38,24 @@ export function getPointColor(datum: Pick<ChartDatum, 'inRange' | 'timing'>): st
   return '#818cf8';                               // plain / unknown timing — indigo
 }
 
+// Priority for same-day deduplication: pre beats post beats plain.
+// This prevents pre+post readings on the same day creating a zigzag
+// that looks like two separate lines.
+const TIMING_RANK: Record<string, number> = { pre: 0, post: 1, '': 2 };
+
 export function toNivoSeries(marker: string, rows: BloodTestRow[]): ChartSeries {
-  const data: ChartDatum[] = rows
-    .filter(r => !r.qualitative)
+  // One representative reading per calendar date.
+  const byDate = new Map<string, BloodTestRow>();
+  for (const r of rows.filter(r => !r.qualitative)) {
+    const dateKey = r.datetime.slice(0, 10);
+    const existing = byDate.get(dateKey);
+    const rank = TIMING_RANK[r.timing] ?? 2;
+    if (!existing || rank < (TIMING_RANK[existing.timing] ?? 2)) {
+      byDate.set(dateKey, r);
+    }
+  }
+
+  const data: ChartDatum[] = Array.from(byDate.values())
     .sort((a, b) => a.datetime.localeCompare(b.datetime))
     .map(r => {
       const inRange =
