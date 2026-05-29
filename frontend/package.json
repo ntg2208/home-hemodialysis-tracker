@@ -12,12 +12,12 @@
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
+    "@nivo/line": "^0.99.0",
     "idb": "^8.0.0",
     "lucide-react": "^1.14.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",
-    "recharts": "^2.13.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
