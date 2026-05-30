@@ -6,6 +6,9 @@ import {
   ConfirmOrderBodySchema,
   ApplyDeliveryBodySchema,
   SetPakInstallBodySchema,
+  UpdateCycleDatesBodySchema,
+  StockEditBodySchema,
+  OrderEditBodySchema,
 } from '../schemas/inventory.js';
 
 export const inventory = new Hono()
@@ -85,8 +88,8 @@ export const inventory = new Hono()
     const parsed = ConfirmOrderBodySchema.safeParse(body);
     if (!parsed.success) return c.json({ error: 'invalid request', details: parsed.error.issues }, 400);
 
-    const { call_date, order } = parsed.data;
-    const deliveryDate = addDays(call_date, 7);
+    const { call_date, delivery_date: customDeliveryDate, order } = parsed.data;
+    const deliveryDate = customDeliveryDate ?? addDays(call_date, 7);
     const now = new Date().toISOString();
     const hasOrder = Object.keys(order).length > 0;
 
@@ -159,6 +162,71 @@ export const inventory = new Hono()
       .map(d => d.data() as { timestamp: string; deltas: Record<string, number>; note?: string })
       .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
     return c.json({ deliveries });
+  })
+
+  .put('/stock', async (c) => {
+    let body: unknown;
+    try { body = await c.req.json(); } catch {
+      return c.json({ error: 'invalid JSON' }, 400);
+    }
+    const parsed = StockEditBodySchema.safeParse(body);
+    if (!parsed.success) return c.json({ error: 'invalid request', details: parsed.error.issues }, 400);
+
+    const { items } = parsed.data;
+    const now = new Date().toISOString();
+    const db = getDb();
+
+    const batch = db.batch();
+    for (const [code, qty] of Object.entries(items)) {
+      batch.set(db.collection('inventory_stock').doc(code), { qty, updated_at: now });
+    }
+    await batch.commit();
+
+    await db.collection('inventory_events').add({
+      type: 'stock_count',
+      deltas: items,
+      note: 'api edit',
+      timestamp: now,
+    });
+
+    return c.json({ ok: true, updated: Object.keys(items).length });
+  })
+
+  .patch('/order', async (c) => {
+    let body: unknown;
+    try { body = await c.req.json(); } catch {
+      return c.json({ error: 'invalid JSON' }, 400);
+    }
+    const parsed = OrderEditBodySchema.safeParse(body);
+    if (!parsed.success) return c.json({ error: 'invalid request', details: parsed.error.issues }, 400);
+
+    const db = getDb();
+    const cycleDoc = await db.collection('inventory_config').doc('cycle').get();
+    if (!cycleDoc.exists) return c.json({ error: 'no active cycle' }, 404);
+
+    await db.collection('inventory_config').doc('cycle').set(
+      { order: parsed.data.order },
+      { merge: true },
+    );
+
+    return c.json({ ok: true });
+  })
+
+  .post('/update-cycle-dates', async (c) => {
+    let body: unknown;
+    try { body = await c.req.json(); } catch {
+      return c.json({ error: 'invalid JSON' }, 400);
+    }
+    const parsed = UpdateCycleDatesBodySchema.safeParse(body);
+    if (!parsed.success) return c.json({ error: 'invalid request', details: parsed.error.issues }, 400);
+
+    const { call_date, delivery_date } = parsed.data;
+    await getDb().collection('inventory_config').doc('cycle').set(
+      { call_date, delivery_date },
+      { merge: true },
+    );
+
+    return c.json({ ok: true });
   })
 
   .post('/set-pak-install', async (c) => {

@@ -21,7 +21,7 @@ function formatDate(datetime: string): string {
 }
 
 function formatDelta(delta: number, prevValue: number): string {
-  const sign = delta > 0 ? '+' : delta < 0 ? '−' : '';
+  const sign = delta >= 0 ? '+' : '−';
   const abs = Math.abs(delta);
   return `${sign}${abs} from ${prevValue}`;
 }

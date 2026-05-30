@@ -2646,3 +2646,31 @@ curl -s -H "Authorization: Bearer $KEY" https://homehd.web.app/api/inventory
 **Placeholder scan:** No TBD or fill-in-later text. All code blocks are complete.
 
 **Type consistency:** `SessionConsumed` defined once in `storage.ts`, imported by `ActiveSession`, `PreTreatment` (via index.tsx threading), and `PostTreatment`. `ITEMS`/`getItem`/`SESSION_FIXED_DELTAS` from `constants.ts` used consistently. `Cycle` from `schemas.ts` used in both banner and index.
+
+---
+
+## Update Log
+
+### 2026-05-30 — Order editing, delivery shortcuts, editable cycle dates
+
+**Edit placed order** (`EditOrderModal.tsx` — new component):
+- Opened from "Edit" button in the View order (order_summary) modal
+- Shows current order items with −/+ box count controls and a trash button to remove items
+- "Add item" section: dropdown of items not yet in the order + quantity input + Add button
+- Saves via `POST /api/inventory/confirm-order` (overwrites order in Firestore; does not touch stock)
+
+**Delivered / Early delivery shortcuts**:
+- Banner shows **"Delivered"** button when delivery is due or overdue — one-tap apply with no adjustment modal
+- **"Early delivery"** button lives inside the View order modal (bottom of order summary) — same one-tap apply before the expected delivery date
+- Both call `applyDelivery()` with no adjustments; existing **"Adjust"** link (opens OrderView in delivery mode) remains for quantity corrections
+
+**Editable cycle dates** (`POST /api/inventory/update-cycle-dates` — new endpoint):
+- Frontend: "Edit dates" link at bottom of banner opens a modal with both call_date and delivery_date as editable date inputs, pre-filled with current cycle values
+- Backend: new endpoint does a Firestore merge-set of only `call_date` and `delivery_date`, without resetting `order`, `order_placed_at`, or `delivery_applied_at`
+- Setup modal (cycle initialisation) now also has a delivery_date field, defaulting to call_date + 7 days when the call date is picked
+
+**Backend schema change** (`ConfirmOrderBodySchema`):
+- Added optional `delivery_date` field — if provided, used directly; otherwise falls back to `call_date + 7`. Allows the setup modal to specify a non-standard first delivery date.
+- Added `UpdateCycleDatesBodySchema` for the new endpoint.
+
+**`DeliveryCycleBanner` props added**: `onQuickDeliver`, `onEditDates`.

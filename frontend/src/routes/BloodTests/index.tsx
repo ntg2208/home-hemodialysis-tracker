@@ -70,13 +70,16 @@ function ResultsTable({ rows }: { rows: BloodTestRow[] }) {
 
 function Dashboard({ rows }: { rows: BloodTestRow[] }) {
   const markers = useMemo(() => [...new Set(rows.map((r) => r.marker))].sort(), [rows]);
+  const years = useMemo(
+    () => [...new Set(rows.map((r) => parseInt(r.datetime.slice(0, 4))))].sort(),
+    [rows],
+  );
   const [tab, setTab] = useState<Tab>('scorecard');
   const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites());
   const [filter, setFilter] = useState<FilterState>({
     phases: ['home-hd'],
     from: '',
     to: '',
-    granularity: 'month',
     marker: markers[0] ?? '',
   });
 
@@ -104,7 +107,7 @@ function Dashboard({ rows }: { rows: BloodTestRow[] }) {
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100">
-      <FilterBar filter={filter} markers={markers} onChange={setFilter} />
+      <FilterBar filter={filter} markers={markers} years={years} onChange={setFilter} />
       <div className="flex gap-2 border-b border-slate-700 bg-slate-800 px-3">
         {(['scorecard', 'trend'] as Tab[]).map((t) => (
           <button key={t} type="button"

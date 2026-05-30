@@ -26,10 +26,23 @@ export async function confirmOrder(
   auth: AuthSettings,
   call_date: string,
   order: Record<string, number>,
+  delivery_date?: string,
 ): Promise<void> {
-  const data = await cloudPost<unknown>(auth, '/api/inventory/confirm-order', { call_date, order });
+  const body: Record<string, unknown> = { call_date, order };
+  if (delivery_date) body.delivery_date = delivery_date;
+  const data = await cloudPost<unknown>(auth, '/api/inventory/confirm-order', body);
   const parsed = OkResponseSchema.safeParse(data);
   if (!parsed.success) throw new CloudRunError('bad_data', 'Unexpected confirm-order response.');
+}
+
+export async function updateCycleDates(
+  auth: AuthSettings,
+  call_date: string,
+  delivery_date: string,
+): Promise<void> {
+  const data = await cloudPost<unknown>(auth, '/api/inventory/update-cycle-dates', { call_date, delivery_date });
+  const parsed = OkResponseSchema.safeParse(data);
+  if (!parsed.success) throw new CloudRunError('bad_data', 'Unexpected update-cycle-dates response.');
 }
 
 export async function applyDelivery(
@@ -41,8 +54,8 @@ export async function applyDelivery(
   if (!parsed.success) throw new CloudRunError('bad_data', 'Unexpected apply-delivery response.');
 }
 
-export async function initCycle(auth: AuthSettings, call_date: string): Promise<void> {
-  await confirmOrder(auth, call_date, {});
+export async function initCycle(auth: AuthSettings, call_date: string, delivery_date?: string): Promise<void> {
+  await confirmOrder(auth, call_date, {}, delivery_date);
 }
 
 export async function fetchDeliveries(auth: AuthSettings): Promise<DeliveriesResponse> {

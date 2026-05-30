@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Package, X } from 'lucide-react';
 import { getAuth, type AuthSettings } from '../../auth/storage';
-import { fetchInventory, logEvent, confirmOrder, applyDelivery, initCycle, setPakInstall, fetchDeliveries } from './api';
+import { fetchInventory, logEvent, confirmOrder, applyDelivery, initCycle, setPakInstall, fetchDeliveries, updateCycleDates } from './api';
 import type { DeliveryEvent } from './schemas';
 import { ITEMS } from './constants';
 import { sortStock } from './lib/stockCalc';
@@ -11,6 +11,7 @@ import { DeliveryCycleBanner } from './components/DeliveryCycleBanner';
 import { StockItemRow } from './components/StockItemRow';
 import { LogEventModal } from './components/LogEventModal';
 import { OrderView } from './components/OrderView';
+import { EditOrderModal } from './components/EditOrderModal';
 import type { Cycle } from './schemas';
 
 type State =
@@ -22,12 +23,17 @@ export default function Inventory() {
   const navigate = useNavigate();
   const [auth, setAuth] = useState<AuthSettings | null>(null);
   const [state, setState] = useState<State>({ status: 'loading' });
-  const [modal, setModal] = useState<'log' | 'order' | 'delivery' | 'setup' | 'order_summary' | 'history' | null>(null);
+  const [modal, setModal] = useState<'log' | 'order' | 'delivery' | 'setup' | 'order_summary' | 'edit_order' | 'edit_dates' | 'history' | null>(null);
   const [deliveryHistory, setDeliveryHistory] = useState<DeliveryEvent[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [setupDate, setSetupDate] = useState('');
+  const [setupCallDate, setSetupCallDate] = useState('');
+  const [setupDeliveryDate, setSetupDeliveryDate] = useState('');
   const [setupSaving, setSetupSaving] = useState(false);
   const [setupError, setSetupError] = useState<string | null>(null);
+  const [editDatesCallDate, setEditDatesCallDate] = useState('');
+  const [editDatesDeliveryDate, setEditDatesDeliveryDate] = useState('');
+  const [editDatesSaving, setEditDatesSaving] = useState(false);
+  const [editDatesError, setEditDatesError] = useState<string | null>(null);
 
   // Initial load
   useEffect(() => {
@@ -117,16 +123,34 @@ export default function Inventory() {
   }
 
   async function handleSetupCycle() {
-    if (!auth || !setupDate) return;
+    if (!auth || !setupCallDate) return;
     setSetupSaving(true);
     setSetupError(null);
     try {
-      await initCycle(auth, setupDate);
+      await initCycle(auth, setupCallDate, setupDeliveryDate || undefined);
       const fresh = await fetchInventory(auth);
       setState(s => s.status !== 'ready' ? s : { ...s, cycle: fresh.cycle });
       setModal(null);
     } catch { setSetupError('Save failed — please try again.'); }
     finally { setSetupSaving(false); }
+  }
+
+  async function handleEditDates() {
+    if (!auth || !editDatesCallDate || !editDatesDeliveryDate) return;
+    setEditDatesSaving(true);
+    setEditDatesError(null);
+    try {
+      await updateCycleDates(auth, editDatesCallDate, editDatesDeliveryDate);
+      const fresh = await fetchInventory(auth);
+      setState(s => s.status !== 'ready' ? s : { ...s, cycle: fresh.cycle });
+      setModal(null);
+    } catch { setEditDatesError('Save failed — please try again.'); }
+    finally { setEditDatesSaving(false); }
+  }
+
+  async function handleQuickDeliver() {
+    if (!auth) return;
+    await handleApplyDelivery();
   }
 
   if (state.status === 'loading') return <div className="p-4 text-slate-400">Loading…</div>;
@@ -153,6 +177,12 @@ export default function Inventory() {
         onSetupCycle={() => setModal('setup')}
         onOpenOrder={() => setModal(cycle?.order_placed_at ? 'delivery' : 'order')}
         onViewOrder={() => setModal('order_summary')}
+        onQuickDeliver={cycle?.order_placed_at && !cycle?.delivery_applied_at ? handleQuickDeliver : undefined}
+        onEditDates={() => {
+          setEditDatesCallDate(cycle?.call_date ?? '');
+          setEditDatesDeliveryDate(cycle?.delivery_date ?? '');
+          setModal('edit_dates');
+        }}
       />
 
       <div className="flex gap-2">
@@ -214,17 +244,36 @@ export default function Inventory() {
       {modal === 'setup' && (
         <div className="kb-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-bg border border-slate-700 rounded-xl w-full max-w-xs p-4 space-y-3">
-            <h2 className="font-semibold text-slate-200">Set first call date</h2>
-            <input
-              type="date"
-              value={setupDate}
-              onChange={e => setSetupDate(e.target.value)}
-              className="w-full bg-panel border border-slate-600 rounded px-3 py-2 text-sm text-slate-200"
-            />
+            <h2 className="font-semibold text-slate-200">Set cycle dates</h2>
+            <label className="flex flex-col gap-1 text-xs text-slate-400">
+              Call date
+              <input
+                type="date"
+                value={setupCallDate}
+                onChange={e => {
+                  setSetupCallDate(e.target.value);
+                  if (e.target.value && !setupDeliveryDate) {
+                    const d = new Date(e.target.value);
+                    d.setUTCDate(d.getUTCDate() + 7);
+                    setSetupDeliveryDate(d.toISOString().slice(0, 10));
+                  }
+                }}
+                className="bg-panel border border-slate-600 rounded px-3 py-2 text-sm text-slate-200"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-slate-400">
+              Delivery date
+              <input
+                type="date"
+                value={setupDeliveryDate}
+                onChange={e => setSetupDeliveryDate(e.target.value)}
+                className="bg-panel border border-slate-600 rounded px-3 py-2 text-sm text-slate-200"
+              />
+            </label>
             {setupError && <p className="text-red-400 text-sm">{setupError}</p>}
             <div className="flex gap-2">
               <button type="button" onClick={() => setModal(null)} className="flex-1 border border-slate-600 text-slate-300 rounded-lg py-2 text-sm">Cancel</button>
-              <button type="button" onClick={handleSetupCycle} disabled={!setupDate || setupSaving} className="flex-1 bg-accent text-bg font-semibold rounded-lg py-2 text-sm disabled:opacity-40">
+              <button type="button" onClick={handleSetupCycle} disabled={!setupCallDate || !setupDeliveryDate || setupSaving} className="flex-1 bg-accent text-bg font-semibold rounded-lg py-2 text-sm disabled:opacity-40">
                 {setupSaving ? 'Saving…' : 'Save'}
               </button>
             </div>
@@ -297,9 +346,14 @@ export default function Inventory() {
                   </span>
                 )}
               </div>
-              <button type="button" onClick={() => setModal(null)} className="text-slate-500 hover:text-slate-300">
-                <X size={18} />
-              </button>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={() => setModal('edit_order')} className="text-xs text-accent underline">
+                  Edit
+                </button>
+                <button type="button" onClick={() => setModal(null)} className="text-slate-500 hover:text-slate-300">
+                  <X size={18} />
+                </button>
+              </div>
             </div>
             <div className="px-4 pb-4 space-y-1">
               {Object.entries(cycle.order).filter(([, qty]) => qty > 0).map(([code, qty]) => {
@@ -318,8 +372,60 @@ export default function Inventory() {
                 Delivery expected {new Date(cycle.delivery_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
               </p>
             </div>
+            {cycle.order_placed_at && !cycle.delivery_applied_at && (
+              <div className="px-4 pb-4 border-t border-slate-800 pt-3">
+                <button
+                  type="button"
+                  onClick={() => { setModal(null); handleQuickDeliver(); }}
+                  className="w-full bg-accent text-bg font-semibold rounded-lg py-2 text-sm"
+                >
+                  Early delivery
+                </button>
+              </div>
+            )}
           </div>
         </div>
+      )}
+
+      {modal === 'edit_dates' && (
+        <div className="kb-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-bg border border-slate-700 rounded-xl w-full max-w-xs p-4 space-y-3">
+            <h2 className="font-semibold text-slate-200">Edit cycle dates</h2>
+            <label className="flex flex-col gap-1 text-xs text-slate-400">
+              Call date
+              <input
+                type="date"
+                value={editDatesCallDate}
+                onChange={e => setEditDatesCallDate(e.target.value)}
+                className="bg-panel border border-slate-600 rounded px-3 py-2 text-sm text-slate-200"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-slate-400">
+              Delivery date
+              <input
+                type="date"
+                value={editDatesDeliveryDate}
+                onChange={e => setEditDatesDeliveryDate(e.target.value)}
+                className="bg-panel border border-slate-600 rounded px-3 py-2 text-sm text-slate-200"
+              />
+            </label>
+            {editDatesError && <p className="text-red-400 text-sm">{editDatesError}</p>}
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setModal(null)} className="flex-1 border border-slate-600 text-slate-300 rounded-lg py-2 text-sm">Cancel</button>
+              <button type="button" onClick={handleEditDates} disabled={!editDatesCallDate || !editDatesDeliveryDate || editDatesSaving} className="flex-1 bg-accent text-bg font-semibold rounded-lg py-2 text-sm disabled:opacity-40">
+                {editDatesSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal === 'edit_order' && cycle && (
+        <EditOrderModal
+          cycle={cycle}
+          onSave={order => handleConfirmOrder(cycle.call_date, order)}
+          onClose={() => setModal(null)}
+        />
       )}
 
       {(modal === 'order' || modal === 'delivery') && (

@@ -159,3 +159,26 @@ const nivoTheme = {
 - FilterBar (phase, date range, granularity) — unchanged
 - ResultsTable below chart — unchanged
 - Scorecard tiles — unchanged
+
+---
+
+## Update Log
+
+### 2026-05-30 — Chart fixes, scorecard redesign, FilterBar overhaul
+
+**Chart: same-day deduplication**
+`toNivoSeries` now collapses multiple readings on the same calendar date to one point using priority `pre > post > plain`. Prevented a visual zigzag that looked like two separate lines when both pre and post readings existed on the same day. Implemented via `TIMING_RANK` map in `chartData.ts`.
+
+**Chart: timing-only dot colour (removed red override)**
+`getPointColor` was previously overriding dot colour to red when `inRange === false`, making pre and post readings indistinguishable when out of range. Changed to timing-only colours at all times (cyan=pre, amber=post, indigo=plain). Out-of-range status is still shown in the tooltip (`↓ low` / `↑ high`). The design table in the spec above is superseded — out-of-range no longer overrides timing colour.
+
+**Scorecard tiles: horizontal list layout** (`ScorecardTile.tsx` rewritten)
+Replaced the grid-card layout with horizontal rows:
+- Left: marker name, date (formatted `15 Jan '26`), ref range on its own line (e.g. `130–170 g/L`)
+- Right: latest value (red if out of range), delta from previous reading (`+3 from 115`)
+- Left border colour: emerald=in range, red=out of range, slate=unknown
+- Star button at far right; zero delta shows `+0 from X`
+- `Scorecard.tsx` grids changed from `grid-cols` to `flex flex-col gap-1`
+
+**FilterBar: month + year dropdowns** (`FilterBar.tsx` rewritten)
+Replaced native `<input type="month">` (browser-inconsistent on mobile) with explicit month/year `<select>` pairs. `FilterState.granularity` field removed entirely. `bound(year, month)` helper builds `YYYY-MM` string; empty year returns `''`. `queryFilter.ts` unchanged — already used prefix comparison on YYYY-MM strings. `years: number[]` prop derived from all rows in `index.tsx`.

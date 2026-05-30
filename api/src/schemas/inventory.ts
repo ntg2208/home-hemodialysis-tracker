@@ -9,9 +9,26 @@ export type EventBody = z.infer<typeof EventBodySchema>;
 
 export const ConfirmOrderBodySchema = z.object({
   call_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'call_date must be YYYY-MM-DD'),
+  delivery_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   order: z.record(z.string(), z.number().int().nonnegative()),
 });
 export type ConfirmOrderBody = z.infer<typeof ConfirmOrderBodySchema>;
+
+export const UpdateCycleDatesBodySchema = z.object({
+  call_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'call_date must be YYYY-MM-DD'),
+  delivery_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'delivery_date must be YYYY-MM-DD'),
+});
+export type UpdateCycleDatesBody = z.infer<typeof UpdateCycleDatesBodySchema>;
+
+export const StockEditBodySchema = z.object({
+  items: z.record(z.string(), z.number().int().nonnegative()),
+});
+export type StockEditBody = z.infer<typeof StockEditBodySchema>;
+
+export const OrderEditBodySchema = z.object({
+  order: z.record(z.string(), z.number().int().nonnegative()),
+});
+export type OrderEditBody = z.infer<typeof OrderEditBodySchema>;
 
 export const ApplyDeliveryBodySchema = z.object({
   adjustments: z.record(z.string(), z.number().int().nonnegative()).optional(),

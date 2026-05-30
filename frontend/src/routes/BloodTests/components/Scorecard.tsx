@@ -44,7 +44,7 @@ export function Scorecard({ rows, favorites, onSelectMarker, onToggleFavorite }:
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-yellow-500 inline-flex items-center gap-1.5">
             <Star size={13} className="fill-yellow-400 text-yellow-400" /> Favourites
           </h2>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+          <div className="flex flex-col gap-1">
             {favSummaries.map(s => (
               <ScorecardTile
                 key={s.marker}
@@ -63,7 +63,7 @@ export function Scorecard({ rows, favorites, onSelectMarker, onToggleFavorite }:
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">
             {panel}
           </h2>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+          <div className="flex flex-col gap-1">
             {byPanel.get(panel)!.map(s => (
               <ScorecardTile
                 key={s.marker}
