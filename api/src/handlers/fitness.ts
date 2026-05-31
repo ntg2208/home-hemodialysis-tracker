@@ -9,6 +9,7 @@ import {
   fetchListAll,
 } from '../lib/googleHealth.js';
 import { getRefreshToken, setRefreshToken } from '../lib/secretManager.js';
+import type { SyncType, FetchStrategy } from '../lib/googleHealth.js';
 import {
   readSyncState,
   writeSyncState,
@@ -32,15 +33,15 @@ function yesterday(): string {
   return d.toISOString().slice(0, 10);
 }
 
-function daysAgo(n: number): string {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - n);
-  return d.toISOString().slice(0, 10);
-}
-
 function nextDay(date: string): string {
   const d = new Date(date);
   d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function subtractDays(date: string, n: number): string {
+  const d = new Date(date);
+  d.setUTCDate(d.getUTCDate() - n);
   return d.toISOString().slice(0, 10);
 }
 
@@ -82,6 +83,102 @@ export const fitnessOAuth = new Hono()
     }
   });
 
+// === Core sync loop (dependency-injected so it's unit-testable without GCP/network) ===
+
+export interface SyncDeps {
+  readSyncState: () => Promise<SyncState>;
+  writeSyncState: (s: SyncState) => Promise<void>;
+  uploadJson: (path: string, data: unknown) => Promise<void>;
+  fetchRollUp: (args: { dataType: string; startDate: string; endDate: string }) => Promise<unknown>;
+  fetchList: (args: {
+    dataType: string;
+    filterField: string;
+    filterDateField: Extract<FetchStrategy, { method: 'list' }>['filterDateField'];
+    startDate: string;
+    endDate: string;
+  }) => Promise<unknown[]>;
+}
+
+export interface SyncOptions {
+  backfillDays: number;
+  lastInclusiveDate: string; // usually yesterday (UTC)
+  onlyType?: SyncType;       // sync a single type instead of all
+}
+
+export type TypeResult =
+  | { from: string; to: string; days_covered: number; status: 'ok' }
+  | { status: 'error'; error: string };
+
+export type SyncSummary = Record<string, TypeResult>;
+
+// Sync each type independently: one type's failure is isolated (recorded, not thrown)
+// and sync_state is persisted after every successful type so partial progress survives
+// a timeout, an OOM, or a single bad data type.
+export async function runSync(deps: SyncDeps, opts: SyncOptions): Promise<SyncSummary> {
+  const { backfillDays, lastInclusiveDate, onlyType } = opts;
+  const syncState = await deps.readSyncState();
+  const summary: SyncSummary = {};
+  const types: readonly SyncType[] = onlyType ? [onlyType] : SYNC_TYPES;
+
+  for (const type of types) {
+    try {
+      const lastSynced = syncState[type];
+      const startDate = lastSynced ? nextDay(lastSynced) : subtractDays(lastInclusiveDate, backfillDays - 1);
+
+      if (startDate > lastInclusiveDate) {
+        summary[type] = { from: startDate, to: lastInclusiveDate, days_covered: 0, status: 'ok' };
+        continue;
+      }
+
+      const strategy = SYNC_TYPE_STRATEGY[type];
+      let totalDays = 0;
+
+      if (strategy.method === 'dailyRollUp') {
+        const chunks = chunkDateRange(startDate, lastInclusiveDate, 90);
+        for (const [chunkStart, chunkEnd] of chunks) {
+          const raw = await deps.fetchRollUp({
+            dataType: type,
+            startDate: chunkStart,
+            endDate: nextDay(chunkEnd), // API end is exclusive
+          });
+          await deps.uploadJson(dataTypePath(type, `${chunkStart}_to_${chunkEnd}`), {
+            fetched_at: new Date().toISOString(),
+            start: chunkStart,
+            end: chunkEnd,
+            data: raw,
+          });
+          totalDays += dateRange(chunkStart, chunkEnd).length;
+        }
+      } else {
+        const points = await deps.fetchList({
+          dataType: type,
+          filterField: strategy.filterField,
+          filterDateField: strategy.filterDateField,
+          startDate,
+          endDate: lastInclusiveDate,
+        });
+        await deps.uploadJson(dataTypePath(type, `${startDate}_to_${lastInclusiveDate}`), {
+          fetched_at: new Date().toISOString(),
+          start: startDate,
+          end: lastInclusiveDate,
+          count: points.length,
+          data: points,
+        });
+        totalDays = dateRange(startDate, lastInclusiveDate).length;
+      }
+
+      // Advance + persist this type's cursor immediately, before moving to the next type.
+      syncState[type] = lastInclusiveDate;
+      await deps.writeSyncState(syncState);
+      summary[type] = { from: startDate, to: lastInclusiveDate, days_covered: totalDays, status: 'ok' };
+    } catch (err) {
+      summary[type] = { status: 'error', error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  return summary;
+}
+
 // Sync endpoint — mounted under bearer auth in index.ts
 export const fitness = new Hono()
   .get('/', (c) => c.json({ ok: true, types: SYNC_TYPES }))
@@ -89,71 +186,31 @@ export const fitness = new Hono()
     try {
       const backfillDays = Math.max(1, Math.min(Number(c.req.query('days') ?? '365'), 3650));
 
+      const typeParam = c.req.query('type');
+      if (typeParam && !SYNC_TYPES.includes(typeParam as SyncType)) {
+        return c.json({ ok: false, error: `unknown type: ${typeParam}` }, 400);
+      }
+      const onlyType = typeParam as SyncType | undefined;
+
       const { clientId, clientSecret } = getOAuthConfig();
       const refreshToken = await getRefreshToken();
       const accessToken = await refreshAccessToken({ refreshToken, clientId, clientSecret });
 
-      const syncState: SyncState = await readSyncState();
-      const lastInclusiveDate = yesterday();
+      const summary = await runSync(
+        {
+          readSyncState,
+          writeSyncState,
+          uploadJson,
+          fetchRollUp: ({ dataType, startDate, endDate }) =>
+            fetchDailyRollUp({ accessToken, dataType, startDate, endDate }),
+          fetchList: ({ dataType, filterField, filterDateField, startDate, endDate }) =>
+            fetchListAll({ accessToken, dataType, filterField, filterDateField, startDate, endDate }),
+        },
+        { backfillDays, lastInclusiveDate: yesterday(), onlyType }
+      );
 
-      const summary: Record<string, { from: string; to: string; days_covered: number }> = {};
-
-      for (const type of SYNC_TYPES) {
-        const lastSynced = syncState[type];
-        const startDate = lastSynced ? nextDay(lastSynced) : daysAgo(backfillDays);
-
-        if (startDate > lastInclusiveDate) {
-          summary[type] = { from: startDate, to: lastInclusiveDate, days_covered: 0 };
-          continue;
-        }
-
-        const strategy = SYNC_TYPE_STRATEGY[type];
-        let totalDays = 0;
-
-        if (strategy.method === 'dailyRollUp') {
-          const chunks = chunkDateRange(startDate, lastInclusiveDate, 90);
-          for (const [chunkStart, chunkEnd] of chunks) {
-            const raw = await fetchDailyRollUp({
-              accessToken,
-              dataType: type,
-              startDate: chunkStart,
-              endDate: nextDay(chunkEnd), // API end is exclusive
-            });
-            const path = dataTypePath(type, `${chunkStart}_to_${chunkEnd}`);
-            await uploadJson(path, {
-              fetched_at: new Date().toISOString(),
-              start: chunkStart,
-              end: chunkEnd,
-              data: raw,
-            });
-            totalDays += dateRange(chunkStart, chunkEnd).length;
-          }
-        } else {
-          const points = await fetchListAll({
-            accessToken,
-            dataType: type,
-            filterField: strategy.filterField,
-            filterDateField: strategy.filterDateField,
-            startDate,
-            endDate: lastInclusiveDate,
-          });
-          const path = dataTypePath(type, `${startDate}_to_${lastInclusiveDate}`);
-          await uploadJson(path, {
-            fetched_at: new Date().toISOString(),
-            start: startDate,
-            end: lastInclusiveDate,
-            count: points.length,
-            data: points,
-          });
-          totalDays = dateRange(startDate, lastInclusiveDate).length;
-        }
-
-        syncState[type] = lastInclusiveDate;
-        summary[type] = { from: startDate, to: lastInclusiveDate, days_covered: totalDays };
-      }
-
-      await writeSyncState(syncState);
-      return c.json({ ok: true, synced: summary });
+      const anyError = Object.values(summary).some((r) => r.status === 'error');
+      return c.json({ ok: !anyError, synced: summary });
     } catch (err) {
       console.error('Sync error:', err instanceof Error ? err.message : String(err));
       return c.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, 500);

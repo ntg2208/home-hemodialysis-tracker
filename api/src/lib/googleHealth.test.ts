@@ -97,12 +97,14 @@ describe('fetchDailyRollUp', () => {
     const result = await fetchDailyRollUp({ accessToken: 'at', dataType: 'steps', startDate: '2026-05-01', endDate: '2026-05-27' });
     expect(result).toEqual(mockData);
 
-    // Verify correct request body format (CivilDate range, not flat date strings)
+    // Verify correct request body format. The API expects CivilDateTime
+    // (`{ date: { year, month, day } }`), not flat date fields — confirmed during
+    // live integration (2026-05-28); the date wrapper is required.
     const body = JSON.parse(mockFetch.mock.calls[0][1].body as string);
     expect(body).toEqual({
       range: {
-        start: { year: 2026, month: 5, day: 1 },
-        end:   { year: 2026, month: 5, day: 27 },
+        start: { date: { year: 2026, month: 5, day: 1 } },
+        end:   { date: { year: 2026, month: 5, day: 27 } },
       },
     });
   });

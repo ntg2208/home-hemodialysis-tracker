@@ -1,4 +1,16 @@
-export const SYNC_TYPES = ['steps', 'daily-resting-heart-rate', 'sleep', 'oxygen-saturation'] as const;
+// Order matters: cheap/sparse types first, the dense `heart-rate` LAST so that if a
+// run is killed (timeout/OOM) the cheap types have already persisted their sync_state.
+export const SYNC_TYPES = [
+  'steps',
+  'daily-resting-heart-rate',
+  'sleep',
+  'oxygen-saturation',
+  'daily-heart-rate-variability',
+  'heart-rate-variability',
+  'respiratory-rate-sleep-summary',
+  'daily-sleep-temperature-derivations',
+  'heart-rate',
+] as const;
 export type SyncType = (typeof SYNC_TYPES)[number];
 
 // Per-type fetch strategy. dailyRollUp supports interval types (≤90 days/call);
@@ -8,10 +20,16 @@ export type FetchStrategy =
   | { method: 'list'; filterField: string; filterDateField: 'date' | 'civil_start_time' | 'civil_end_time' | 'civil_time' };
 
 export const SYNC_TYPE_STRATEGY: Record<SyncType, FetchStrategy> = {
-  'steps':                   { method: 'dailyRollUp' },
-  'daily-resting-heart-rate':{ method: 'list', filterField: 'daily_resting_heart_rate', filterDateField: 'date' },
-  'sleep':                   { method: 'list', filterField: 'sleep',                    filterDateField: 'civil_end_time' },
-  'oxygen-saturation':       { method: 'list', filterField: 'oxygen_saturation',        filterDateField: 'civil_time' },
+  'steps':                               { method: 'dailyRollUp' },
+  'daily-resting-heart-rate':            { method: 'list', filterField: 'daily_resting_heart_rate',          filterDateField: 'date' },
+  'sleep':                               { method: 'list', filterField: 'sleep',                             filterDateField: 'civil_end_time' },
+  'oxygen-saturation':                   { method: 'list', filterField: 'oxygen_saturation',                 filterDateField: 'civil_time' },
+  'daily-heart-rate-variability':        { method: 'list', filterField: 'daily_heart_rate_variability',      filterDateField: 'date' },
+  'heart-rate-variability':              { method: 'list', filterField: 'heart_rate_variability',            filterDateField: 'civil_time' },
+  'respiratory-rate-sleep-summary':      { method: 'list', filterField: 'respiratory_rate_sleep_summary',    filterDateField: 'civil_time' },
+  'daily-sleep-temperature-derivations': { method: 'list', filterField: 'daily_sleep_temperature_derivations', filterDateField: 'date' },
+  // Dense: ~30-50k samples/day. Safe because the daily scheduled sync only ever pulls ~1 day per run.
+  'heart-rate':                          { method: 'list', filterField: 'heart_rate',                        filterDateField: 'civil_time' },
 };
 
 
