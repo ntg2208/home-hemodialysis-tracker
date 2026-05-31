@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "treatment_readings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "session_id", "order": "ASCENDING" },
+        { "fieldPath": "seq", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
