@@ -6,6 +6,7 @@ import { inventory } from './handlers/inventory.js';
 import { fitness, fitnessOAuth } from './handlers/fitness.js';
 import { chat } from './handlers/chat.js';
 import { bloodTests } from './handlers/bloodTests.js';
+import { treatment } from './handlers/treatment.js';
 
 const app = new Hono();
 
@@ -21,6 +22,7 @@ app.route('/api/inventory', inventory);
 app.route('/api/fitness', fitness);
 app.route('/api/chat', chat);
 app.route('/api/blood-tests', bloodTests);
+app.route('/api/treatment', treatment);
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
 app.onError((err, c) => c.json({ error: 'server_error', message: String(err) }, 500));
