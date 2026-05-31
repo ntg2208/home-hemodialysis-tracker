@@ -96,6 +96,11 @@ const LIST_CONFIG: Record<string, TypeConfig | null> = {
   'heart-rate-variability': null,
 };
 
+// Types with no card value (extractLatest is always null) — never download a file for "latest".
+const STATUS_ONLY = new Set(
+  Object.entries(LIST_CONFIG).filter(([, v]) => v === null).map(([k]) => k)
+);
+
 // dailyRollUp shape (steps): { data: { rollupDataPoints: [...] } }
 function stepsLatest(file: Record<string, unknown>): LatestReading | null {
   const pts = (G('data', 'rollupDataPoints')(file) as Array<Record<string, unknown>>) ?? [];
@@ -176,13 +181,11 @@ export interface SummaryDeps {
 export interface SummaryOptions {
   types: readonly string[];
   today: string; // YYYY-MM-DD (UTC)
-  rangeReadTypes?: readonly string[]; // never fully downloaded — count via readCount
 }
 
 // Build the per-type summary. Each type is isolated: one failure becomes { type, error }
 // rather than aborting the whole response (same philosophy as runSync).
 export async function buildSummary(deps: SummaryDeps, opts: SummaryOptions): Promise<SummaryResponse> {
-  const rangeRead = new Set(opts.rangeReadTypes ?? ['heart-rate']);
   const syncState = await deps.readSyncState();
   const out: TypeSummary[] = [];
 
@@ -209,16 +212,21 @@ export async function buildSummary(deps: SummaryDeps, opts: SummaryOptions): Pro
       let count = 0;
       let latest: LatestReading | null = null;
 
-      if (rangeRead.has(type)) {
-        for (const f of files) count += await deps.readCount(f.name);
-      } else {
-        let newestJson: unknown = null;
+      if (type === 'steps') {
+        // dailyRollUp wrapper has no `count` field → must parse (tiny). Newest doubles as latest.
         for (const { f } of ranged) {
           const json = await deps.readJson(f.name);
-          count += countOf(type, json);
-          if (f.name === newest.f.name) newestJson = json;
+          count += countOf('steps', json);
+          if (f.name === newest.f.name) latest = extractLatest('steps', json);
         }
-        latest = extractLatest(type, newestJson);
+      } else {
+        // All list types carry `count` in the wrapper → range-read it (never full-download,
+        // not just for heart-rate). Download ONLY the newest file, and only when there's a
+        // card value to extract (status-only types skip even that).
+        for (const f of files) count += await deps.readCount(f.name);
+        if (!STATUS_ONLY.has(type)) {
+          latest = extractLatest(type, await deps.readJson(newest.f.name));
+        }
       }
 
       out.push({ type, last_synced: lastSynced, count, first_date, last_date, stale, latest, bytes });

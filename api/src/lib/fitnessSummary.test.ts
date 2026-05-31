@@ -176,29 +176,48 @@ describe('buildSummary', () => {
     };
   }
 
-  it('aggregates counts and date range across multiple files, latest from the newest', async () => {
+  it('counts list types via range-read and downloads ONLY the newest file (for latest)', async () => {
+    const newestName = 'raw/daily-resting-heart-rate/2026-05-16_to_2026-05-30.json';
+    const readJson = vi.fn(async (name: string) =>
+      name === newestName
+        ? { data: [{ dailyRestingHeartRate: { date: { year: 2026, month: 5, day: 30 }, beatsPerMinute: '83' } }] }
+        : { data: [] });
     const d = deps({
       readSyncState: vi.fn().mockResolvedValue({ 'daily-resting-heart-rate': '2026-05-30' }),
-      listFiles: vi.fn(async (prefix: string) =>
-        prefix.includes('daily-resting-heart-rate')
-          ? [
-              { name: 'raw/daily-resting-heart-rate/2026-05-01_to_2026-05-15.json', size: 100 },
-              { name: 'raw/daily-resting-heart-rate/2026-05-16_to_2026-05-30.json', size: 200 },
-            ]
-          : []),
-      readJson: vi.fn(async (name: string) =>
-        name.endsWith('2026-05-16_to_2026-05-30.json')
-          ? { count: 15, data: [{ dailyRestingHeartRate: { date: { year: 2026, month: 5, day: 30 }, beatsPerMinute: '83' } }] }
-          : { count: 15, data: [] }),
+      listFiles: vi.fn(async () => [
+        { name: 'raw/daily-resting-heart-rate/2026-05-01_to_2026-05-15.json', size: 100 },
+        { name: newestName, size: 200 },
+      ]),
+      readCount: vi.fn().mockResolvedValue(15), // per file → 30
+      readJson,
     });
     const out = await buildSummary(d, { types: ['daily-resting-heart-rate'], today: '2026-06-01' });
     const t = out.types[0];
-    expect(t.count).toBe(30);                  // 15 + 15
+    expect(t.count).toBe(30);                  // 15 + 15 via readCount, not full parse
     expect(t.first_date).toBe('2026-05-01');
     expect(t.last_date).toBe('2026-05-30');
-    expect(t.stale).toBe(false);
     expect(t.latest).toEqual({ label: 'Resting HR', value: '83', unit: 'bpm', at: '2026-05-30' });
     expect(out.totals).toMatchObject({ types: 1, stale: 0, bytes: 300 });
+    // Efficiency: only the newest file is downloaded, the older one is range-read only.
+    expect(readJson).toHaveBeenCalledTimes(1);
+    expect(readJson).toHaveBeenCalledWith(newestName);
+  });
+
+  it('counts steps by parsing (dailyRollUp wrapper has no count field to range-read)', async () => {
+    const d = deps({
+      readSyncState: vi.fn().mockResolvedValue({ steps: '2026-05-30' }),
+      listFiles: vi.fn(async () => [{ name: 'raw/steps/2026-05-01_to_2026-05-30.json', size: 50 }]),
+      readCount: vi.fn().mockResolvedValue(0), // would be wrong for steps — must parse instead
+      readJson: vi.fn().mockResolvedValue({
+        data: { rollupDataPoints: [
+          { civilStartTime: { date: { year: 2026, month: 5, day: 30 } }, steps: { countSum: '2539' } },
+          { civilStartTime: { date: { year: 2026, month: 5, day: 29 } }, steps: { countSum: '1029' } },
+        ] },
+      }),
+    });
+    const out = await buildSummary(d, { types: ['steps'], today: '2026-06-01' });
+    expect(out.types[0].count).toBe(2);
+    expect(out.types[0].latest).toMatchObject({ value: '2539', at: '2026-05-30' });
   });
 
   it('uses range-read (not full parse) for heart-rate and emits no latest', async () => {
@@ -227,7 +246,8 @@ describe('buildSummary', () => {
         if (prefix.includes('steps')) throw new Error('gcs boom');
         return [{ name: 'raw/sleep/2026-05-30_to_2026-05-30.json', size: 10 }];
       }),
-      readJson: vi.fn().mockResolvedValue({ count: 1, data: [] }),
+      readCount: vi.fn().mockResolvedValue(1),
+      readJson: vi.fn().mockResolvedValue({ data: [] }),
     });
     const out = await buildSummary(d, { types: ['steps', 'sleep'], today: '2026-06-01' });
     expect(out.types.find((t) => t.type === 'steps')).toMatchObject({ error: expect.stringContaining('gcs boom') });
