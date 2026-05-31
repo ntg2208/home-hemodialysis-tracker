@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { isObscured } from './keyboardAvoidance';
 
 export function useKeyboardAvoidance() {
   useEffect(() => {
@@ -11,11 +12,20 @@ export function useKeyboardAvoidance() {
       document.documentElement.style.setProperty('--kb', `${Math.round(kb)}px`);
     }
 
-    // When an input is focused, wait for keyboard animation then scroll it into view
+    // When an input is focused, wait for the keyboard animation, then scroll it
+    // into view ONLY if it's actually hidden behind the keyboard. Scrolling an
+    // already-visible field (e.g. tapping "Next" between visible inputs) causes a
+    // visible flick, so skip it.
     function onFocusIn(e: FocusEvent) {
       const el = e.target as HTMLElement;
       if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
-        setTimeout(() => el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 300);
+        setTimeout(() => {
+          const rect = el.getBoundingClientRect();
+          const viewportHeight = vv!.height;
+          if (isObscured(rect, viewportHeight)) {
+            el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }
+        }, 300);
       }
     }
 
