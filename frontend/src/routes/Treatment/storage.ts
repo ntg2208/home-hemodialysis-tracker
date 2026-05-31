@@ -24,9 +24,13 @@ export interface ActiveState {
 
 // Keep DB_NAME as 'hd-tracker' — changing it would orphan the existing
 // install's last_session cache and dried_weight on the user's phone.
+// DB_VERSION must match BloodTests/storage.ts (both open the same database).
+// Holding a stale version open while the other module tries to upgrade blocks
+// IDB indefinitely — always keep these in sync.
 const DB_NAME = 'hd-tracker';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_KV = 'kv';
+const STORE_BT = 'blood_tests'; // owned by BloodTests/storage.ts — created here for version parity
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
@@ -35,6 +39,7 @@ function db(): Promise<IDBPDatabase> {
     dbPromise = openDB(DB_NAME, DB_VERSION, {
       upgrade(d) {
         if (!d.objectStoreNames.contains(STORE_KV)) d.createObjectStore(STORE_KV);
+        if (!d.objectStoreNames.contains(STORE_BT)) d.createObjectStore(STORE_BT);
       },
     }).catch(err => { dbPromise = null; throw err; });
   }
