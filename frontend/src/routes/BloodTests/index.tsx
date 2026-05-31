@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const FAV_KEY = 'blood_test_favorites';
@@ -12,10 +12,12 @@ function loadFavorites(): Set<string> {
 function saveFavorites(s: Set<string>): void {
   try { localStorage.setItem(FAV_KEY, JSON.stringify([...s])); } catch {}
 }
-import { getAuth } from '../../auth/storage';
-import { fetchAll, ApiError } from './api';
+import { getAuth, type AuthSettings } from '../../auth/storage';
+import { fetchRange, ApiError } from './api';
 import type { BloodTestRow } from './schemas';
 import { filterRows } from './lib/queryFilter';
+import { mergeRows, sixMonthsAgo, computeFetchRange, earlierMonth } from './lib/cache';
+import { readCache, writeCache } from './storage';
 import { FilterBar, type FilterState } from './components/FilterBar';
 import { Scorecard } from './components/Scorecard';
 import { TrendChart } from './components/TrendChart';
@@ -23,7 +25,14 @@ import { TrendChart } from './components/TrendChart';
 type State =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; rows: BloodTestRow[] };
+  | {
+      status: 'ready';
+      rows: BloodTestRow[];
+      coveredFrom: string;
+      lastSynced: number | null;
+      refreshing: boolean;
+      refreshError: boolean;
+    };
 
 type Tab = 'scorecard' | 'trend';
 
@@ -68,12 +77,37 @@ function ResultsTable({ rows }: { rows: BloodTestRow[] }) {
   );
 }
 
-function Dashboard({ rows }: { rows: BloodTestRow[] }) {
+interface DashboardProps {
+  rows: BloodTestRow[];
+  refreshing: boolean;
+  refreshError: boolean;
+  lastSynced: number | null;
+  onRequireRange: (from: string) => void;
+  onSync: (from: string) => void;
+}
+
+function syncLabel(lastSynced: number | null, refreshing: boolean, refreshError: boolean): string {
+  if (refreshing) return 'Syncing…';
+  if (refreshError) return 'Offline — showing cached';
+  if (lastSynced == null) return 'Not synced yet';
+  const mins = Math.round((Date.now() - lastSynced) / 60000);
+  if (mins < 1) return 'Synced just now';
+  if (mins < 60) return `Synced ${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `Synced ${hrs}h ago`;
+  return `Synced ${Math.round(hrs / 24)}d ago`;
+}
+
+function Dashboard({ rows, refreshing, refreshError, lastSynced, onRequireRange, onSync }: DashboardProps) {
   const markers = useMemo(() => [...new Set(rows.map((r) => r.marker))].sort(), [rows]);
-  const years = useMemo(
-    () => [...new Set(rows.map((r) => parseInt(r.datetime.slice(0, 4))))].sort(),
-    [rows],
-  );
+  // Year options span the full record (in-center era → now) so older ranges are
+  // selectable even before they're cached — picking one triggers a backfill fetch.
+  const years = useMemo(() => {
+    const nowYear = new Date().getFullYear();
+    const ys = new Set<number>(rows.map((r) => parseInt(r.datetime.slice(0, 4))));
+    for (let y = 2023; y <= nowYear; y++) ys.add(y);
+    return [...ys].sort();
+  }, [rows]);
   const [tab, setTab] = useState<Tab>('scorecard');
   const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites());
   const [filter, setFilter] = useState<FilterState>({
@@ -82,6 +116,11 @@ function Dashboard({ rows }: { rows: BloodTestRow[] }) {
     to: '',
     marker: markers[0] ?? '',
   });
+
+  // When the user picks an older `from`, ensure that range is fetched + cached.
+  useEffect(() => {
+    if (filter.from) onRequireRange(filter.from);
+  }, [filter.from, onRequireRange]);
 
   const scoped = useMemo(
     () => filterRows(rows, { phase: filter.phases, from: filter.from || undefined, to: filter.to || undefined }),
@@ -108,6 +147,19 @@ function Dashboard({ rows }: { rows: BloodTestRow[] }) {
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100">
       <FilterBar filter={filter} markers={markers} years={years} onChange={setFilter} />
+      <div className="flex items-center justify-between border-b border-slate-700 bg-slate-800 px-3 py-1.5">
+        <span className={`text-xs ${refreshError ? 'text-amber-400' : 'text-slate-500'}`}>
+          {syncLabel(lastSynced, refreshing, refreshError)}
+        </span>
+        <button
+          type="button"
+          disabled={refreshing}
+          onClick={() => onSync(filter.from)}
+          className="rounded bg-cyan-700 px-3 py-1 text-xs font-medium text-white disabled:opacity-50 hover:bg-cyan-600"
+        >
+          {refreshing ? 'Syncing…' : 'Sync'}
+        </button>
+      </div>
       <div className="flex gap-2 border-b border-slate-700 bg-slate-800 px-3">
         {(['scorecard', 'trend'] as Tab[]).map((t) => (
           <button key={t} type="button"
@@ -144,22 +196,99 @@ function Dashboard({ rows }: { rows: BloodTestRow[] }) {
 export default function BloodTests() {
   const navigate = useNavigate();
   const [state, setState] = useState<State>({ status: 'loading' });
+  const authRef = useRef<AuthSettings | null>(null);
 
+  function toSetup(message?: string) {
+    navigate('/setup', { replace: true, state: message ? { message } : undefined });
+  }
+
+  // Cache-first: render cache immediately, then revalidate the default 6-month
+  // window in the background. Empty cache → fetch 6 months before first render.
   useEffect(() => {
+    let cancelled = false;
     getAuth().then(async (auth) => {
-      if (!auth) { navigate('/setup', { replace: true }); return; }
+      if (!auth) { toSetup(); return; }
+      authRef.current = auth;
+      const cache = await readCache();
+      const defaultFrom = sixMonthsAgo(new Date());
+
+      if (cache.rows.length > 0) {
+        if (cancelled) return;
+        setState({
+          status: 'ready',
+          rows: cache.rows,
+          coveredFrom: cache.coveredFrom ?? defaultFrom,
+          lastSynced: cache.lastSynced,
+          refreshing: true,
+          refreshError: false,
+        });
+        void revalidate(defaultFrom);
+        return;
+      }
+
+      // Empty cache — must hit the network once.
       try {
-        const { rows } = await fetchAll(auth);
-        setState({ status: 'ready', rows });
+        const { rows } = await fetchRange(auth, { from: defaultFrom });
+        const now = Date.now();
+        await writeCache(rows, defaultFrom, now);
+        if (cancelled) return;
+        setState({ status: 'ready', rows, coveredFrom: defaultFrom, lastSynced: now, refreshing: false, refreshError: false });
       } catch (e) {
+        if (cancelled) return;
         if (e instanceof ApiError && e.code === 'unauthorized') {
-          navigate('/setup', { replace: true, state: { message: 'Access key rejected — please re-enter.' } });
+          toSetup('Access key rejected — please re-enter.');
         } else {
           setState({ status: 'error', message: e instanceof Error ? e.message : 'Unknown error.' });
         }
       }
-    }).catch(() => navigate('/setup', { replace: true }));
+    }).catch(() => { if (!cancelled) toSetup(); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
+
+  // Re-fetch [fromFloor → now], merge (picks up new rows + edits), update lastSynced.
+  // On failure keep cached rows and flag refreshError — never blank the screen.
+  async function revalidate(fromFloor: string) {
+    const auth = authRef.current;
+    if (!auth) return;
+    setState((s) => (s.status === 'ready' ? { ...s, refreshing: true, refreshError: false } : s));
+    try {
+      const { rows: fresh } = await fetchRange(auth, { from: fromFloor });
+      const now = Date.now();
+      setState((s) => {
+        if (s.status !== 'ready') return s;
+        const merged = mergeRows(s.rows, fresh);
+        const coveredFrom = earlierMonth(fromFloor, s.coveredFrom) ? fromFloor : s.coveredFrom;
+        void writeCache(merged, coveredFrom, now);
+        return { ...s, rows: merged, coveredFrom, lastSynced: now, refreshing: false, refreshError: false };
+      });
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'unauthorized') { toSetup('Access key rejected — please re-enter.'); return; }
+      setState((s) => (s.status === 'ready' ? { ...s, refreshing: false, refreshError: true } : s));
+    }
+  }
+
+  // Backfill only the uncovered older slice when a range older than coverage is picked.
+  async function ensureRange(requestedFrom: string) {
+    const auth = authRef.current;
+    if (!auth || state.status !== 'ready') return;
+    const need = computeFetchRange(state.coveredFrom, requestedFrom);
+    if (!need) return;
+    setState((s) => (s.status === 'ready' ? { ...s, refreshing: true, refreshError: false } : s));
+    try {
+      const { rows: older } = await fetchRange(auth, need);
+      const now = Date.now();
+      setState((s) => {
+        if (s.status !== 'ready') return s;
+        const merged = mergeRows(s.rows, older);
+        void writeCache(merged, requestedFrom, now);
+        return { ...s, rows: merged, coveredFrom: requestedFrom, lastSynced: now, refreshing: false, refreshError: false };
+      });
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'unauthorized') { toSetup('Access key rejected — please re-enter.'); return; }
+      setState((s) => (s.status === 'ready' ? { ...s, refreshing: false, refreshError: true } : s));
+    }
+  }
 
   if (state.status === 'loading') {
     return <div className="min-h-screen bg-slate-900 p-8 text-slate-400">Loading…</div>;
@@ -175,5 +304,14 @@ export default function BloodTests() {
       </div>
     );
   }
-  return <Dashboard rows={state.rows} />;
+  return (
+    <Dashboard
+      rows={state.rows}
+      refreshing={state.refreshing}
+      refreshError={state.refreshError}
+      lastSynced={state.lastSynced}
+      onRequireRange={ensureRange}
+      onSync={(from) => revalidate(from || sixMonthsAgo(new Date()))}
+    />
+  );
 }
