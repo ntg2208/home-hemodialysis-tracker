@@ -76,6 +76,9 @@ export function SetupWizard({ onSaved, message }: Props) {
           onChange={e => setMainKey(e.target.value)}
           placeholder="long-random-string"
           autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck={false}
           className="w-full bg-panel border border-slate-700 rounded-lg px-3 py-2 text-sm focus:border-accent focus:outline-none"
         />
       </label>
