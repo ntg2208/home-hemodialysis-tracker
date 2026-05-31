@@ -2,8 +2,8 @@ import { openDB } from 'idb';
 
 export interface AuthSettings {
   mainKey: string;
-  appsScriptUrl: string;
-  appsScriptSecret: string;
+  treatmentToken?: string;
+  treatmentTokenExpiresAt?: number;
 }
 
 const DB_NAME = 'homehd-auth';

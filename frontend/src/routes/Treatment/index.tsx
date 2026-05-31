@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAuth, type AuthSettings } from '../../auth/storage';
+import { signInWithCustomToken } from 'firebase/auth';
+import { getAuth, saveAuth, type AuthSettings } from '../../auth/storage';
+import { firebaseAuth } from '../../lib/firebaseClient';
+import { cloudGet } from '../../api/cloudRun';
 import {
   clearActiveState,
   getActiveState,
   saveActiveState,
 } from './storage';
 import type { SessionConsumed } from './storage';
-import type { PendingReading, Session, Settings } from './schemas';
+import type { PendingReading, Session } from './schemas';
 import { Home } from './screens/Home';
 import { PreTreatment } from './screens/PreTreatment';
 import { ActiveSession } from './screens/ActiveSession';
@@ -20,21 +23,45 @@ type Screen =
   | { name: 'active'; session: Session; readings: PendingReading[]; heparinUsed: boolean; countdownStartedAt?: number; targetMin?: number }
   | { name: 'post'; session: Session; consumed: SessionConsumed };
 
+interface TokenResponse { token: string; expires_at: number }
+
+async function ensureFirebaseAuth(auth: AuthSettings): Promise<AuthSettings> {
+  const now = Date.now();
+  const needsRefresh = !auth.treatmentToken
+    || !auth.treatmentTokenExpiresAt
+    || auth.treatmentTokenExpiresAt - now < 10 * 60 * 1000;
+
+  if (needsRefresh) {
+    const { token, expires_at } = await cloudGet<TokenResponse>(auth, '/api/treatment/token');
+    const updated = { ...auth, treatmentToken: token, treatmentTokenExpiresAt: expires_at };
+    await saveAuth(updated);
+    auth = updated;
+  }
+  await signInWithCustomToken(firebaseAuth, auth.treatmentToken!);
+  return auth;
+}
+
 export default function Treatment() {
   const navigate = useNavigate();
   const [screen, setScreen] = useState<Screen>({ name: 'loading' });
-  const [settings, setSettings] = useState<Settings | null>(null);
   const [auth, setAuth] = useState<AuthSettings | null>(null);
 
   useEffect(() => {
-    getAuth().then(auth => {
-      if (!auth) { navigate('/setup', { replace: true }); return; }
-      setAuth(auth);
-      const s: Settings = {
-        script_url: auth.appsScriptUrl,
-        shared_secret: auth.appsScriptSecret,
-      };
-      setSettings(s);
+    let cancelled = false;
+    getAuth().then(async (a) => {
+      if (!a) { navigate('/setup', { replace: true }); return; }
+
+      let currentAuth = a;
+      try {
+        currentAuth = await ensureFirebaseAuth(a);
+      } catch (e) {
+        // Token refresh failed — existing Firebase session may still be valid for up to 1h
+        console.warn('Firebase token refresh failed:', e);
+      }
+
+      if (cancelled) return;
+      setAuth(currentAuth);
+
       const active = getActiveState();
       if (active?.screen === 'pre' && active.existingIds) {
         setScreen({ name: 'pre', existingIds: active.existingIds });
@@ -49,7 +76,8 @@ export default function Treatment() {
       } else {
         setScreen({ name: 'home' });
       }
-    }).catch(() => navigate('/setup', { replace: true }));
+    }).catch(() => { if (!cancelled) navigate('/setup', { replace: true }); });
+    return () => { cancelled = true; };
   }, [navigate]);
 
   useEffect(() => {
@@ -64,14 +92,13 @@ export default function Treatment() {
     }
   }, [screen]);
 
-  if (screen.name === 'loading' || !settings) {
+  if (screen.name === 'loading') {
     return <div className="p-4 text-slate-400">Loading…</div>;
   }
 
   if (screen.name === 'home') {
     return (
       <Home
-        settings={settings}
         onStartSession={existingIds => setScreen({ name: 'pre', existingIds })}
       />
     );
@@ -79,7 +106,6 @@ export default function Treatment() {
   if (screen.name === 'pre') {
     return (
       <PreTreatment
-        settings={settings}
         auth={auth}
         existingIds={screen.existingIds}
         onSaved={(session, heparinUsed) =>
@@ -92,7 +118,6 @@ export default function Treatment() {
   if (screen.name === 'active') {
     return (
       <ActiveSession
-        settings={settings}
         session={screen.session}
         initialReadings={screen.readings}
         initialCountdownStartedAt={screen.countdownStartedAt}
@@ -112,7 +137,6 @@ export default function Treatment() {
   if (screen.name === 'post') {
     return (
       <PostTreatment
-        settings={settings}
         auth={auth}
         session={screen.session}
         consumed={screen.consumed}

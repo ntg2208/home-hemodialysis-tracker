@@ -1,33 +1,17 @@
 import { useState } from 'react';
-import { Activity, KeyRound, Link2, Save } from 'lucide-react';
+import { Activity, KeyRound, Save } from 'lucide-react';
 import { saveAuth } from './storage';
 import type { AuthSettings } from './storage';
+import { signInWithCustomToken } from 'firebase/auth';
+import { firebaseAuth } from '../lib/firebaseClient';
 
 interface Props {
   onSaved: () => void;
   message?: string;
 }
 
-async function probeAppsScript(url: string, secret: string): Promise<void> {
-  let res: Response;
-  try {
-    res = await fetch(`${url}?secret=${encodeURIComponent(secret)}`);
-  } catch {
-    throw new Error('Could not reach the Apps Script URL. Check the URL and try again.');
-  }
-  let body: unknown;
-  try { body = await res.json(); } catch {
-    throw new Error('Apps Script returned non-JSON. Check the deployment access setting (must be "Anyone").');
-  }
-  const b = body as Record<string, unknown>;
-  if (b.ok === false) throw new Error(`Apps Script rejected the secret: ${String(b.error)}`);
-  if (b.ok !== true) throw new Error('Apps Script returned an unexpected response.');
-}
-
 export function SetupWizard({ onSaved, message }: Props) {
   const [mainKey, setMainKey] = useState('');
-  const [url, setUrl] = useState('');
-  const [secret, setSecret] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,27 +19,31 @@ export function SetupWizard({ onSaved, message }: Props) {
     setError(null);
     if (!mainKey.trim()) { setError('Main API key must not be empty.'); return; }
 
-    let parsedUrl: URL;
-    try { parsedUrl = new URL(url.trim()); }
-    catch { setError('Apps Script URL must be a valid URL.'); return; }
-    if (!secret.trim()) { setError('Apps Script secret must not be empty.'); return; }
-
     setBusy(true);
     try {
-      // Probe the main key against /api/blood-tests (cheap: returns 0 rows for a far-future to date)
-      const apiRes = await fetch('/api/blood-tests?to=1900-01-01', {
+      // 1. Verify mainKey against /api/health
+      const healthRes = await fetch('/api/health', {
         headers: { Authorization: `Bearer ${mainKey.trim()}` },
       });
-      if (apiRes.status === 401) throw new Error('Main API key rejected — check the value and try again.');
-      if (!apiRes.ok) throw new Error(`/api/blood-tests returned ${apiRes.status}. Is the API running?`);
+      if (healthRes.status === 401) throw new Error('Main API key rejected — check the value and try again.');
+      if (!healthRes.ok) throw new Error(`API health check failed (${healthRes.status}).`);
 
-      // Probe the Apps Script
-      await probeAppsScript(parsedUrl.toString(), secret.trim());
+      // 2. Fetch Firebase custom token
+      const tokenRes = await fetch('/api/treatment/token', {
+        headers: { Authorization: `Bearer ${mainKey.trim()}` },
+      });
+      if (tokenRes.status === 401) throw new Error('Main API key rejected by treatment endpoint.');
+      if (!tokenRes.ok) throw new Error(`Failed to fetch treatment token (${tokenRes.status}).`);
+      const { token, expires_at } = await tokenRes.json() as { token: string; expires_at: number };
 
+      // 3. Sign into Firebase
+      await signInWithCustomToken(firebaseAuth, token);
+
+      // 4. Save auth to IndexedDB
       const settings: AuthSettings = {
         mainKey: mainKey.trim(),
-        appsScriptUrl: parsedUrl.toString(),
-        appsScriptSecret: secret.trim(),
+        treatmentToken: token,
+        treatmentTokenExpiresAt: expires_at,
       };
       await saveAuth(settings);
       onSaved();
@@ -76,7 +64,7 @@ export function SetupWizard({ onSaved, message }: Props) {
           {message}
         </div>
       )}
-      <p className="text-sm text-slate-400">Enter three values. They are stored on this device only, never sent to any third party.</p>
+      <p className="text-sm text-slate-400">Enter your API key. It is stored on this device only.</p>
 
       <label className="block">
         <span className="text-sm text-slate-400 mb-1 inline-flex items-center gap-1.5">
@@ -87,32 +75,6 @@ export function SetupWizard({ onSaved, message }: Props) {
           value={mainKey}
           onChange={e => setMainKey(e.target.value)}
           placeholder="long-random-string"
-          autoComplete="off"
-          className="w-full bg-panel border border-slate-700 rounded-lg px-3 py-2 text-sm focus:border-accent focus:outline-none"
-        />
-      </label>
-
-      <label className="block">
-        <span className="text-sm text-slate-400 mb-1 inline-flex items-center gap-1.5">
-          <Link2 size={14} /> Apps Script URL
-        </span>
-        <input
-          type="url"
-          value={url}
-          onChange={e => setUrl(e.target.value)}
-          placeholder="https://script.google.com/macros/s/.../exec"
-          className="w-full bg-panel border border-slate-700 rounded-lg px-3 py-2 text-sm focus:border-accent focus:outline-none"
-        />
-      </label>
-
-      <label className="block">
-        <span className="text-sm text-slate-400 mb-1 inline-flex items-center gap-1.5">
-          <KeyRound size={14} /> Apps Script secret
-        </span>
-        <input
-          type="password"
-          value={secret}
-          onChange={e => setSecret(e.target.value)}
           autoComplete="off"
           className="w-full bg-panel border border-slate-700 rounded-lg px-3 py-2 text-sm focus:border-accent focus:outline-none"
         />

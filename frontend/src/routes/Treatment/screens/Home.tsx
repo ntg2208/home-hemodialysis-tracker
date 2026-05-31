@@ -7,15 +7,14 @@ import {
   saveCachedSessions,
   saveDriedWeight,
 } from '../storage';
-import type { Session, Settings } from '../schemas';
+import type { Session } from '../schemas';
 import { SessionListItem } from '../components/SessionListItem';
 
 interface Props {
-  settings: Settings;
   onStartSession: (existingIds: string[]) => void;
 }
 
-export function Home({ settings, onStartSession }: Props) {
+export function Home({ onStartSession }: Props) {
   const [sessions, setSessions] = useState<Session[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +43,7 @@ export function Home({ settings, onStartSession }: Props) {
     setError(null);
     setRefreshing(true);
     try {
-      const r = await getAll(settings);
+      const r = await getAll();
       const sorted = [...r.sessions].sort((a, b) => b.date.localeCompare(a.date));
       setSessions(sorted);
       saveCachedSessions(sorted).catch(() => {});

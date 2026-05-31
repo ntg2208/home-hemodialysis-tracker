@@ -6,12 +6,11 @@ import { SaveButton } from '../components/SaveButton';
 import { cloudGet } from '../../../api/cloudRun';
 import { logEvent } from '../../Inventory/api';
 import { SESSION_FIXED_DELTAS } from '../../Inventory/constants';
-import type { Session, Settings } from '../schemas';
+import type { Session } from '../schemas';
 import type { AuthSettings } from '../../../auth/storage';
 import type { SessionConsumed } from '../storage';
 
 interface Props {
-  settings: Settings;
   auth: AuthSettings | null;
   session: Session;
   consumed: SessionConsumed;
@@ -35,7 +34,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 const DEFAULT_DURATION_MIN = 255;
 const DEFAULT_DIALYSATE_VOLUME = 49;
 
-export function PostTreatment({ settings, auth, session, consumed, onSaved }: Props) {
+export function PostTreatment({ auth, session, consumed, onSaved }: Props) {
   const sessionId = session.session_id;
   const [form, setForm] = useState<FormState>({
     duration_min: consumed.durationMin ?? DEFAULT_DURATION_MIN,
@@ -71,7 +70,7 @@ export function PostTreatment({ settings, auth, session, consumed, onSaved }: Pr
     setError(null);
     setSaving(true);
     try {
-      await updateSession(settings, {
+      await updateSession({
         session_id: sessionId,
         ...form,
         total_uf: effectiveTotalUf,

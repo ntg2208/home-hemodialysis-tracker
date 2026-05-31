@@ -6,11 +6,10 @@ import { nextSessionId, todayIso } from '../sessionId';
 import { NumberField } from '../components/NumberField';
 import { SaveButton } from '../components/SaveButton';
 import { cloudGet } from '../../../api/cloudRun';
-import type { Session, Settings } from '../schemas';
+import type { Session } from '../schemas';
 import type { AuthSettings } from '../../../auth/storage';
 
 interface Props {
-  settings: Settings;
   auth: AuthSettings | null;
   existingIds: string[];
   onSaved: (session: Session, heparinUsed: boolean) => void;
@@ -28,7 +27,7 @@ interface FormState {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-export function PreTreatment({ settings, auth, existingIds, onSaved, onCancel }: Props) {
+export function PreTreatment({ auth, existingIds, onSaved, onCancel }: Props) {
   const [form, setForm] = useState<FormState>({});
   const [goalTouched, setGoalTouched] = useState(false);
   const [rateTouched, setRateTouched] = useState(false);
@@ -84,7 +83,7 @@ export function PreTreatment({ settings, auth, existingIds, onSaved, onCancel }:
       uf_rate: effectiveRate,
     };
     try {
-      await saveSession(settings, session);
+      await saveSession(session);
       // Local cache is a UX nicety; don't fail the submit if IDB write fails.
       saveLastSession(session).catch(() => {});
       onSaved(session, heparinUsed);

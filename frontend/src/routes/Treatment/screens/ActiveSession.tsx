@@ -2,14 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Activity, AlertCircle, Check, Droplets, Heart, Loader2, Pencil, Plus, Scale, Square, Timer, X } from 'lucide-react';
 import { ApiError, saveReading } from '../api';
 import { AddReadingModal } from '../components/AddReadingModal';
-import type { PendingReading, Reading, Session, Settings } from '../schemas';
+import type { PendingReading, Reading, Session } from '../schemas';
 import type { SessionConsumed } from '../storage';
 
 const DEFAULT_TARGET_MIN = 255; // 4h 15m
 const NOTIFY_AT_MINS = [120, 60, 5] as const;
 
 interface Props {
-  settings: Settings;
   session: Session;
   initialReadings?: PendingReading[];
   initialCountdownStartedAt?: number;
@@ -35,7 +34,6 @@ function formatTarget(min: number): string {
 }
 
 export function ActiveSession({
-  settings,
   session,
   initialReadings,
   initialCountdownStartedAt,
@@ -152,7 +150,7 @@ export function ActiveSession({
       setCountdownStartedAt(Date.now());
     }
     try {
-      await saveReading(settings, reading);
+      await saveReading(reading);
       setReadings(rs => rs.map(r => r.reading_id === reading.reading_id ? { ...r, status: 'saved' } : r));
     } catch (e) {
       const msg = e instanceof ApiError ? e.code : String(e);
@@ -166,7 +164,7 @@ export function ActiveSession({
     const { status: _s, errorMsg: _e, ...wire } = reading;
     void _s; void _e;
     try {
-      await saveReading(settings, wire);
+      await saveReading(wire);
       setReadings(rs => rs.map(r => r.reading_id === reading.reading_id ? { ...r, status: 'saved' } : r));
     } catch (e) {
       const msg = e instanceof ApiError ? e.code : String(e);
