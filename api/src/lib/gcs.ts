@@ -48,6 +48,25 @@ export async function readJson(path: string): Promise<unknown | null> {
   }
 }
 
+// List objects under a prefix with their sizes — no content download.
+export async function listFiles(prefix: string): Promise<Array<{ name: string; size: number }>> {
+  const [files] = await getStorage().bucket(BUCKET).getFiles({ prefix });
+  return files.map((f) => ({ name: f.name, size: Number(f.metadata?.size ?? 0) }));
+}
+
+// Read just the `count` field from a stored data file via a byte-range request, so dense
+// files (heart-rate, ~43MB) aren't downloaded. The ingest wrapper serializes count before
+// the `data` array, so it lives in the first bytes. Returns 0 if not found in the window.
+export async function readCount(path: string): Promise<number> {
+  try {
+    const [buf] = await getStorage().bucket(BUCKET).file(path).download({ start: 0, end: 1023 });
+    const m = buf.toString('utf8').match(/"count"\s*:\s*(\d+)/);
+    return m ? Number(m[1]) : 0;
+  } catch {
+    return 0;
+  }
+}
+
 export type SyncState = Record<string, string>; // { steps: 'YYYY-MM-DD', ... }
 
 export async function readSyncState(): Promise<SyncState> {

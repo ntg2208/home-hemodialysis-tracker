@@ -16,8 +16,12 @@ import {
   uploadJson,
   dataTypePath,
   dateRange,
+  listFiles,
+  readJson,
+  readCount,
   type SyncState,
 } from '../lib/gcs.js';
+import { buildSummary } from '../lib/fitnessSummary.js';
 
 function getOAuthConfig() {
   const clientId = process.env.HEALTH_OAUTH_CLIENT_ID;
@@ -182,6 +186,19 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions): Promise<SyncSu
 // Sync endpoint — mounted under bearer auth in index.ts
 export const fitness = new Hono()
   .get('/', (c) => c.json({ ok: true, types: SYNC_TYPES }))
+  .get('/summary', async (c) => {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const summary = await buildSummary(
+        { readSyncState, listFiles, readJson, readCount },
+        { types: SYNC_TYPES, today }
+      );
+      return c.json(summary);
+    } catch (err) {
+      console.error('Summary error:', err instanceof Error ? err.message : String(err));
+      return c.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, 500);
+    }
+  })
   .post('/sync', async (c) => {
     try {
       const backfillDays = Math.max(1, Math.min(Number(c.req.query('days') ?? '365'), 3650));
