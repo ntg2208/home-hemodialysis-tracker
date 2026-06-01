@@ -64,6 +64,35 @@ Cards have rounded corners (~12px), 1px border, subtle panel fill.
 corner of every screen**, accent-coloured, chat-bubble icon. Tapping opens the
 Chat panel (last section). Floats above all content; never part of the drawer.
 
+### Navigation map
+
+Top-level routes are reached **only via the drawer** (no bottom tabs). Each
+top-level screen is a drawer destination; sub-screens are pushed on top and use
+the back arrow / Android back gesture to return.
+
+```
+Setup ──(valid key)──▶ Treatment Home  ◀── default landing route
+                          │
+Drawer (hamburger, every screen):
+  ├─ Treatment ──▶ Treatment Home
+  ├─ Blood Tests ─▶ Blood Tests (Scorecard ⇄ Trend tabs)
+  ├─ Inventory ──▶ Inventory
+  ├─ Fitness ───▶ Fitness
+  ├─ Knowledge Base ─▶ KB
+  └─ Settings ──▶ Settings ──(Clear credentials)──▶ Setup
+
+Chat FAB (every screen) ──▶ Chat bottom sheet (overlay, not a route)
+```
+
+**Rules:**
+- The hamburger opens the drawer on **every** top-level screen. Sub-screens
+  (Pre/Active/Post, modals, Chat) show a **back arrow or close (X)** instead of the
+  hamburger, since they're pushed/overlaid.
+- Selecting a drawer item closes the drawer and replaces the current top-level
+  route (does not stack drawer destinations).
+- On any **401 / rejected key**, any screen routes to **Setup** with a message.
+- Default landing route after Setup is **Treatment Home**.
+
 ---
 
 ## Screen 1 — Treatment
@@ -71,9 +100,16 @@ Chat panel (last section). Floats above all content; never part of the drawer.
 A 4-step flow: **Home → Pre → Active → Post**. State persists locally so a
 force-quit mid-session restores exactly where you were (24h TTL).
 
+**Navigation within Treatment:** Home is the drawer destination (shows hamburger).
+Pre / Active / Post are pushed in sequence and show a back-arrow or close (X), not
+the hamburger. On relaunch, if a session is in progress the app restores straight
+to the correct sub-screen (Pre / Active / Post) instead of Home.
+
 ### 1a. Home
 
 - App bar: "Treatment", hamburger.
+- **Navigation:** drawer destination. "Start session" → pushes Pre. Drawer reachable
+  here.
 - **Large primary button:** "Start session" (accent, full-width, play icon).
   Disabled with a spinner until the recent-sessions list has loaded.
 - **Dried weight card:** row showing "Dried weight" label + current value
@@ -89,6 +125,8 @@ force-quit mid-session restores exactly where you were (24h TTL).
 ### 1b. Pre-treatment form
 
 - App bar: "Pre-treatment", Cancel (X) returns to Home.
+- **Navigation:** pushed from Home. "Start session" → replaces with Active.
+  Cancel (X) → back to Home. No drawer here.
 - **2-column grid of numeric fields** (all decimal keypad):
   1. Weight (kg)
   2. UF goal (L) — **auto-calculated** `weight − dried_weight`; editable; reverts
@@ -111,6 +149,8 @@ force-quit mid-session restores exactly where you were (24h TTL).
 The most-used, most time-pressured screen. Hands-on during the 4+ hour treatment.
 
 - App bar: "Session `<id>`" (id monospace) + "End" button (right, square icon).
+- **Navigation:** replaces Pre. "End session" → replaces with Post. No back arrow
+  to Pre (the session has started); leaving is via "End". No drawer here.
 - **Pre-values reference card** (2×2 grid, read-only): Weight (scale), UF goal
   (droplet, cyan), BP (heart, rose), Pulse (activity, emerald).
 - **Countdown timer card:**
@@ -144,6 +184,8 @@ The most-used, most time-pressured screen. Hands-on during the 4+ hour treatment
 ### 1d. Post-treatment form
 
 - App bar: "Post-treatment".
+- **Navigation:** replaces Active. "Finish" → returns to Treatment Home (clears the
+  active-session stack and local active-state cache). No drawer here.
 - **Numeric fields:** Weight, BP sys, BP dia, Pulse, Duration min (default 255),
   Dialysate volume L (default 49), Total UF (auto `pre_weight − post_weight`),
   Blood processed.
@@ -162,6 +204,9 @@ Read-heavy analytics. ~2,400 historical lab rows; cache-first with a 6-month
 default window.
 
 - App bar: "Blood Tests", hamburger.
+- **Navigation:** drawer destination. Scorecard ⇄ Trend are tabs within the same
+  screen (not separate routes); tapping a scorecard tile switches to the Trend tab,
+  and Android back returns Trend → Scorecard before leaving the screen.
 - **Filter bar** (sticky, top): Phase multi-select (`home-hd` default /
   `in-center-hd` / `admission` / all), date range (from/to as month or year
   pickers — older ranges trigger a backfill fetch), marker selector.
@@ -193,6 +238,9 @@ setup.*
 Stock tracking + delivery-cycle management for dialysis consumables.
 
 - App bar: "Inventory", hamburger.
+- **Navigation:** drawer destination. All actions (log event, order, delivery,
+  history, cycle dates) open as **bottom sheets** over this screen — none are
+  separate routes. Dismiss a sheet via drag-down or X to return.
 - **Delivery cycle banner** (top): next call-date countdown → delivery-date
   countdown. State-dependent buttons: "Set cycle dates" (if none), "Place order" /
   "Apply delivery" (depending on cycle stage), "View order" (between call and
@@ -231,6 +279,7 @@ Pipeline-verification + latest readings from Google Health (Fitbit) data. 9 type
 
 - App bar: "Fitness", hamburger, **"Sync now"** action (right, refresh icon, spins
   while syncing).
+- **Navigation:** drawer destination. No sub-screens — everything renders inline.
 - **Health line:** check/warning icon + "Last sync `X` ago · `N`/9 types healthy".
 - **Latest readings card:** 2-column grid of metric tiles, each: icon + value +
   unit + small label. Metrics: Steps (footprints), Resting HR (heart), Sleep (moon
@@ -246,8 +295,10 @@ Pipeline-verification + latest readings from Google Health (Fitbit) data. 9 type
 
 ## Screen 5 — Knowledge Base
 
-Placeholder for now: centred muted text "NxStage error codes — coming soon."
-(Future: searchable error/alert database.)
+- App bar: "Knowledge Base", hamburger.
+- **Navigation:** drawer destination. No sub-screens yet.
+- Placeholder for now: centred muted text "NxStage error codes — coming soon."
+  (Future: searchable error/alert database.)
 
 ---
 
@@ -256,19 +307,62 @@ Placeholder for now: centred muted text "NxStage error codes — coming soon."
 A RAG assistant over BP, blood tests, fitness, inventory, and the KB. **Backend
 endpoint does not exist yet** — design the UI now; wire it when the API lands.
 
-- Opens from the bottom-right FAB as a **bottom sheet sliding to ~85% screen
-  height** (drag-down or X to dismiss).
-- **Header:** "Assistant" title, "New chat" button (clears conversation), close X.
-- **Message list** (scrollable, fills the sheet): assistant messages left-aligned
-  in a panel bubble with markdown rendering (tables, lists, bold); user messages
-  right-aligned in an accent-tinted bubble. Auto-scrolls to newest. A "thinking…"
-  indicator (animated dots) while awaiting a response.
-- **Input row** (pinned bottom, keyboard-aware — shifts up when the keyboard
-  opens): multiline text field + send button (accent, disabled while empty or
-  awaiting response).
-- **Empty state:** brief prompt suggestions ("How's my blood pressure trending?",
-  "When's my next delivery?", "Show my recent HRV").
-- Conversation persists in local storage within a session.
+### Entry & container
+- **Navigation:** opens from the bottom-right Chat FAB as a **bottom sheet sliding
+  to ~85% screen height** (drag-down handle at top, or close X). It's an **overlay,
+  not a route** — it floats over whatever screen is underneath, and dismissing it
+  returns to that exact screen. The FAB is hidden while the sheet is open.
+- A short grab-handle bar (rounded, slate-600) sits centred at the very top of the
+  sheet for the drag-to-dismiss affordance.
+
+### Header
+- Left: **assistant avatar** (small, ~28px) + "Assistant" title.
+- Right: "New chat" text button (clears the conversation) + close **X**.
+
+### Assistant icon / avatar
+- A **circular avatar**, ~28px in the header and ~32px beside each assistant
+  message. Filled with the accent cyan (or a cyan→teal gradient) on the dark panel.
+- **Glyph:** a friendly medical-assistant mark — a **rounded chat bubble with a
+  small pulse/heartbeat line (ECG zigzag) inside it**, echoing the app's droplet+ECG
+  brand icon. This visually ties the assistant to the HD domain (heartbeat) and to
+  "chat" (bubble) at once. Single-colour line glyph, no detail noise.
+- Alternative if a simpler mark is wanted: a `Sparkles`/`Bot`-style glyph in the
+  same cyan circle. Keep it consistent everywhere the assistant appears.
+- The **user** has no avatar (their bubble alignment is enough).
+
+### Message bubbles (shape matters)
+- **Assistant messages — left-aligned.** Bubble fill = `panel` (dark slate), text
+  = slate-100. Shape: rounded corners **~16px on three corners, but the
+  bottom-left corner is small/squared (~4px)** so the bubble appears "anchored" to
+  the avatar on its left (a subtle tail effect without drawing an actual tail).
+  Avatar sits to the **left**, vertically aligned to the bubble's top. Full
+  **markdown rendering** inside (tables, bullet lists, bold, inline code).
+- **User messages — right-aligned.** Bubble fill = **accent-tinted** (cyan at low
+  opacity, e.g. `accent/15`) with a subtle accent border; text = slate-100. Shape:
+  rounded **~16px on three corners, bottom-right corner small/squared (~4px)** so it
+  anchors to the right edge — mirror image of the assistant bubble. Plain text
+  (no markdown needed).
+- Comfortable max bubble width ~80% of sheet width; consecutive messages from the
+  same side stack with small vertical gaps.
+- **Auto-scroll** to the newest message on send and on response.
+
+### Thinking indicator
+- While awaiting a response: an assistant-side bubble containing **three animated
+  bouncing dots** (typing-indicator style), same panel fill and avatar as a normal
+  assistant message.
+
+### Input row
+- Pinned to the bottom of the sheet, **keyboard-aware** (rises with the keyboard).
+- A rounded multiline text field (`panel` fill, slate-700 border) + a circular
+  **send button** (accent fill, paper-plane/`Send` icon). Send is disabled while
+  the field is empty or a response is in flight.
+
+### Empty state
+- Centred assistant avatar + a one-line greeting, then **2–3 tappable suggestion
+  chips** that pre-fill and send: "How's my blood pressure trending?",
+  "When's my next delivery?", "Show my recent HRV".
+
+- Conversation persists in local storage within a session; "New chat" wipes it.
 
 ---
 
@@ -289,12 +383,26 @@ endpoint does not exist yet** — design the UI now; wire it when the API lands.
 
 ## Setup / Settings
 
-**Setup screen** (first launch, or after reset): single password field "Main API
-key" (no autocomplete/autocorrect), "Save and continue" button that verifies the
-key, then proceeds. Error shown inline.
+### Setup screen
+- **Navigation:** the app's gate. Shown on first launch and whenever no valid key
+  is stored (or after a 401, or after Clear credentials). Not a drawer destination
+  and has **no hamburger** — it's the pre-auth screen. On success it **replaces**
+  itself with Treatment Home.
+- App bar: "Setup" (no hamburger).
+- Single **password field** "Main API key" (no autocomplete / autocorrect /
+  autocapitalise), "Save and continue" button that verifies the key against the API
+  then proceeds. Error shown inline (red text).
 
-**Settings** (from drawer): "Reset credentials" — clears stored key, returns to
-Setup. Room to grow (theme, dried-weight default, notification prefs).
+### Settings screen
+- **Navigation:** drawer destination (shows hamburger). Reached from the drawer's
+  Settings item.
+- App bar: "Settings", hamburger.
+- **"Clear credentials" button** — the primary control. Destructive style (red /
+  outlined-danger). Tapping shows a **confirmation dialog** ("Clear all saved
+  credentials on this device?" — Cancel / Clear). On confirm: wipes the stored API
+  key + any Firebase/treatment tokens from secure storage, then routes to **Setup**.
+- Room to grow below it (theme, dried-weight default, notification prefs) — leave a
+  section placeholder.
 
 ---
 
