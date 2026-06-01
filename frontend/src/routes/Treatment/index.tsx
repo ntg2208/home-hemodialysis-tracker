@@ -28,13 +28,19 @@ type Screen =
 interface TokenResponse { token: string; expires_at: number }
 
 async function ensureFirebaseAuth(auth: AuthSettings): Promise<AuthSettings> {
+  // Wait for Firebase to restore its auth state from IndexedDB before reading
+  // currentUser. Without this, currentUser is always null on app startup (async
+  // restoration race), so the fast path below never fires and signInWithCustomToken
+  // runs on every open — the cause of intermittent stuck-on-Loading screens.
+  await firebaseAuth.authStateReady();
+
   const now = Date.now();
   const tokenFresh = auth.treatmentToken
     && auth.treatmentTokenExpiresAt
     && (auth.treatmentTokenExpiresAt - now) > 10 * 60 * 1000;
 
-  // Firebase persists auth state in IndexedDB across sessions.
-  // Skip the network round-trip if already signed in and token isn't expiring.
+  // Fast path: Firebase already has a valid session and the custom token is fresh.
+  // authStateReady() above ensures currentUser is accurate, not null due to the race.
   if (firebaseAuth.currentUser && tokenFresh) return auth;
 
   if (!tokenFresh) {
@@ -60,7 +66,15 @@ export default function Treatment() {
 
       let currentAuth = a;
       try {
-        currentAuth = await ensureFirebaseAuth(a);
+        // 20s timeout: if auth can't be established (Cloud Run cold start +
+        // signInWithCustomToken combined), show the error screen rather than
+        // hanging on Loading… indefinitely.
+        currentAuth = await Promise.race([
+          ensureFirebaseAuth(a),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('auth_timeout')), 20_000)
+          ),
+        ]);
       } catch (e) {
         console.warn('Firebase token refresh failed:', e);
         // If Firebase has no authenticated user at all, Firestore will fail with
