@@ -28,8 +28,25 @@ interface SyncResponse { ok: boolean; synced?: Record<string, { status: string; 
 
 type State =
   | { status: 'loading' }
-  | { status: 'ready'; summary: Summary }
+  | { status: 'ready'; summary: Summary; stale?: boolean }
   | { status: 'error'; message: string };
+
+const CACHE_KEY = 'fitness_summary_cache';
+const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+function readCache(): Summary | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const { summary, cachedAt } = JSON.parse(raw) as { summary: Summary; cachedAt: number };
+    if (Date.now() - cachedAt > CACHE_TTL_MS) return null;
+    return summary;
+  } catch { return null; }
+}
+
+function writeCache(summary: Summary): void {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ summary, cachedAt: Date.now() })); } catch {}
+}
 
 // Short labels + icons for the per-type status table.
 const TYPE_META: Record<string, { label: string; Icon: typeof Heart }> = {
@@ -70,18 +87,20 @@ export default function Fitness() {
     navigate('/setup', { replace: true, state: message ? { message } : undefined });
   }
 
-  async function load() {
+  async function load(background = false) {
     const auth = authRef.current;
     if (!auth) return;
     try {
       const summary = await cloudGet<Summary>(auth, '/api/fitness/summary');
+      writeCache(summary);
       setState({ status: 'ready', summary });
     } catch (e) {
       if (e instanceof CloudRunError && e.code === 'unauthorized') {
         toSetup('Access key rejected — please re-enter.');
-      } else {
+      } else if (!background) {
         setState({ status: 'error', message: e instanceof Error ? e.message : 'Unknown error.' });
       }
+      // background refresh failure: keep showing the cached data, don't flash an error
     }
   }
 
@@ -90,7 +109,14 @@ export default function Fitness() {
     getAuth().then((auth) => {
       if (!auth) { toSetup(); return; }
       authRef.current = auth;
-      if (!cancelled) void load();
+      if (cancelled) return;
+      const cached = readCache();
+      if (cached) {
+        setState({ status: 'ready', summary: cached, stale: true });
+        void load(true);   // refresh silently in the background
+      } else {
+        void load(false);  // no cache — show loading state while fetching
+      }
     }).catch(() => { if (!cancelled) toSetup(); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -105,7 +131,7 @@ export default function Fitness() {
       const res = await cloudPost<SyncResponse>(auth, '/api/fitness/sync', {});
       const errored = Object.entries(res.synced ?? {}).filter(([, v]) => v.status === 'error');
       setSyncNote(errored.length ? `Synced with ${errored.length} type(s) failing: ${errored.map(([k]) => k).join(', ')}` : 'Sync complete.');
-      await load();
+      await load(false);
     } catch (e) {
       setSyncNote(e instanceof CloudRunError ? e.message : 'Sync failed.');
     } finally {
