@@ -17,22 +17,49 @@
 
 ## Global design system
 
-**Theme: dark, medical-utility.** Calm, high-contrast, readable at a glance during
-dialysis. Not playful.
+**Medical-utility, calm, high-contrast, readable at a glance during dialysis.** Not
+playful. **Ships with both light and dark themes** — define a single token set with
+two value columns and let `ThemeMode.system` pick automatically (with a manual
+override later in Settings). Every colour reference in this brief is a **token**, so
+each screen renders correctly in both modes without per-screen logic.
 
-| Token | Value | Used for |
-|---|---|---|
-| `bg` | very dark slate (`#0F172A`-ish) | screen background |
-| `panel` | dark slate (`#1E293B`) | cards, list rows, input fields |
-| `accent` | cyan (`#22D3EE`) | primary buttons, active states, links |
-| border | slate-700 (`#334155`) | card/input outlines, dividers |
-| text primary | slate-100 | values, headings |
-| text secondary | slate-400 | labels |
-| text muted | slate-500 | hints, timestamps |
+### Colour tokens — light + dark
 
-**Status colours (consistent everywhere):** emerald = good / in-range / saved ·
-amber = warning / stale · red = error / out-of-range / critical · rose =
-blood-pressure & heart metrics.
+| Token | Dark value | Light value | Used for |
+|---|---|---|---|
+| `bg` | very dark slate `#0F172A` | near-white `#F8FAFC` | screen background |
+| `panel` | dark slate `#1E293B` | white `#FFFFFF` | cards, list rows, input fields |
+| `accent` | cyan `#22D3EE` | cyan-600 `#0891B2` | primary buttons, active states, links |
+| `accent-on` | slate-900 `#0F172A` | white `#FFFFFF` | text/icon *on top of* an accent fill |
+| `border` | slate-700 `#334155` | slate-200 `#E2E8F0` | card/input outlines, dividers |
+| `text-primary` | slate-100 `#F1F5F9` | slate-900 `#0F172A` | values, headings |
+| `text-secondary` | slate-400 `#94A3B8` | slate-500 `#64748B` | labels |
+| `text-muted` | slate-500 `#64748B` | slate-400 `#94A3B8` | hints, timestamps |
+
+**Status colours (both modes — pick the shade that holds contrast on that mode's
+background):** emerald = good / in-range / saved · amber = warning / stale · red =
+error / out-of-range / critical · rose = blood-pressure & heart metrics. Use the
+**-400/-500** shades on dark `bg`, the **-600/-700** shades on light `bg`, so flags
+stay legible in both. Status *fills* (badges) pair the colour with `accent-on`-style
+contrasting text.
+
+**Accent contrast note:** the dark-mode cyan (`#22D3EE`) is too light to sit under
+white text, so in light mode `accent` darkens to cyan-600 — buttons keep white text
+in both modes via `accent-on`.
+
+### Shape language — **all buttons are pill-shaped**
+
+- **Every button is a full pill** (`StadiumBorder` / fully-rounded, radius = half
+  the height). This applies to: primary CTAs, secondary/outline buttons, the FAB
+  (circular is a pill at 1:1), suggestion chips, segmented toggles, the send button,
+  − / + steppers (circular), and dialog action buttons. **No square or
+  small-radius buttons anywhere.**
+- Button sizes: primary CTA full-width pill, comfortable height (~52px) for
+  in-treatment tapping; secondary actions shorter pills; icon-only buttons are
+  circular (44px min touch target).
+- **Cards / sheets / inputs** are *not* pills — they keep ~12–16px rounded corners.
+  Pill shape is for **tappable buttons only**. (Chat message bubbles keep their
+  anchored-corner shape described in the Chat section.)
 
 **Typography:** numeric values use a slightly larger, semibold weight. Timers,
 session IDs, and reading values use a **monospace** font. Labels are small,
@@ -40,6 +67,31 @@ uppercase-tracked for section headers.
 
 **Spacing:** generous — single-column mobile, max content width ~420px centred.
 Cards have rounded corners (~12px), 1px border, subtle panel fill.
+
+### Animation & motion
+
+Motion is **subtle, fast, and purposeful** — confirm actions and smooth
+transitions, never decorative. Standard durations: **150ms** for taps/toggles,
+**250–300ms** for screen/sheet transitions, all with an ease-out (decelerate)
+curve. Respect the OS "reduce motion" setting (fall back to instant/cross-fade).
+
+| Element | Animation |
+|---|---|
+| Button press | quick scale-down to ~0.96 + ripple on tap, springs back on release (150ms) |
+| Theme switch (light⇄dark) | cross-fade colours over ~250ms, not an instant flip |
+| Screen push (Pre→Active→Post, drawer destinations) | slide-in from right + fade (250–300ms); back reverses it |
+| Drawer | standard slide-in from left with a scrim fade |
+| Chat bottom sheet | slide up from bottom (~300ms ease-out); drag-to-dismiss tracks the finger, flings closed |
+| Chat FAB ⇄ sheet | FAB scales/fades out as the sheet opens; scales back in on close (container-transform feel) |
+| Message send | new bubble fades + slides up ~8px into place; list auto-scrolls smoothly to it |
+| Thinking indicator | three dots bounce in a staggered loop |
+| Save status (readings, writes) | spinner → green check **cross-fades** (no abrupt swap); error shakes the row once (~300ms) |
+| Countdown colour shifts | colour transitions over ~400ms when crossing a threshold (emerald→amber→red), not a hard cut |
+| Timer alerts (2h/1h/5m) | in-app banner slides down from top + fades; auto-pulses once |
+| Tab switch (Scorecard⇄Trend) | underline indicator slides between tabs; content cross-fades |
+| Stepper ± / stock adjust | the number ticks with a quick count animation + the row briefly highlights |
+| List load (cache→fresh) | new/changed rows fade in; never a full-list flash |
+| Pull-to-refresh / Sync | icon spins while in flight |
 
 ---
 
@@ -60,9 +112,26 @@ Cards have rounded corners (~12px), 1px border, subtle panel fill.
 - Drawer header: "Home HD" title, small subtitle (patient context or app version).
 - Active route highlighted in accent (cyan text + subtle panel highlight).
 
-**Chat FAB (NEW):** a persistent `FloatingActionButton` in the **bottom-right
-corner of every screen**, accent-coloured, chat-bubble icon. Tapping opens the
-Chat panel (last section). Floats above all content; never part of the drawer.
+**Chat FAB (NEW) — identical on every screen.** A single, **shared** Chat FAB
+component is rendered once at the app-shell level (e.g. in the `Scaffold` that wraps
+all drawer destinations), **not re-declared per screen** — this guarantees it is
+pixel-identical everywhere. Specification, fixed across all screens:
+
+- **Position:** bottom-right corner, same inset on every screen (clear of the
+  Android nav bar / safe-area). Standard `FloatingActionButtonLocation.endFloat`.
+- **Icon:** **always the same** — the assistant glyph (chat-bubble-with-ECG-pulse,
+  matching the assistant avatar in the Chat section). Never swaps per screen.
+- **Colour:** `accent` fill with `accent-on` icon (correct in both light and dark).
+- **Shape:** circular pill (1:1), with the standard FAB elevation/shadow.
+- **Behaviour:** tapping opens the Chat bottom sheet (overlay, last section). The
+  FAB scales/fades out while the sheet is open and scales back in on close.
+- **Visibility:** present and identical on **every screen once authenticated** —
+  all drawer destinations *and* the Treatment sub-screens (Pre / Active / Post). The
+  only screen without it is the pre-auth **Setup** gate (it lives outside the app
+  shell, before any chat context exists). On the Active session screen, place the
+  FAB so it never overlaps the "Add reading" button (FAB bottom-right, "Add reading"
+  full-width above the readings list — they don't collide).
+- Floats above all content; never part of the drawer.
 
 ### Navigation map
 
@@ -321,7 +390,8 @@ endpoint does not exist yet** — design the UI now; wire it when the API lands.
 
 ### Assistant icon / avatar
 - A **circular avatar**, ~28px in the header and ~32px beside each assistant
-  message. Filled with the accent cyan (or a cyan→teal gradient) on the dark panel.
+  message. Filled with `accent` (or a cyan→teal gradient), glyph in `accent-on` —
+  correct in both light and dark modes.
 - **Glyph:** a friendly medical-assistant mark — a **rounded chat bubble with a
   small pulse/heartbeat line (ECG zigzag) inside it**, echoing the app's droplet+ECG
   brand icon. This visually ties the assistant to the HD domain (heartbeat) and to
@@ -331,17 +401,17 @@ endpoint does not exist yet** — design the UI now; wire it when the API lands.
 - The **user** has no avatar (their bubble alignment is enough).
 
 ### Message bubbles (shape matters)
-- **Assistant messages — left-aligned.** Bubble fill = `panel` (dark slate), text
-  = slate-100. Shape: rounded corners **~16px on three corners, but the
+- **Assistant messages — left-aligned.** Bubble fill = `panel`, text =
+  `text-primary`. Shape: rounded corners **~16px on three corners, but the
   bottom-left corner is small/squared (~4px)** so the bubble appears "anchored" to
   the avatar on its left (a subtle tail effect without drawing an actual tail).
   Avatar sits to the **left**, vertically aligned to the bubble's top. Full
   **markdown rendering** inside (tables, bullet lists, bold, inline code).
-- **User messages — right-aligned.** Bubble fill = **accent-tinted** (cyan at low
-  opacity, e.g. `accent/15`) with a subtle accent border; text = slate-100. Shape:
-  rounded **~16px on three corners, bottom-right corner small/squared (~4px)** so it
-  anchors to the right edge — mirror image of the assistant bubble. Plain text
-  (no markdown needed).
+- **User messages — right-aligned.** Bubble fill = **accent-tinted** (`accent` at
+  low opacity, e.g. `accent/15`) with a subtle `accent` border; text =
+  `text-primary`. Shape: rounded **~16px on three corners, bottom-right corner
+  small/squared (~4px)** so it anchors to the right edge — mirror image of the
+  assistant bubble. Plain text (no markdown needed).
 - Comfortable max bubble width ~80% of sheet width; consecutive messages from the
   same side stack with small vertical gaps.
 - **Auto-scroll** to the newest message on send and on response.
@@ -353,9 +423,9 @@ endpoint does not exist yet** — design the UI now; wire it when the API lands.
 
 ### Input row
 - Pinned to the bottom of the sheet, **keyboard-aware** (rises with the keyboard).
-- A rounded multiline text field (`panel` fill, slate-700 border) + a circular
-  **send button** (accent fill, paper-plane/`Send` icon). Send is disabled while
-  the field is empty or a response is in flight.
+- A rounded multiline text field (`panel` fill, `border` outline) + a circular
+  pill **send button** (`accent` fill, `accent-on` paper-plane/`Send` icon). Send is
+  disabled while the field is empty or a response is in flight.
 
 ### Empty state
 - Centred assistant avatar + a one-line greeting, then **2–3 tappable suggestion
@@ -378,6 +448,13 @@ endpoint does not exist yet** — design the UI now; wire it when the API lands.
    Setup with a message.
 4. **Optimistic writes** with per-item status + retry (most important on Active
    session readings and inventory adjustments).
+5. **Theme-agnostic:** every screen uses the colour *tokens* only (never a literal
+   light/dark colour), so light and dark both render correctly with no per-screen
+   branching. Follows `ThemeMode.system` by default.
+6. **Pill buttons everywhere:** all tappable buttons are fully-rounded pills (see
+   Shape language); cards, sheets, and inputs keep their soft-rounded corners.
+7. **Motion:** transitions and feedback follow the Animation & motion table —
+   subtle, fast, ease-out, and honouring "reduce motion".
 
 ---
 
@@ -397,12 +474,16 @@ endpoint does not exist yet** — design the UI now; wire it when the API lands.
 - **Navigation:** drawer destination (shows hamburger). Reached from the drawer's
   Settings item.
 - App bar: "Settings", hamburger.
-- **"Clear credentials" button** — the primary control. Destructive style (red /
-  outlined-danger). Tapping shows a **confirmation dialog** ("Clear all saved
-  credentials on this device?" — Cancel / Clear). On confirm: wipes the stored API
-  key + any Firebase/treatment tokens from secure storage, then routes to **Setup**.
-- Room to grow below it (theme, dried-weight default, notification prefs) — leave a
-  section placeholder.
+- **"Clear credentials" button** — the primary control. **Pill-shaped, destructive
+  style** (red outline + red text, red fill on press) — uses the red status token at
+  the mode-appropriate shade so it reads as danger in both light and dark. Tapping
+  shows a **confirmation dialog** ("Clear all saved credentials on this device?" —
+  Cancel / Clear, both pill buttons). On confirm: wipes the stored API key + any
+  Firebase/treatment tokens from secure storage, then routes to **Setup**.
+- **Theme control:** a segmented pill toggle for **System / Light / Dark** (defaults
+  to System) so the user can override `ThemeMode.system`.
+- Room to grow below it (dried-weight default, notification prefs) — leave a section
+  placeholder.
 
 ---
 
