@@ -1,24 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../app/shell.dart';
 import '../../../app/theme.dart';
 import '../models.dart';
 import '../providers.dart';
 
+/// Opens the session detail as a bottom-sheet popup. Resolves to `true` if the
+/// session was deleted (so Home can refresh), otherwise null.
+Future<bool?> showSessionDetailSheet(BuildContext context, Session session) {
+  return showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => SessionDetailSheet(session: session),
+  );
+}
+
 /// Read-only detail of a past session: pre values, intra-session readings, post
-/// values. Offers Delete (also available via swipe on Home). Pops `true` when the
-/// session was deleted so Home can refresh.
-class SessionDetailScreen extends ConsumerStatefulWidget {
-  const SessionDetailScreen({super.key, required this.session});
+/// values, plus Delete.
+class SessionDetailSheet extends ConsumerStatefulWidget {
+  const SessionDetailSheet({super.key, required this.session});
   final Session session;
 
   @override
-  ConsumerState<SessionDetailScreen> createState() =>
-      _SessionDetailScreenState();
+  ConsumerState<SessionDetailSheet> createState() => _SessionDetailSheetState();
 }
 
-class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
+class _SessionDetailSheetState extends ConsumerState<SessionDetailSheet> {
   List<Reading>? _readings;
   bool _error = false;
   bool _deleting = false;
@@ -79,52 +87,89 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final t = context.hd;
-    return HdScaffold(
-      title: 'Session',
-      showDrawer: false,
-      leading: const BackButton(),
-      titleWidget: Row(mainAxisSize: MainAxisSize.min, children: [
-        const Text('Session  '),
-        Text(_s.sessionId,
-            style: hdMono.copyWith(fontSize: 15, color: t.textSecondary)),
-      ]),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _card(t, 'PRE-TREATMENT', [
-            _kv(t, 'Weight', _u(_s.preWeight, 'kg')),
-            _kv(t, 'UF goal', _u(_s.ufGoal, 'L')),
-            _kv(t, 'UF rate', _u(_s.ufRate, 'mL/h')),
-            _kv(t, 'BP', _bp(_s.preBpSys, _s.preBpDia)),
-            _kv(t, 'Pulse', _u(_s.prePulse, 'bpm')),
-          ]),
-          const SizedBox(height: 12),
-          _readingsSection(t),
-          const SizedBox(height: 12),
-          _card(t, 'POST-TREATMENT', [
-            _kv(t, 'Weight', _u(_s.postWeight, 'kg')),
-            _kv(t, 'BP', _bp(_s.postBpSys, _s.postBpDia)),
-            _kv(t, 'Pulse', _u(_s.postPulse, 'bpm')),
-            _kv(t, 'Duration', _s.durationMin == null ? '—' : '${_s.durationMin} min'),
-            _kv(t, 'Dialysate', _u(_s.dialysateVolume, 'L')),
-            _kv(t, 'Total UF', _u(_s.totalUf, 'L')),
-            _kv(t, 'Blood processed', _u(_s.bloodProcessed, 'L')),
-          ]),
-          const SizedBox(height: 20),
-          OutlinedButton.icon(
-            onPressed: _deleting ? null : _delete,
-            icon: _deleting
-                ? SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: t.danger))
-                : const Icon(Icons.delete_outline),
-            label: Text(_deleting ? 'Deleting…' : 'Delete session'),
-            style: OutlinedButton.styleFrom(
-                foregroundColor: t.danger, side: BorderSide(color: t.danger)),
-          ),
-          const SizedBox(height: 24),
-        ],
+    return FractionallySizedBox(
+      heightFactor: 0.85,
+      child: Container(
+        decoration: BoxDecoration(
+          color: t.bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 10, bottom: 6),
+              child: Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                      color: t.textMuted, borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+              child: Row(children: [
+                Text('Session  ',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: t.textPrimary)),
+                Text(_s.sessionId,
+                    style: hdMono.copyWith(fontSize: 15, color: t.textSecondary)),
+                const Spacer(),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: Icon(Icons.close, color: t.textSecondary),
+                ),
+              ]),
+            ),
+            Divider(height: 1, color: t.border),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  _card(t, 'PRE-TREATMENT', [
+                    _kv(t, 'Weight', _u(_s.preWeight, 'kg')),
+                    _kv(t, 'UF goal', _u(_s.ufGoal, 'L')),
+                    _kv(t, 'UF rate', _u(_s.ufRate, 'mL/h')),
+                    _kv(t, 'BP', _bp(_s.preBpSys, _s.preBpDia)),
+                    _kv(t, 'Pulse', _u(_s.prePulse, 'bpm')),
+                  ]),
+                  const SizedBox(height: 12),
+                  _readingsSection(t),
+                  const SizedBox(height: 12),
+                  _card(t, 'POST-TREATMENT', [
+                    _kv(t, 'Weight', _u(_s.postWeight, 'kg')),
+                    _kv(t, 'BP', _bp(_s.postBpSys, _s.postBpDia)),
+                    _kv(t, 'Pulse', _u(_s.postPulse, 'bpm')),
+                    _kv(t, 'Duration',
+                        _s.durationMin == null ? '—' : '${_s.durationMin} min'),
+                    _kv(t, 'Dialysate', _u(_s.dialysateVolume, 'L')),
+                    _kv(t, 'Total UF', _u(_s.totalUf, 'L')),
+                    _kv(t, 'Blood processed', _u(_s.bloodProcessed, 'L')),
+                  ]),
+                  const SizedBox(height: 20),
+                  OutlinedButton.icon(
+                    onPressed: _deleting ? null : _delete,
+                    icon: _deleting
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: t.danger))
+                        : const Icon(Icons.delete_outline),
+                    label: Text(_deleting ? 'Deleting…' : 'Delete session'),
+                    style: OutlinedButton.styleFrom(
+                        foregroundColor: t.danger,
+                        side: BorderSide(color: t.danger)),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -195,7 +240,8 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
         child: Row(
           children: [
             Expanded(
-                child: Text(k, style: TextStyle(color: t.textSecondary, fontSize: 13))),
+                child: Text(k,
+                    style: TextStyle(color: t.textSecondary, fontSize: 13))),
             Text(v, style: TextStyle(color: t.textPrimary, fontSize: 13)),
           ],
         ),
@@ -203,5 +249,6 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
 
   String _u(num? v, String unit) =>
       v == null ? '—' : '${v == v.roundToDouble() ? v.toInt() : v} $unit';
-  String _bp(int? s, int? d) => (s == null && d == null) ? '—' : '${s ?? '–'}/${d ?? '–'}';
+  String _bp(int? s, int? d) =>
+      (s == null && d == null) ? '—' : '${s ?? '–'}/${d ?? '–'}';
 }

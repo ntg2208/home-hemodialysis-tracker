@@ -60,9 +60,7 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
   }
 
   Future<void> _openDetail(Session s) async {
-    final deleted = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => SessionDetailScreen(session: s)),
-    );
+    final deleted = await showSessionDetailSheet(context, s);
     if (deleted == true) _load();
   }
 

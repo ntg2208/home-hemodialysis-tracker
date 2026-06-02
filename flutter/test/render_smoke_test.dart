@@ -96,17 +96,17 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('SessionDetailScreen renders + loads readings', (tester) async {
+  testWidgets('SessionDetailSheet renders + loads readings', (tester) async {
     await tester.pumpWidget(ProviderScope(
       overrides: [treatmentRepoProvider.overrideWithValue(_FakeRepo())],
-      child: _app(const SessionDetailScreen(
+      child: _app(const SessionDetailSheet(
         session: Session(
             sessionId: '2026-06-02', date: '2026-06-02', preWeight: 60, totalUf: 1.6),
       )),
     ));
     await tester.pump(); // resolve getReadings
     expect(find.text('PRE-TREATMENT'), findsOneWidget);
-    expect(find.text('Delete session'), findsOneWidget);
+    expect(find.byIcon(Icons.close), findsOneWidget); // X to close
     expect(tester.takeException(), isNull);
   });
 
