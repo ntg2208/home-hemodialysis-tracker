@@ -23,6 +23,31 @@ class TreatmentRepo {
   Future<void> updateSession(String sessionId, Map<String, dynamic> patch) =>
       _sessions.doc(sessionId).set(patch, SetOptions(merge: true));
 
+  /// Readings for one session, ordered by seq.
+  Future<List<Reading>> getReadings(String sessionId) async {
+    final snap =
+        await _readings.where('session_id', isEqualTo: sessionId).get();
+    final readings = snap.docs
+        .map((d) => d.data())
+        .where((d) => (d['reading_id'] as String?)?.isNotEmpty ?? false)
+        .map(Reading.fromMap)
+        .toList()
+      ..sort((a, b) => a.seq.compareTo(b.seq));
+    return readings;
+  }
+
+  /// Deletes a session and all of its readings in a single batch.
+  Future<void> deleteSession(String sessionId) async {
+    final snap =
+        await _readings.where('session_id', isEqualTo: sessionId).get();
+    final batch = firestore.batch();
+    for (final d in snap.docs) {
+      batch.delete(d.reference);
+    }
+    batch.delete(_sessions.doc(sessionId));
+    await batch.commit();
+  }
+
   Future<({List<Session> sessions, List<Reading> readings})> getAll() async {
     final results = await Future.wait([_sessions.get(), _readings.get()]);
     final sessions = <Session>[];

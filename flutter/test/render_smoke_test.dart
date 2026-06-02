@@ -12,6 +12,7 @@ import 'package:home_hd/features/inventory/inventory_sheets.dart';
 import 'package:home_hd/features/treatment/models.dart';
 import 'package:home_hd/features/treatment/providers.dart';
 import 'package:home_hd/features/treatment/screens/active.dart';
+import 'package:home_hd/features/treatment/screens/session_detail.dart';
 import 'package:home_hd/features/treatment/treatment_repo.dart';
 
 /// Headless "does it survive first paint" coverage for the riskiest screens.
@@ -41,6 +42,9 @@ class _FakeRepo extends TreatmentRepo {
   @override
   Future<({List<Session> sessions, List<Reading> readings})> getAll() async =>
       (sessions: const <Session>[], readings: const <Reading>[]);
+  @override
+  Future<List<Reading>> getReadings(String sessionId) async =>
+      const <Reading>[];
 }
 
 class _FakeInventoryApi extends InventoryApi {
@@ -89,6 +93,20 @@ void main() {
     ));
     // No reading added → countdown not started → no periodic timer to settle.
     expect(find.text('Add reading'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('SessionDetailScreen renders + loads readings', (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [treatmentRepoProvider.overrideWithValue(_FakeRepo())],
+      child: _app(const SessionDetailScreen(
+        session: Session(
+            sessionId: '2026-06-02', date: '2026-06-02', preWeight: 60, totalUf: 1.6),
+      )),
+    ));
+    await tester.pump(); // resolve getReadings
+    expect(find.text('PRE-TREATMENT'), findsOneWidget);
+    expect(find.text('Delete session'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

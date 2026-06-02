@@ -7,6 +7,7 @@ import '../models.dart';
 import '../providers.dart';
 import '../treatment_repo.dart';
 import '../widgets/session_list_item.dart';
+import 'session_detail.dart';
 
 /// Treatment Home — drawer destination. Cache-first session list + dried-weight
 /// editor + Start session. Port of frontend Home.tsx.
@@ -55,6 +56,52 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
       if (mounted) setState(() => _error = 'Load failed: ${treatmentErrorCode(e)}');
     } finally {
       if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
+  Future<void> _openDetail(Session s) async {
+    final deleted = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => SessionDetailScreen(session: s)),
+    );
+    if (deleted == true) _load();
+  }
+
+  Future<bool> _confirmDelete(Session s) async {
+    final t = context.hd;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete session'),
+        content: Text(
+            'Delete session ${s.sessionId} and all its readings? This cannot be undone.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: t.danger, foregroundColor: t.accentOn),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    return ok ?? false;
+  }
+
+  Future<void> _performDelete(Session s) async {
+    setState(() => _sessions =
+        _sessions!.where((x) => x.sessionId != s.sessionId).toList());
+    ref.read(treatmentStoreProvider).saveCachedSessions(_sessions!);
+    try {
+      await ref.read(treatmentRepoProvider).deleteSession(s.sessionId);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Delete failed — restoring.')));
+      }
+      _load(); // pull authoritative state back
     }
   }
 
@@ -122,9 +169,27 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
           else if (_sessions!.isEmpty)
             Text('No sessions yet.', style: TextStyle(color: t.textMuted))
           else
-            ..._sessions!
-                .take(5)
-                .map((s) => SessionListItem(session: s)),
+            ..._sessions!.take(5).map((s) => Dismissible(
+                  key: ValueKey(s.sessionId),
+                  direction: DismissDirection.endToStart,
+                  confirmDismiss: (_) => _confirmDelete(s),
+                  onDismissed: (_) => _performDelete(s),
+                  background: Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.only(right: 20),
+                    alignment: Alignment.centerRight,
+                    decoration: BoxDecoration(
+                      color: t.danger,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.delete_outline, color: t.accentOn),
+                  ),
+                  child: InkWell(
+                    onTap: () => _openDetail(s),
+                    borderRadius: BorderRadius.circular(12),
+                    child: SessionListItem(session: s),
+                  ),
+                )),
         ],
       ),
     );
