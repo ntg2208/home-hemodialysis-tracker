@@ -182,9 +182,9 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
                     ),
                     child: Icon(Icons.delete_outline, color: t.accentOn),
                   ),
-                  child: InkWell(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
                     onTap: () => _openDetail(s),
-                    borderRadius: BorderRadius.circular(12),
                     child: SessionListItem(session: s),
                   ),
                 )),
