@@ -4,6 +4,7 @@ import 'providers.dart';
 import '../features/placeholder_screen.dart';
 import '../features/blood_tests/blood_tests_screen.dart';
 import '../features/fitness/fitness_screen.dart';
+import '../features/inventory/inventory_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/setup/setup_screen.dart';
 import '../features/treatment/treatment_flow.dart';
@@ -25,9 +26,7 @@ GoRouter buildRouter(AuthController auth) {
       GoRoute(path: '/treatment', builder: (_, _) => const TreatmentFlow()),
       GoRoute(
           path: '/blood-tests', builder: (_, _) => const BloodTestsScreen()),
-      GoRoute(
-          path: '/inventory',
-          builder: (_, _) => const PlaceholderScreen(title: 'Inventory')),
+      GoRoute(path: '/inventory', builder: (_, _) => const InventoryScreen()),
       GoRoute(path: '/fitness', builder: (_, _) => const FitnessScreen()),
       GoRoute(
           path: '/kb',
