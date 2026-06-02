@@ -38,7 +38,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     });
     try {
       // Probe an authenticated endpoint to verify the key before we store it.
-      final client = RestClient(mainKey: () => key);
+      final client = ref.read(restClientFactoryProvider)(key);
       await client.get('/api/treatment/token');
       await ref.read(authControllerProvider).signIn(AuthSettings(mainKey: key));
       // Router redirect (refreshListenable) takes us to Treatment Home.

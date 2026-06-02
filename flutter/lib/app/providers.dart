@@ -51,6 +51,12 @@ final authControllerProvider = Provider<AuthController>((ref) {
   return AuthController(ref.read(secureStoreProvider));
 });
 
+/// Builds a one-off [RestClient] for a candidate key (used by Setup to verify a
+/// key before it's stored). Overridable in tests with a fake-backed client.
+typedef RestClientFactory = RestClient Function(String mainKey);
+final restClientFactoryProvider = Provider<RestClientFactory>(
+    (_) => (key) => RestClient(mainKey: () => key));
+
 /// REST client for Cloud Run endpoints. Reads the live key from [AuthController]
 /// and routes 401s back to Setup by clearing credentials.
 final restClientProvider = Provider<RestClient>((ref) {

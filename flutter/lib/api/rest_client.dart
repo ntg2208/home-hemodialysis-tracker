@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 /// Faithful port of frontend/src/api/cloudRun.ts error model.
 enum CloudErrorCode { unauthorized, network, badData, server }
@@ -11,9 +12,19 @@ class CloudRunError implements Exception {
   String toString() => 'CloudRunError($code): $message';
 }
 
-/// Base origin for the Cloud Run API. On Flutter web served from homehd.web.app this
-/// is same-origin (no CORS preflight); on mobile it's a plain absolute call (no CORS).
-const String kApiBase = 'https://homehd.web.app';
+/// Base origin for the Cloud Run API.
+///
+/// On **web** this MUST be empty so dio issues origin-relative requests
+/// (`/api/...` resolved against the page origin) — mirroring the React app's
+/// `new URL(path, window.location.origin)`. The app is served same-origin behind
+/// the Firebase Hosting `/api/**` rewrite, so relative URLs are same-origin and
+/// skip the CORS preflight that an absolute `homehd.web.app` URL would trigger
+/// from any non-prod origin (emulator, preview channel).
+///
+/// On **mobile** there is no page origin, so we use the absolute prod URL (native
+/// HTTP, no CORS).
+const String kApiBaseMobile = 'https://homehd.web.app';
+final String kApiBase = kIsWeb ? '' : kApiBaseMobile;
 
 const _timeout = Duration(milliseconds: 35000); // above Cloud Run's 30s timeout
 const _retryDelays = [Duration(seconds: 1), Duration(seconds: 3)];

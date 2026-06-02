@@ -120,7 +120,7 @@ Blood Tests trend chart (closest equivalent to the React Recharts setup).
 |---|---|---|
 | Active-session timer alerts (2h/1h/5m) | local notification + vibration even when backgrounded | **in-app banner only** — web cannot notify a closed tab. Documented limitation, not a bug. |
 | `flutter_secure_storage` | Keystore / Keychain | weaker browser-backed store (acceptable for single-user; noted) |
-| REST CORS | n/a (native client) | **must serve Flutter web same-origin from `homehd.web.app`** or REST calls hit preflight (the note documents a prior CORS saga). No Cloud Run CORS change if same-origin. |
+| REST CORS | n/a (native client) | **must serve Flutter web same-origin** *and* the dio client must use an **origin-relative** base URL on web (`baseUrl = kIsWeb ? '' : 'https://homehd.web.app'`, mirroring React's `new URL(path, window.location.origin)`). An absolute `homehd.web.app` base URL triggers a CORS preflight from any non-prod origin (emulator, preview channel) and is blocked — the API has no CORS headers. No Cloud Run change needed when same-origin. |
 | Firestore / custom-token auth | FlutterFire native | FlutterFire web — supported; the `authStateReady()` race fix applies to both |
 | App-state restore on force-quit | OS-level | tab close = process end; rely on cache + active-state restore |
 
