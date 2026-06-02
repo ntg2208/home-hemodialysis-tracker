@@ -124,6 +124,23 @@ Blood Tests trend chart (closest equivalent to the React Recharts setup).
 | Firestore / custom-token auth | FlutterFire native | FlutterFire web — supported; the `authStateReady()` race fix applies to both |
 | App-state restore on force-quit | OS-level | tab close = process end; rely on cache + active-state restore |
 
+## Dev-loop hosting (pulled forward from Task 21 — verified 2026-06-02)
+
+The Cloud Run API has **no CORS handling** (confirmed: `OPTIONS /api/treatment/token`
+returns `401` with no `Access-Control-Allow-*` headers — React never needed CORS because it
+was served same-origin). So Flutter web cannot call the API cross-origin during dev. The dev
+loop must serve the build same-origin behind the `/api/**` rewrite, exactly like prod:
+
+```bash
+cd flutter && flutter build web && cd ..
+firebase --config flutter/firebase.dev.json --project homehd-personal emulators:start --only hosting
+# serves flutter/build/web at http://127.0.0.1:5002 with /api/** proxied to live Cloud Run
+```
+
+`flutter/firebase.dev.json` is a dev-only config (does not touch the real `firebase.json` or
+create a second hosting site). Verified end-to-end on 2026-06-02: index served (200),
+`/api/treatment/token` with the real key → `{ok:true,token,...}` (200), wrong key → 401.
+
 ## Hosting / coexistence with React
 
 - During transition, Firebase Hosting serves the Flutter web build at a **preview/secondary
