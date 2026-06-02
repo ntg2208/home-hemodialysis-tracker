@@ -189,6 +189,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         _openPlaceOrder(data);
       case _BannerAction.viewOrder:
         _openViewOrder(data.cycle!);
+      case _BannerAction.adjustDelivery:
+        _openDelivery(data.cycle!);
       case _BannerAction.deliver:
         _quickDeliver();
     }
@@ -214,14 +216,21 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
   void _openHistory() => _sheet(const HistorySheet());
 
-  void _openViewOrder(Cycle cycle) => _sheet(ViewOrderSheet(cycle: cycle));
+  void _openViewOrder(Cycle cycle) => _sheet(ViewOrderSheet(
+        cycle: cycle,
+        onEdit: () => _sheet(EditOrderSheet(cycle: cycle, onDone: _load)),
+        onEarlyDelivery: _quickDeliver,
+      ));
 
   Future<void> _openCycleDates({required Cycle? initial}) async {
     _sheet(CycleDatesSheet(initial: initial, onDone: _load));
   }
 
   void _openPlaceOrder(InventoryResponse data) =>
-      _sheet(PlaceOrderSheet(data: data, onDone: _load));
+      _sheet(OrderSheet(data: data, onDone: _load));
+
+  void _openDelivery(Cycle cycle) =>
+      _sheet(DeliverySheet(cycle: cycle, onDone: _load));
 }
 
 // ============================ Stock row ============================
@@ -318,7 +327,7 @@ class _StockRow extends StatelessWidget {
 
 // ============================ Banner ============================
 
-enum _BannerAction { setup, editDates, placeOrder, viewOrder, deliver }
+enum _BannerAction { setup, editDates, placeOrder, viewOrder, deliver, adjustDelivery }
 
 class _Banner extends StatelessWidget {
   const _Banner({required this.cycle, required this.onAction});
@@ -363,8 +372,8 @@ class _Banner extends StatelessWidget {
                 child: Text('Delivery $label · ${_fmt(c.deliveryDate)}',
                     style: TextStyle(color: t.warning, fontSize: 13))),
             TextButton(
-                onPressed: () => onAction(_BannerAction.viewOrder),
-                child: const Text('View')),
+                onPressed: () => onAction(_BannerAction.adjustDelivery),
+                child: const Text('Adjust')),
             TextButton(
                 onPressed: () => onAction(_BannerAction.deliver),
                 child: const Text('Delivered')),

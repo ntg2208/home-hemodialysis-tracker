@@ -58,6 +58,11 @@ class InventoryApi {
       _rest.send('POST', '/api/inventory/apply-delivery',
           body: {'adjustments': adjustments});
 
+  /// Replaces the order map on the current cycle without touching the placed/
+  /// applied timestamps — for correcting a placed order. (PATCH /api/inventory/order)
+  Future<void> updateOrder(Map<String, int> order) =>
+      _rest.send('PATCH', '/api/inventory/order', body: {'order': order});
+
   Future<void> setPakInstall(String installedAt) => _rest
       .send('POST', '/api/inventory/set-pak-install', body: {'installed_at': installedAt});
 

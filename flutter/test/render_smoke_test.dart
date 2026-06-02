@@ -8,6 +8,7 @@ import 'package:home_hd/features/blood_tests/widgets/trend_chart.dart';
 import 'package:home_hd/features/inventory/inventory_models.dart';
 import 'package:home_hd/api/inventory_api.dart';
 import 'package:home_hd/features/inventory/inventory_screen.dart';
+import 'package:home_hd/features/inventory/inventory_sheets.dart';
 import 'package:home_hd/features/treatment/models.dart';
 import 'package:home_hd/features/treatment/providers.dart';
 import 'package:home_hd/features/treatment/screens/active.dart';
@@ -99,5 +100,49 @@ void main() {
     await tester.pump(); // resolve fetchInventory future
     expect(find.text('NXSTAGE SUPPLIES'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  group('inventory sheets render', () {
+    const cycle = Cycle(
+      callDate: '2026-06-23',
+      deliveryDate: '2026-06-30',
+      order: {'SAK-303': 16, 'CAR-172-C': 18},
+      orderPlacedAt: '2026-06-23T10:00:00.000Z',
+      deliveryAppliedAt: null,
+    );
+    const data = InventoryResponse(
+      stock: {'SAK-303': 10, 'CAR-172-C': 6},
+      cycle: cycle,
+      pakInstalledAt: null,
+      pakSessions: 0,
+    );
+
+    Future<void> pumpSheet(WidgetTester tester, Widget sheet) =>
+        tester.pumpWidget(ProviderScope(child: _app(sheet)));
+
+    testWidgets('OrderSheet (count step)', (tester) async {
+      await pumpSheet(tester, OrderSheet(data: data, onDone: () {}));
+      expect(find.text('Step 1: Stock count'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('DeliverySheet', (tester) async {
+      await pumpSheet(tester, DeliverySheet(cycle: cycle, onDone: () {}));
+      expect(find.text('Apply delivery'), findsWidgets); // title + button
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('EditOrderSheet', (tester) async {
+      await pumpSheet(tester, EditOrderSheet(cycle: cycle, onDone: () {}));
+      expect(find.text('Edit order'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('ViewOrderSheet', (tester) async {
+      await pumpSheet(tester,
+          ViewOrderSheet(cycle: cycle, onEdit: () {}, onEarlyDelivery: () {}));
+      expect(find.text('Placed order'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 }
