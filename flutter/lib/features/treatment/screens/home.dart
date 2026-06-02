@@ -1,0 +1,202 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../app/shell.dart';
+import '../../../app/theme.dart';
+import '../models.dart';
+import '../providers.dart';
+import '../treatment_repo.dart';
+import '../widgets/session_list_item.dart';
+
+/// Treatment Home — drawer destination. Cache-first session list + dried-weight
+/// editor + Start session. Port of frontend Home.tsx.
+class TreatmentHome extends ConsumerStatefulWidget {
+  const TreatmentHome({super.key, required this.onStartSession});
+  final void Function(List<String> existingIds) onStartSession;
+
+  @override
+  ConsumerState<TreatmentHome> createState() => _TreatmentHomeState();
+}
+
+class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
+  List<Session>? _sessions;
+  bool _refreshing = false;
+  String? _error;
+  late double _driedWeight;
+  bool _editingDried = false;
+  final _driedController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final store = ref.read(treatmentStoreProvider);
+    _driedWeight = store.getDriedWeight();
+    _sessions = store.getCachedSessions(); // instant render from cache
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _driedController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _error = null;
+      _refreshing = true;
+    });
+    try {
+      final r = await ref.read(treatmentRepoProvider).getAll();
+      final sorted = [...r.sessions]..sort((a, b) => b.date.compareTo(a.date));
+      ref.read(treatmentStoreProvider).saveCachedSessions(sorted);
+      if (mounted) setState(() => _sessions = sorted);
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Load failed: ${treatmentErrorCode(e)}');
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
+  void _commitDried() {
+    final n = num.tryParse(_driedController.text);
+    if (n != null && n > 0) {
+      setState(() => _driedWeight = n.toDouble());
+      ref.read(treatmentStoreProvider).saveDriedWeight(n.toDouble());
+    }
+    setState(() => _editingDried = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.hd;
+    final ids = _sessions?.map((s) => s.sessionId).toList() ?? [];
+    final loaded = _sessions != null;
+
+    return HdScaffold(
+      title: 'Treatment',
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          ElevatedButton.icon(
+            onPressed: loaded ? () => widget.onStartSession(ids) : null,
+            icon: loaded
+                ? const Icon(Icons.play_arrow)
+                : SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: t.accentOn)),
+            label: const Text('Start session'),
+          ),
+          const SizedBox(height: 16),
+          _driedWeightCard(t),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Text('RECENT SESSIONS',
+                  style: TextStyle(
+                      fontSize: 12,
+                      letterSpacing: 1,
+                      color: t.textMuted,
+                      fontWeight: FontWeight.w600)),
+              const Spacer(),
+              if (_refreshing && loaded)
+                Row(children: [
+                  SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: t.textMuted)),
+                  const SizedBox(width: 4),
+                  Text('refreshing',
+                      style: TextStyle(fontSize: 12, color: t.textMuted)),
+                ]),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_error != null)
+            _errorBanner(t)
+          else if (!loaded)
+            Text('Loading…', style: TextStyle(color: t.textMuted))
+          else if (_sessions!.isEmpty)
+            Text('No sessions yet.', style: TextStyle(color: t.textMuted))
+          else
+            ..._sessions!
+                .take(5)
+                .map((s) => SessionListItem(session: s)),
+        ],
+      ),
+    );
+  }
+
+  Widget _driedWeightCard(HdTokens t) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: t.panel,
+        border: Border.all(color: t.border),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Text('Dried weight',
+              style: TextStyle(fontSize: 14, color: t.textSecondary)),
+          const Spacer(),
+          if (_editingDried)
+            Row(children: [
+              SizedBox(
+                width: 70,
+                child: TextField(
+                  controller: _driedController,
+                  autofocus: true,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  textAlign: TextAlign.right,
+                  decoration: const InputDecoration(isDense: true),
+                  onSubmitted: (_) => _commitDried(),
+                ),
+              ),
+              IconButton(
+                  onPressed: _commitDried,
+                  icon: Icon(Icons.check, color: t.accent)),
+              IconButton(
+                  onPressed: () => setState(() => _editingDried = false),
+                  icon: Icon(Icons.close, color: t.textMuted)),
+            ])
+          else
+            InkWell(
+              onTap: () {
+                _driedController.text = _fmt(_driedWeight);
+                setState(() => _editingDried = true);
+              },
+              child: Row(children: [
+                Text('${_fmt(_driedWeight)} kg',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600, color: t.textPrimary)),
+                const SizedBox(width: 6),
+                Icon(Icons.edit_outlined, size: 14, color: t.textMuted),
+              ]),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _errorBanner(HdTokens t) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: t.danger.withValues(alpha: 0.15),
+          border: Border.all(color: t.danger),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(children: [
+          Expanded(
+              child: Text(_error!,
+                  style: TextStyle(color: t.danger, fontSize: 13))),
+          TextButton(onPressed: _load, child: const Text('Retry')),
+        ]),
+      );
+}
+
+String _fmt(num v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();

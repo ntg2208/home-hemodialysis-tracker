@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'providers.dart';
 import '../features/placeholder_screen.dart';
 import '../features/setup/setup_screen.dart';
+import '../features/treatment/treatment_flow.dart';
 
 /// App router with the Setup gate. [auth] drives redirects via `refreshListenable`:
 /// no key → Setup; key present while on Setup → Treatment Home.
@@ -18,9 +19,7 @@ GoRouter buildRouter(AuthController auth) {
     },
     routes: [
       GoRoute(path: '/setup', builder: (_, _) => const SetupScreen()),
-      GoRoute(
-          path: '/treatment',
-          builder: (_, _) => const PlaceholderScreen(title: 'Treatment')),
+      GoRoute(path: '/treatment', builder: (_, _) => const TreatmentFlow()),
       GoRoute(
           path: '/blood-tests',
           builder: (_, _) => const PlaceholderScreen(title: 'Blood Tests')),

@@ -33,6 +33,8 @@ class HdScaffold extends StatelessWidget {
     this.showDrawer = true,
     this.actions,
     this.showChatFab = true,
+    this.leading,
+    this.titleWidget,
   });
 
   final String title;
@@ -41,10 +43,21 @@ class HdScaffold extends StatelessWidget {
   final List<Widget>? actions;
   final bool showChatFab;
 
+  /// Replaces the hamburger on pushed sub-screens (e.g. a close X or back arrow).
+  final Widget? leading;
+
+  /// Optional rich title (e.g. monospace session id). Falls back to [title].
+  final Widget? titleWidget;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title), actions: actions),
+      appBar: AppBar(
+        title: titleWidget ?? Text(title),
+        actions: actions,
+        leading: leading,
+        automaticallyImplyLeading: showDrawer,
+      ),
       drawer: showDrawer ? const _HdDrawer() : null,
       floatingActionButton: showChatFab ? const ChatFab() : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
