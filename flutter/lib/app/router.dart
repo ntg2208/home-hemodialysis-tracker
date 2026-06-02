@@ -4,6 +4,7 @@ import 'providers.dart';
 import '../features/placeholder_screen.dart';
 import '../features/blood_tests/blood_tests_screen.dart';
 import '../features/fitness/fitness_screen.dart';
+import '../features/settings/settings_screen.dart';
 import '../features/setup/setup_screen.dart';
 import '../features/treatment/treatment_flow.dart';
 
@@ -33,9 +34,7 @@ GoRouter buildRouter(AuthController auth) {
           builder: (_, _) => const PlaceholderScreen(
               title: 'Knowledge Base',
               note: 'NxStage error codes — coming soon.')),
-      GoRoute(
-          path: '/settings',
-          builder: (_, _) => const PlaceholderScreen(title: 'Settings')),
+      GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
     ],
   );
 }

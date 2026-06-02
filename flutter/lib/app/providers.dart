@@ -77,12 +77,25 @@ final restClientProvider = Provider<RestClient>((ref) {
   );
 });
 
-/// App theme mode. Defaults to system; persisted in Settings (Phase 4).
+/// App theme mode. Defaults to system; persisted in the cache box.
 final themeModeProvider =
     NotifierProvider<ThemeModeController, ThemeMode>(ThemeModeController.new);
 
 class ThemeModeController extends Notifier<ThemeMode> {
+  static const _key = 'theme_mode';
+
   @override
-  ThemeMode build() => ThemeMode.system;
-  void set(ThemeMode mode) => state = mode;
+  ThemeMode build() {
+    final raw = Hive.box(cacheBoxName).get(_key) as String?;
+    return switch (raw) {
+      'light' => ThemeMode.light,
+      'dark' => ThemeMode.dark,
+      _ => ThemeMode.system,
+    };
+  }
+
+  void set(ThemeMode mode) {
+    state = mode;
+    Hive.box(cacheBoxName).put(_key, mode.name);
+  }
 }
