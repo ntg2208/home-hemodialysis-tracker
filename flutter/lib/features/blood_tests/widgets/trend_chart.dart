@@ -39,9 +39,16 @@ class TrendChart extends StatelessWidget {
         series.any((d) => d.timing == 'pre' || d.timing == 'post');
     final last = series.last;
 
-    final minX = series.first.dateMs;
-    final maxX = series.last.dateMs;
-    final spanX = (maxX - minX) == 0 ? 1.0 : (maxX - minX);
+    var minX = series.first.dateMs;
+    var maxX = series.last.dateMs;
+    if (maxX == minX) {
+      // Single-point (or single-date) series: pad the X span by ±1 day so
+      // fl_chart's (x-minX)/(maxX-minX) mapping never divides by zero.
+      const dayMs = 86400000.0;
+      minX -= dayMs;
+      maxX += dayMs;
+    }
+    final spanX = maxX - minX;
 
     var minY = series.map((d) => d.value).reduce((a, b) => a < b ? a : b);
     var maxY = series.map((d) => d.value).reduce((a, b) => a > b ? a : b);

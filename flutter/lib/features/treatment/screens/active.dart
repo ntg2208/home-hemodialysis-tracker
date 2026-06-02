@@ -285,7 +285,11 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
             const SizedBox(width: 6),
             Text('$label ',
                 style: TextStyle(color: t.textSecondary, fontSize: 13)),
-            Text(value, style: TextStyle(color: t.textPrimary, fontSize: 13)),
+            Flexible(
+              child: Text(value,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: t.textPrimary, fontSize: 13)),
+            ),
           ],
         );
     final s = widget.session;
@@ -322,8 +326,11 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
                       fontWeight: FontWeight.w600,
                       color: timerColor))
             else
-              Text('Waiting for first reading',
-                  style: TextStyle(color: t.textMuted, fontSize: 13)),
+              Flexible(
+                child: Text('Waiting for first reading',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: t.textMuted, fontSize: 13)),
+              ),
             const Spacer(),
             InkWell(
               onTap: _editTarget,
