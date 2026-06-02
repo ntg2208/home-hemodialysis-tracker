@@ -1,6 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required for REST + Firestore in release builds (Flutter only adds this
+         automatically for debug). VIBRATE + POST_NOTIFICATIONS power the
+         Active-session timer alerts on mobile. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
-        android:label="home_hd"
+        android:label="Home HD"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
