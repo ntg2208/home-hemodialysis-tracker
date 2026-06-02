@@ -14,6 +14,7 @@ Future<void> main() async {
   await initFirebase();
   await Hive.initFlutter();
   await Hive.openBox(treatmentBoxName);
+  await Hive.openBox(cacheBoxName);
 
   final container = ProviderContainer();
   final auth = container.read(authControllerProvider);

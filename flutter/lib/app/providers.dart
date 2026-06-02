@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive/hive.dart';
 
 import '../api/rest_client.dart';
+import '../storage/cache_store.dart';
 import '../storage/secure_store.dart';
 
 /// On-device credential store.
 final secureStoreProvider = Provider<SecureStore>((_) => SecureStore());
+
+/// Shared stale-while-revalidate cache box (fitness, blood tests). Opened in main.
+const cacheBoxName = 'hd_cache';
+final cacheStoreProvider =
+    Provider<CacheStore>((_) => CacheStore(Hive.box(cacheBoxName)));
 
 /// Holds the current [AuthSettings] in memory and drives the router's Setup gate.
 /// Doubles as a [Listenable] for go_router's `refreshListenable`.
