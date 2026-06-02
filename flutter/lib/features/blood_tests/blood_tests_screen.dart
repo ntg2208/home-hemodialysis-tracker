@@ -53,7 +53,7 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
         _lastSynced = cache.lastSynced;
         _status = _Status.ready;
         _refreshing = true;
-        _initFilterMarker();
+        _initFilterDefaults();
       });
       _revalidate(defaultFrom);
       return;
@@ -69,7 +69,7 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
         _coveredFrom = defaultFrom;
         _lastSynced = now;
         _status = _Status.ready;
-        _initFilterMarker();
+        _initFilterDefaults();
       });
     } catch (e) {
       if (mounted) {
@@ -81,10 +81,16 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
     }
   }
 
-  void _initFilterMarker() {
+  /// On first data load, default the marker to the first one and the From/To
+  /// range to the actual span of the loaded rows (the default 6-month window).
+  void _initFilterDefaults() {
     if (_filter.marker.isEmpty) {
       final markers = _markers();
       if (markers.isNotEmpty) _filter = _filter.copyWith(marker: markers.first);
+    }
+    if (_filter.from.isEmpty && _filter.to.isEmpty && _rows.isNotEmpty) {
+      final months = _rows.map((r) => r.datetime.substring(0, 7)).toList()..sort();
+      _filter = _filter.copyWith(from: months.first, to: months.last);
     }
   }
 
@@ -107,7 +113,7 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
         _coveredFrom = coveredFrom;
         _lastSynced = now;
         _refreshing = false;
-        _initFilterMarker();
+        _initFilterDefaults();
       });
     } catch (e) {
       if (mounted) {

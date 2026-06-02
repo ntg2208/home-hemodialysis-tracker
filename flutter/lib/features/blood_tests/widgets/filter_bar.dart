@@ -46,7 +46,7 @@ class FilterBar extends StatelessWidget {
   final ValueChanged<FilterState> onChange;
 
   String _bound(String year, String month) =>
-      year.isEmpty ? '' : (month.isEmpty ? '' : '$year-$month');
+      year.isEmpty || month.isEmpty ? '' : '$year-$month';
 
   @override
   Widget build(BuildContext context) {
@@ -57,17 +57,14 @@ class FilterBar extends StatelessWidget {
     final toMonth = filter.to.length >= 7 ? filter.to.substring(5, 7) : '';
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: t.panel,
         border: Border(bottom: BorderSide(color: t.border)),
       ),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.end,
+      child: Column(
         children: [
-          _labeled(t, 'Phase', _dropdown<String>(
+          _row(t, 'Phase', _field(t, _dropdown<String>(
             t,
             value: filter.phases.isEmpty ? 'all' : filter.phases.first,
             items: [
@@ -76,79 +73,98 @@ class FilterBar extends StatelessWidget {
             ],
             onChanged: (v) => onChange(filter.copyWith(
                 phases: (v == null || v == 'all') ? const [] : [v])),
-          )),
-          _labeled(t, 'From', Row(mainAxisSize: MainAxisSize.min, children: [
-            _monthDropdown(t, fromMonth,
-                (m) => onChange(filter.copyWith(from: _bound(fromYear, m)))),
-            const SizedBox(width: 4),
-            _yearDropdown(t, fromYear,
-                (y) => onChange(filter.copyWith(from: _bound(y, fromMonth)))),
-          ])),
-          _labeled(t, 'To', Row(mainAxisSize: MainAxisSize.min, children: [
-            _monthDropdown(t, toMonth,
-                (m) => onChange(filter.copyWith(to: _bound(toYear, m)))),
-            const SizedBox(width: 4),
-            _yearDropdown(t, toYear,
-                (y) => onChange(filter.copyWith(to: _bound(y, toMonth)))),
-          ])),
-          _labeled(t, 'Marker', _dropdown<String>(
+          ))),
+          const SizedBox(height: 8),
+          _row(t, 'From', _monthYear(t, fromMonth, fromYear,
+              (m) => onChange(filter.copyWith(from: _bound(fromYear, m))),
+              (y) => onChange(filter.copyWith(from: _bound(y, fromMonth))))),
+          const SizedBox(height: 8),
+          _row(t, 'To', _monthYear(t, toMonth, toYear,
+              (m) => onChange(filter.copyWith(to: _bound(toYear, m))),
+              (y) => onChange(filter.copyWith(to: _bound(y, toMonth))))),
+          const SizedBox(height: 8),
+          _row(t, 'Marker', _field(t, _dropdown<String>(
             t,
             value: markers.contains(filter.marker) ? filter.marker : null,
             items: markers
                 .map((m) => DropdownMenuItem(value: m, child: Text(m)))
                 .toList(),
             onChanged: (v) => v == null ? null : onChange(filter.copyWith(marker: v)),
-          )),
+          ))),
         ],
       ),
     );
   }
 
-  Widget _labeled(HdTokens t, String label, Widget child) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+  /// A label fixed on the left, the control filling the rest — keeps every row's
+  /// controls left-aligned to the same column.
+  Widget _row(HdTokens t, String label, Widget control) => Row(
         children: [
-          Text(label, style: TextStyle(fontSize: 11, color: t.textMuted)),
-          const SizedBox(height: 2),
-          child,
+          SizedBox(
+            width: 52,
+            child: Text(label,
+                style: TextStyle(fontSize: 12, color: t.textMuted)),
+          ),
+          Expanded(child: control),
         ],
+      );
+
+  Widget _monthYear(HdTokens t, String month, String year,
+          ValueChanged<String> onMonth, ValueChanged<String> onYear) =>
+      Row(children: [
+        Expanded(
+          child: _field(t, _dropdown<String>(
+            t,
+            value: month.isEmpty ? '' : month,
+            items: [
+              const DropdownMenuItem(value: '', child: Text('Month')),
+              ..._months.map((m) =>
+                  DropdownMenuItem(value: m.$1, child: Text(m.$2))),
+            ],
+            onChanged: (v) => onMonth(v ?? ''),
+          )),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _field(t, _dropdown<String>(
+            t,
+            value: year.isEmpty ? '' : year,
+            items: [
+              const DropdownMenuItem(value: '', child: Text('Year')),
+              ...years.map((y) => DropdownMenuItem(value: '$y', child: Text('$y'))),
+            ],
+            onChanged: (v) => onYear(v ?? ''),
+          )),
+        ),
+      ]);
+
+  /// Boxed container so each dropdown has a consistent height/outline.
+  Widget _field(HdTokens t, Widget child) => Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: t.bg,
+          border: Border.all(color: t.border),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        alignment: Alignment.centerLeft,
+        child: child,
       );
 
   Widget _dropdown<T>(HdTokens t,
           {required T? value,
           required List<DropdownMenuItem<T>> items,
           required ValueChanged<T?> onChanged}) =>
-      DropdownButton<T>(
-        value: value,
-        items: items,
-        onChanged: onChanged,
-        isDense: true,
-        dropdownColor: t.panel,
-        style: TextStyle(fontSize: 13, color: t.textPrimary),
-        underline: const SizedBox.shrink(),
-      );
-
-  Widget _monthDropdown(HdTokens t, String month, ValueChanged<String> onChanged) =>
-      _dropdown<String>(
-        t,
-        value: month.isEmpty ? '' : month,
-        items: [
-          const DropdownMenuItem(value: '', child: Text('Month')),
-          ..._months.map((m) =>
-              DropdownMenuItem(value: m.$1, child: Text(m.$2))),
-        ],
-        onChanged: (v) => onChanged(v ?? ''),
-      );
-
-  Widget _yearDropdown(HdTokens t, String year, ValueChanged<String> onChanged) =>
-      _dropdown<String>(
-        t,
-        value: year.isEmpty ? '' : year,
-        items: [
-          const DropdownMenuItem(value: '', child: Text('Year')),
-          ...years.map((y) =>
-              DropdownMenuItem(value: '$y', child: Text('$y'))),
-        ],
-        onChanged: (v) => onChanged(v ?? ''),
+      DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value: value,
+          items: items,
+          onChanged: onChanged,
+          isDense: true,
+          isExpanded: true,
+          dropdownColor: t.panel,
+          iconEnabledColor: t.textMuted,
+          style: TextStyle(fontSize: 14, color: t.textPrimary),
+        ),
       );
 }
