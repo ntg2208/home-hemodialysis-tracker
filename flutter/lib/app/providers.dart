@@ -1,0 +1,75 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../api/rest_client.dart';
+import '../storage/secure_store.dart';
+
+/// On-device credential store.
+final secureStoreProvider = Provider<SecureStore>((_) => SecureStore());
+
+/// Holds the current [AuthSettings] in memory and drives the router's Setup gate.
+/// Doubles as a [Listenable] for go_router's `refreshListenable`.
+class AuthController extends ChangeNotifier {
+  AuthController(this._store);
+  final SecureStore _store;
+
+  AuthSettings? _settings;
+  bool _loaded = false;
+
+  AuthSettings? get settings => _settings;
+  bool get loaded => _loaded;
+  bool get isAuthed => _settings != null;
+  String get mainKey => _settings?.mainKey ?? '';
+
+  Future<void> load() async {
+    _settings = await _store.read();
+    _loaded = true;
+    notifyListeners();
+  }
+
+  /// First sign-in / key change — notifies so the router leaves Setup.
+  Future<void> signIn(AuthSettings a) async {
+    await _store.write(a);
+    _settings = a;
+    notifyListeners();
+  }
+
+  /// Token refresh — persists without a router refresh (no navigation change).
+  Future<void> saveSilently(AuthSettings a) async {
+    await _store.write(a);
+    _settings = a;
+  }
+
+  Future<void> signOut() async {
+    await _store.clear();
+    _settings = null;
+    notifyListeners();
+  }
+}
+
+final authControllerProvider = Provider<AuthController>((ref) {
+  return AuthController(ref.read(secureStoreProvider));
+});
+
+/// REST client for Cloud Run endpoints. Reads the live key from [AuthController]
+/// and routes 401s back to Setup by clearing credentials.
+final restClientProvider = Provider<RestClient>((ref) {
+  final auth = ref.watch(authControllerProvider);
+  return RestClient(
+    mainKey: () => auth.mainKey,
+    onUnauthorized: () {
+      // Defer to avoid mutating state during a build/redirect pass.
+      WidgetsBinding.instance.addPostFrameCallback((_) => auth.signOut());
+    },
+  );
+});
+
+/// App theme mode. Defaults to system; persisted in Settings (Phase 4).
+final themeModeProvider =
+    NotifierProvider<ThemeModeController, ThemeMode>(ThemeModeController.new);
+
+class ThemeModeController extends Notifier<ThemeMode> {
+  @override
+  ThemeMode build() => ThemeMode.system;
+  void set(ThemeMode mode) => state = mode;
+}
