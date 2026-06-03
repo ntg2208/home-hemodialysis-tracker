@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../app/theme.dart';
+import 'pressable_scale.dart';
 
 /// Full-width pill CTA with a saving spinner and an inline error+Retry box.
-/// Port of frontend SaveButton.
 class SaveButton extends StatelessWidget {
   const SaveButton({
     super.key,
@@ -28,16 +28,18 @@ class SaveButton extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ElevatedButton.icon(
-          onPressed: (saving || !enabled) ? null : onPressed,
-          icon: saving
-              ? SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: t.accentOn))
-              : (icon != null ? Icon(icon) : const SizedBox.shrink()),
-          label: Text(saving ? 'Saving…' : label),
+        PressableScale(
+          child: ElevatedButton.icon(
+            onPressed: (saving || !enabled) ? null : onPressed,
+            icon: saving
+                ? SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: t.accentOn))
+                : (icon != null ? Icon(icon) : const SizedBox.shrink()),
+            label: Text(saving ? 'Saving…' : label),
+          ),
         ),
         if (error != null) ...[
           const SizedBox(height: 8),
