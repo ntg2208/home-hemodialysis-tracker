@@ -1,4 +1,15 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../app/providers.dart';
+import '../../storage/cache_store.dart';
+import '../blood_tests/bt_store.dart';
+import '../blood_tests/providers.dart';
+import '../kb/kb_providers.dart';
+import '../treatment/providers.dart';
+import 'gemini_client.dart';
+// import 'chat_conversation.dart'; // needed in Task 12
 
 /// Chat state + a mock responder. The backend `/api/chat` does not exist yet
 /// (api/src/handlers/chat.ts is a placeholder), so replies come from
@@ -51,8 +62,18 @@ class MockChatResponder implements ChatResponder {
   }
 }
 
-final chatResponderProvider =
-    Provider<ChatResponder>((_) => MockChatResponder());
+final chatResponderProvider = Provider<ChatResponder>((ref) {
+  final ai = ref.watch(aiSettingsControllerProvider);
+  if (!ai.ready) return MockChatResponder();
+  return GeminiChatResponder(
+    apiKey: ai.apiKey!,
+    auth: ref.read(treatmentAuthProvider),
+    kbStore: ref.read(kbStoreProvider),
+    treatmentRepo: ref.read(treatmentRepoProvider),
+    btStore: ref.read(btStoreProvider),
+    cacheStore: ref.read(cacheStoreProvider),
+  );
+});
 
 final chatControllerProvider =
     NotifierProvider<ChatController, ChatState>(ChatController.new);
@@ -93,11 +114,19 @@ class ChatController extends Notifier<ChatState> {
           state = state.copyWith(messages: updated);
         }
       }
-    } catch (_) {
+    } catch (e) {
       final updated = [...state.messages];
       if (assistantIdx < updated.length) {
-        updated[assistantIdx] = const ChatMessage(
-            ChatRole.assistant, 'Sorry — could not get a response.');
+        final msg = switch (e) {
+          ChatError.invalidKey =>
+            'API key rejected — check your key in Settings.',
+          ChatError.rateLimited =>
+            'Too many requests — try again in a moment.',
+          ChatError.serverError =>
+            'AI service error — try again.',
+          _ => 'Could not reach the AI service — check your connection.',
+        };
+        updated[assistantIdx] = ChatMessage(ChatRole.assistant, msg);
         state = state.copyWith(messages: updated);
       }
     } finally {
