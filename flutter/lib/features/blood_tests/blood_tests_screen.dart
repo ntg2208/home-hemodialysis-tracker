@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../app/shell.dart';
 import '../../app/theme.dart';
 import 'logic.dart';
+import 'markers.dart';
 import 'models.dart';
 import 'providers.dart';
-import 'widgets/filter_bar.dart';
+import 'widgets/filter_bar.dart' show FilterBar, FilterPill, FilterState;
 import 'widgets/results_table.dart';
 import 'widgets/scorecard.dart';
 import 'widgets/trend_chart.dart';
 
 enum _Status { loading, error, ready }
-
-enum _Tab { scorecard, trend }
 
 class BloodTestsScreen extends ConsumerStatefulWidget {
   const BloodTestsScreen({super.key});
@@ -30,9 +30,11 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
   bool _refreshing = false;
   bool _refreshError = false;
 
-  _Tab _tab = _Tab.scorecard;
   late Set<String> _favorites;
   FilterState _filter = const FilterState();
+
+  final ScrollController _markerScrollCtrl = ScrollController();
+  bool _markerHovered = false;
 
   @override
   void initState() {
@@ -41,21 +43,25 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
     _bootstrap();
   }
 
+  @override
+  void dispose() {
+    _markerScrollCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _bootstrap() async {
     final store = ref.read(btStoreProvider);
     final cache = store.readCache();
     final defaultFrom = sixMonthsAgo(DateTime.now());
 
     if (cache.rows.isNotEmpty) {
+      // Show cached data immediately — user pulls to refresh.
       setState(() {
         _rows = cache.rows;
         _coveredFrom = cache.coveredFrom ?? defaultFrom;
         _lastSynced = cache.lastSynced;
         _status = _Status.ready;
-        _refreshing = true;
-        _initFilterDefaults();
       });
-      _revalidate(defaultFrom);
       return;
     }
 
@@ -69,29 +75,23 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
         _coveredFrom = defaultFrom;
         _lastSynced = now;
         _status = _Status.ready;
-        _initFilterDefaults();
       });
     } catch (e) {
       if (mounted) {
         setState(() {
-          _status = _Status.error;
-          _errorMsg = 'Could not load blood tests.';
+          // If there's still no data at all, show empty state instead of error.
+          if (_rows.isEmpty) {
+            _status = _Status.ready;
+          } else {
+            _refreshing = false;
+          }
         });
       }
     }
   }
 
-  /// On first data load, default the marker to the first one and the From/To
-  /// range to the actual span of the loaded rows (the default 6-month window).
-  void _initFilterDefaults() {
-    if (_filter.marker.isEmpty) {
-      final markers = _markers();
-      if (markers.isNotEmpty) _filter = _filter.copyWith(marker: markers.first);
-    }
-    if (_filter.from.isEmpty && _filter.to.isEmpty && _rows.isNotEmpty) {
-      final months = _rows.map((r) => r.datetime.substring(0, 7)).toList()..sort();
-      _filter = _filter.copyWith(from: months.first, to: months.last);
-    }
+  void _selectMarker(String marker) {
+    setState(() => _filter = _filter.copyWith(marker: marker));
   }
 
   Future<void> _revalidate(String fromFloor) async {
@@ -113,7 +113,6 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
         _coveredFrom = coveredFrom;
         _lastSynced = now;
         _refreshing = false;
-        _initFilterDefaults();
       });
     } catch (e) {
       if (mounted) {
@@ -163,27 +162,25 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
     return list;
   }
 
-  List<int> _years() {
-    final nowYear = DateTime.now().year;
-    final ys = <int>{for (final r in _rows) int.parse(r.datetime.substring(0, 4))};
-    for (var y = 2023; y <= nowYear; y++) {
-      ys.add(y);
-    }
-    final list = ys.toList()..sort();
-    return list;
+  /// Compute the effective lower-bound month for refresh/backfill from the
+  /// current range preset. Returns '2020-01' (earliest plausible data) when
+  /// the preset is 'all', and [sixMonthsAgo] as a fallback for empty presets.
+  String _effectiveFrom() {
+    if (_filter.rangePreset == 'all') return '2020-01';
+    if (_filter.rangePreset.isEmpty) return sixMonthsAgo(DateTime.now());
+    return rangeFrom(_filter.rangePreset);
   }
 
   void _onFilterChange(FilterState next) {
-    final oldFrom = _filter.from;
+    final oldPreset = _filter.rangePreset;
     setState(() => _filter = next);
-    if (next.from.isNotEmpty && next.from != oldFrom) _ensureRange(next.from);
-  }
-
-  void _selectMarker(String marker) {
-    setState(() {
-      _filter = _filter.copyWith(marker: marker);
-      _tab = _Tab.trend;
-    });
+    if (next.rangePreset == 'all') {
+      // Switching to all-time — backfill any uncovered history.
+      _ensureRange('2020-01');
+    } else if (next.rangePreset != oldPreset &&
+        next.rangePreset.isNotEmpty) {
+      _ensureRange(rangeFrom(next.rangePreset));
+    }
   }
 
   void _toggleFavorite(String marker) {
@@ -222,108 +219,200 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
         ]),
       );
     } else {
+      final inTrend = _filter.marker.isNotEmpty;
+      final markers = _markers();
       final scoped = filterRows(_rows,
           phase: _filter.phases,
-          from: _filter.from.isEmpty ? null : _filter.from,
+          rangePreset: _filter.rangePreset,
           to: _filter.to.isEmpty ? null : _filter.to);
-      final trendRows =
-          scoped.where((r) => r.marker == _filter.marker).toList();
 
       body = Column(
         children: [
           FilterBar(
             filter: _filter,
-            markers: _markers(),
-            years: _years(),
             onChange: _onFilterChange,
           ),
           _syncRow(t),
-          _tabBar(t),
+          if (inTrend) _markerPillsRow(t, markers),
           Expanded(
-            child: _tab == _Tab.scorecard
-                ? Scorecard(
-                    rows: scoped,
-                    favorites: _favorites,
-                    onSelectMarker: _selectMarker,
-                    onToggleFavorite: _toggleFavorite,
-                  )
-                : ListView(children: [
-                    TrendChart(marker: _filter.marker, rows: trendRows),
-                    ResultsTable(rows: trendRows),
-                  ]),
+            child: RefreshIndicator(
+              onRefresh: () => _revalidate(_effectiveFrom()),
+              child: inTrend
+                  ? _trendView(scoped)
+                  : Scorecard(
+                      rows: scoped,
+                      favorites: _favorites,
+                      onSelectMarker: _selectMarker,
+                      onToggleFavorite: _toggleFavorite,
+                    ),
+            ),
           ),
         ],
       );
     }
 
     return PopScope(
-      canPop: _tab != _Tab.trend,
+      canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _tab == _Tab.trend) {
-          setState(() => _tab = _Tab.scorecard);
+        if (didPop) return;
+        if (_filter.marker.isNotEmpty) {
+          // Trend view → back to scorecard
+          setState(() => _filter = _filter.copyWith(marker: ''));
+        } else {
+          // Scorecard view → go to Treatment
+          context.findAncestorWidgetOfExactType<StatefulNavigationShell>()?.goBranch(0);
         }
       },
       child: HdScaffold(title: 'Blood Tests', body: body),
     );
   }
 
+  /// Scrollable row of marker pills — shown above the trend chart so the user
+  /// can switch markers without going back to the scorecard.
+  Widget _markerPillsRow(HdTokens t, List<String> markers) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: t.panel,
+          border: Border(bottom: BorderSide(color: t.border)),
+        ),
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _markerHovered = true),
+          onExit: (_) => setState(() => _markerHovered = false),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final pageWidth = constraints.maxWidth * 0.7;
+              return Stack(
+                children: [
+                  SizedBox(
+                    height: 32,
+                    child: ListView.builder(
+                      controller: _markerScrollCtrl,
+                      scrollDirection: Axis.horizontal,
+                      physics: const ClampingScrollPhysics(),
+                      itemCount: markers.length,
+                      itemBuilder: (_, i) {
+                        final m = markers[i];
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: FilterPill(
+                            label: displayName(m),
+                            active: _filter.marker == m,
+                            onTap: () => setState(
+                                () => _filter = _filter.copyWith(marker: m)),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  if (_markerHovered) ...[
+                    _scrollArrow(t, Icons.chevron_left, true,
+                        () => _scrollMarkersBy(-pageWidth)),
+                    _scrollArrow(t, Icons.chevron_right, false,
+                        () => _scrollMarkersBy(pageWidth)),
+                  ],
+                ],
+              );
+            },
+          ),
+        ),
+      );
+
+  void _scrollMarkersBy(double delta) {
+    if (!_markerScrollCtrl.hasClients) return;
+    final target = (_markerScrollCtrl.offset + delta)
+        .clamp(0.0, _markerScrollCtrl.position.maxScrollExtent);
+    _markerScrollCtrl.animateTo(
+      target,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+    );
+  }
+
+  Widget _scrollArrow(
+          HdTokens t, IconData icon, bool left, VoidCallback onTap) =>
+      Positioned(
+        left: left ? 0 : null,
+        right: left ? null : 0,
+        top: 0,
+        bottom: 0,
+        child: Center(
+          child: Material(
+            color: t.panel.withValues(alpha: 0.85),
+            borderRadius: BorderRadius.only(
+              topLeft: left ? Radius.zero : const Radius.circular(20),
+              bottomLeft: left ? Radius.zero : const Radius.circular(20),
+              topRight: left ? const Radius.circular(20) : Radius.zero,
+              bottomRight: left ? const Radius.circular(20) : Radius.zero,
+            ),
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.only(
+                topLeft: left ? Radius.zero : const Radius.circular(20),
+                bottomLeft: left ? Radius.zero : const Radius.circular(20),
+                topRight: left ? const Radius.circular(20) : Radius.zero,
+                bottomRight: left ? const Radius.circular(20) : Radius.zero,
+              ),
+              child: SizedBox(
+                width: 28,
+                height: 32,
+                child: Icon(icon, size: 16, color: t.textSecondary),
+              ),
+            ),
+          ),
+        ),
+      );
+
+  /// Trend chart + results table for the currently selected marker.
+  Widget _trendView(List<BloodTestRow> scoped) {
+    final trendRows =
+        scoped.where((r) => r.marker == _filter.marker).toList();
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        TrendChart(marker: _filter.marker, rows: trendRows),
+        ResultsTable(rows: trendRows),
+      ],
+    );
+  }
+
   Widget _syncRow(HdTokens t) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: t.panel,
           border: Border(bottom: BorderSide(color: t.border)),
         ),
         child: Row(children: [
+          // Green dot when synced successfully.
+          if (!_refreshError && _lastSynced != null)
+            Container(
+              width: 8,
+              height: 8,
+              margin: const EdgeInsets.only(right: 8),
+              decoration:
+                  BoxDecoration(color: t.good, shape: BoxShape.circle),
+            ),
           Text(_syncLabel(),
               style: TextStyle(
                   fontSize: 12,
                   color: _refreshError ? t.warning : t.textMuted)),
           const Spacer(),
-          OutlinedButton(
-            onPressed: _refreshing
-                ? null
-                : () => _revalidate(
-                    _filter.from.isEmpty ? sixMonthsAgo(DateTime.now()) : _filter.from),
-            style: OutlinedButton.styleFrom(
-                minimumSize: const Size(0, 32),
-                padding: const EdgeInsets.symmetric(horizontal: 14)),
-            child: Text(_refreshing ? 'Syncing…' : 'Sync'),
+          SizedBox(
+            height: 30,
+            child: OutlinedButton(
+              onPressed: _refreshing
+                  ? null
+                  : () => _revalidate(_effectiveFrom()),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 30),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                side: BorderSide(color: t.border),
+                foregroundColor: t.textSecondary,
+                textStyle: const TextStyle(fontSize: 12),
+              ),
+              child: Text(_refreshing ? 'Syncing…' : 'Sync'),
+            ),
           ),
         ]),
       );
 
-  Widget _tabBar(HdTokens t) => Container(
-        decoration: BoxDecoration(
-          color: t.panel,
-          border: Border(bottom: BorderSide(color: t.border)),
-        ),
-        child: Row(children: [
-          _tabButton(t, 'Scorecard', _Tab.scorecard),
-          _tabButton(t, 'Trend', _Tab.trend),
-        ]),
-      );
-
-  Widget _tabButton(HdTokens t, String label, _Tab tab) {
-    final active = _tab == tab;
-    return InkWell(
-      onTap: () => setState(() {
-        if (tab == _Tab.trend && _filter.marker.isEmpty) return;
-        _tab = tab;
-      }),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-                color: active ? t.accent : Colors.transparent, width: 2),
-          ),
-        ),
-        child: Text(label,
-            style: TextStyle(
-                fontSize: 14,
-                color: active ? t.accent : t.textSecondary,
-                fontWeight: active ? FontWeight.w600 : FontWeight.w400)),
-      ),
-    );
-  }
 }

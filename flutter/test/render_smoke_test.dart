@@ -51,11 +51,14 @@ class _FakeInventoryApi extends InventoryApi {
   _FakeInventoryApi() : super(RestClient(mainKey: () => ''));
   @override
   Future<InventoryResponse> fetchInventory() async => const InventoryResponse(
-        stock: {'SAK-303': 10, 'CAR-172-C': 30, 'heparin': 2},
+        stock: {'SAK-303': 10, 'CAR-172-C': 30, 'heparin': 2, 'epo': 1},
         cycle: null,
         pakInstalledAt: null,
         pakSessions: 0,
       );
+  @override
+  Future<Map<String, num>> fetchStock() async =>
+      {'heparin': 2, 'epo': 1};
 }
 
 void main() {
@@ -80,14 +83,19 @@ void main() {
 
   testWidgets('ActiveSession renders its first frame', (tester) async {
     await tester.pumpWidget(ProviderScope(
-      overrides: [treatmentRepoProvider.overrideWithValue(_FakeRepo())],
+      overrides: [
+        treatmentRepoProvider.overrideWithValue(_FakeRepo()),
+        inventoryApiProvider.overrideWithValue(_FakeInventoryApi()),
+      ],
       child: _app(ActiveSession(
         session: const Session(sessionId: '2026-06-02', date: '2026-06-02', preWeight: 60),
         initialReadings: const [],
         heparinUsed: true,
+        epoUsed: true,
         onReadingsChanged: (_) {},
         onCountdownChanged: (_, _) {},
         onHeparinChanged: (_) {},
+        onEpoChanged: (_) {},
         onEnd: (_) {},
       )),
     ));

@@ -2,59 +2,74 @@ import 'package:flutter/material.dart';
 
 import '../../../app/theme.dart';
 
-const _phases = ['admission', 'in-center-hd', 'home-hd'];
-const _months = [
-  ('01', 'Jan'), ('02', 'Feb'), ('03', 'Mar'), ('04', 'Apr'),
-  ('05', 'May'), ('06', 'Jun'), ('07', 'Jul'), ('08', 'Aug'),
-  ('09', 'Sep'), ('10', 'Oct'), ('11', 'Nov'), ('12', 'Dec'),
+const _phaseOptions = [
+  ('', 'All phases'),
+  ('home-hd', 'Home'),
+  ('in-center-hd', 'In-centre'),
+  ('admission', 'Admission'),
 ];
 
+const _rangeOptions = [
+  ('3m', '3M'),
+  ('6m', '6M'),
+  ('1y', '1Y'),
+  ('all', 'All'),
+];
+
+/// Immutable filter state for the Blood Tests screen.
+///
+/// [rangePreset] drives the time-window pills (3M / 6M / 1Y / All); when it is
+/// anything other than `'all'` or `''`, the effective lower bound is computed via
+/// [rangeFrom] in `logic.dart`. The raw [from] / [to] fields are kept so custom
+/// backfill ranges still work, but the pill UI only touches [rangePreset].
 class FilterState {
   const FilterState({
     this.phases = const ['home-hd'],
+    this.rangePreset = '6m',
     this.from = '',
     this.to = '',
     this.marker = '',
   });
   final List<String> phases;
-  final String from; // 'YYYY-MM' or ''
+  final String rangePreset; // '3m' | '6m' | '1y' | 'all' | ''
+  final String from;
   final String to;
   final String marker;
 
-  FilterState copyWith(
-          {List<String>? phases, String? from, String? to, String? marker}) =>
+  FilterState copyWith({
+    List<String>? phases,
+    String? rangePreset,
+    String? from,
+    String? to,
+    String? marker,
+  }) =>
       FilterState(
         phases: phases ?? this.phases,
+        rangePreset: rangePreset ?? this.rangePreset,
         from: from ?? this.from,
         to: to ?? this.to,
         marker: marker ?? this.marker,
       );
 }
 
+/// Phase + timeframe pills.
+///
+/// The pills are the primary filter mechanism — every tap calls [onChange] with a
+/// new [FilterState].
 class FilterBar extends StatelessWidget {
   const FilterBar({
     super.key,
     required this.filter,
-    required this.markers,
-    required this.years,
     required this.onChange,
   });
 
   final FilterState filter;
-  final List<String> markers;
-  final List<int> years;
   final ValueChanged<FilterState> onChange;
-
-  String _bound(String year, String month) =>
-      year.isEmpty || month.isEmpty ? '' : '$year-$month';
 
   @override
   Widget build(BuildContext context) {
     final t = context.hd;
-    final fromYear = filter.from.length >= 4 ? filter.from.substring(0, 4) : '';
-    final fromMonth = filter.from.length >= 7 ? filter.from.substring(5, 7) : '';
-    final toYear = filter.to.length >= 4 ? filter.to.substring(0, 4) : '';
-    final toMonth = filter.to.length >= 7 ? filter.to.substring(5, 7) : '';
+    final activePhase = filter.phases.isEmpty ? '' : filter.phases.first;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -63,108 +78,78 @@ class FilterBar extends StatelessWidget {
         border: Border(bottom: BorderSide(color: t.border)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _row(t, 'Phase', _field(t, _dropdown<String>(
-            t,
-            value: filter.phases.isEmpty ? 'all' : filter.phases.first,
-            items: [
-              const DropdownMenuItem(value: 'all', child: Text('All phases')),
-              ..._phases.map((p) => DropdownMenuItem(value: p, child: Text(p))),
+          // --- Phase pills ---
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final (value, label) in _phaseOptions)
+                FilterPill(
+                  label: label,
+                  active: value == activePhase,
+                  onTap: () => onChange(filter.copyWith(
+                      phases: value.isEmpty ? const [] : [value])),
+                ),
             ],
-            onChanged: (v) => onChange(filter.copyWith(
-                phases: (v == null || v == 'all') ? const [] : [v])),
-          ))),
-          const SizedBox(height: 8),
-          _row(t, 'From', _monthYear(t, fromMonth, fromYear,
-              (m) => onChange(filter.copyWith(from: _bound(fromYear, m))),
-              (y) => onChange(filter.copyWith(from: _bound(y, fromMonth))))),
-          const SizedBox(height: 8),
-          _row(t, 'To', _monthYear(t, toMonth, toYear,
-              (m) => onChange(filter.copyWith(to: _bound(toYear, m))),
-              (y) => onChange(filter.copyWith(to: _bound(y, toMonth))))),
-          const SizedBox(height: 8),
-          _row(t, 'Marker', _field(t, _dropdown<String>(
-            t,
-            value: markers.contains(filter.marker) ? filter.marker : null,
-            items: markers
-                .map((m) => DropdownMenuItem(value: m, child: Text(m)))
-                .toList(),
-            onChanged: (v) => v == null ? null : onChange(filter.copyWith(marker: v)),
-          ))),
+          ),
+          const SizedBox(height: 12),
+          // --- Timeframe pills with calendar icon ---
+          Row(
+            children: [
+              Icon(Icons.calendar_today_outlined, size: 16, color: t.textMuted),
+              const SizedBox(width: 8),
+              ..._rangeOptions.map((opt) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterPill(
+                      label: opt.$2,
+                      active: filter.rangePreset == opt.$1,
+                      onTap: () =>
+                          onChange(filter.copyWith(rangePreset: opt.$1)),
+                    ),
+                  )),
+            ],
+          ),
         ],
       ),
     );
   }
+}
 
-  /// A label fixed on the left, the control filling the rest — keeps every row's
-  /// controls left-aligned to the same column.
-  Widget _row(HdTokens t, String label, Widget control) => Row(
-        children: [
-          SizedBox(
-            width: 52,
-            child: Text(label,
-                style: TextStyle(fontSize: 12, color: t.textMuted)),
-          ),
-          Expanded(child: control),
-        ],
-      );
+/// A single selectable pill chip.
+///
+/// Active: cyan border + cyan text + subtle cyan fill.
+/// Inactive: muted border + muted text, dark fill.
+class FilterPill extends StatelessWidget {
+  const FilterPill({super.key, required this.label, required this.active, required this.onTap});
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
 
-  Widget _monthYear(HdTokens t, String month, String year,
-          ValueChanged<String> onMonth, ValueChanged<String> onYear) =>
-      Row(children: [
-        Expanded(
-          child: _field(t, _dropdown<String>(
-            t,
-            value: month.isEmpty ? '' : month,
-            items: [
-              const DropdownMenuItem(value: '', child: Text('Month')),
-              ..._months.map((m) =>
-                  DropdownMenuItem(value: m.$1, child: Text(m.$2))),
-            ],
-            onChanged: (v) => onMonth(v ?? ''),
-          )),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _field(t, _dropdown<String>(
-            t,
-            value: year.isEmpty ? '' : year,
-            items: [
-              const DropdownMenuItem(value: '', child: Text('Year')),
-              ...years.map((y) => DropdownMenuItem(value: '$y', child: Text('$y'))),
-            ],
-            onChanged: (v) => onYear(v ?? ''),
-          )),
-        ),
-      ]);
-
-  /// Boxed container so each dropdown has a consistent height/outline.
-  Widget _field(HdTokens t, Widget child) => Container(
-        height: 38,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
+  @override
+  Widget build(BuildContext context) {
+    final t = context.hd;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: t.bg,
-          border: Border.all(color: t.border),
-          borderRadius: BorderRadius.circular(8),
+          color: active ? t.accent.withValues(alpha: 0.12) : t.bg,
+          border: Border.all(
+            color: active ? t.accent : t.border,
+          ),
+          borderRadius: BorderRadius.circular(20),
         ),
-        alignment: Alignment.centerLeft,
-        child: child,
-      );
-
-  Widget _dropdown<T>(HdTokens t,
-          {required T? value,
-          required List<DropdownMenuItem<T>> items,
-          required ValueChanged<T?> onChanged}) =>
-      DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
-          value: value,
-          items: items,
-          onChanged: onChanged,
-          isDense: true,
-          isExpanded: true,
-          dropdownColor: t.panel,
-          iconEnabledColor: t.textMuted,
-          style: TextStyle(fontSize: 14, color: t.textPrimary),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+            color: active ? t.accent : t.textSecondary,
+          ),
         ),
-      );
+      ),
+    );
+  }
 }

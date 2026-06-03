@@ -681,26 +681,45 @@ class _CycleDatesSheetState extends ConsumerState<CycleDatesSheet> {
         const SizedBox(height: 8),
         _dateField(t, 'Delivery date', _delivery, (d) => setState(() => _delivery = d)),
         const SizedBox(height: 16),
-        ElevatedButton(
-          onPressed: (_saving || _call == null || _delivery == null)
-              ? null
-              : () async {
-                  setState(() => _saving = true);
-                  try {
-                    final api = ref.read(inventoryApiProvider);
-                    if (isEdit) {
-                      await api.updateCycleDates(_call!, _delivery!);
-                    } else {
-                      await api.initCycle(_call!, deliveryDate: _delivery);
-                    }
-                    if (context.mounted) Navigator.pop(context);
-                    widget.onDone();
-                  } catch (_) {
-                    if (mounted) setState(() => _saving = false);
-                  }
-                },
-          child: Text(_saving ? 'Saving…' : 'Save'),
-        ),
+        Row(children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: _saving ? null : () => Navigator.pop(context),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: const StadiumBorder(),
+              ),
+              child: const Text('Cancel'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: (_saving || _call == null || _delivery == null)
+                  ? null
+                  : () async {
+                      setState(() => _saving = true);
+                      try {
+                        final api = ref.read(inventoryApiProvider);
+                        if (isEdit) {
+                          await api.updateCycleDates(_call!, _delivery!);
+                        } else {
+                          await api.initCycle(_call!, deliveryDate: _delivery);
+                        }
+                        if (context.mounted) Navigator.pop(context);
+                        widget.onDone();
+                      } catch (_) {
+                        if (mounted) setState(() => _saving = false);
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: const StadiumBorder(),
+              ),
+              child: Text(_saving ? 'Saving…' : 'Save'),
+            ),
+          ),
+        ]),
       ],
     );
   }

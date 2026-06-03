@@ -54,19 +54,27 @@ value per metric.
 - Multiple files per type accumulate (one per sync range; the 365-day seed wrote 5 step chunks).
   Summary must aggregate across all files of a type.
 
-### Known data shapes for "latest value" (from the 2026-05-28 catalog — VERIFY against live files)
+### Data shapes for "latest value" — VERIFIED against live files 2026-05-31
 
-| type | latest value | source field (within dataPoint) |
-|---|---|---|
-| `steps` | count | `rollupDataPoints[].steps.countSum` (string) |
-| `daily-resting-heart-rate` | bpm | `dailyRestingHeartRate.beatsPerMinute` (string) |
-| `sleep` | duration + deep | `sleep.summary.minutesAsleep`, `stagesSummary[type=DEEP].minutes` |
-| `daily-heart-rate-variability` | RMSSD ms | `…averageHeartRateVariabilityMilliseconds` (number) |
-| `heart-rate-variability` | RMSSD ms | `heartRateVariability.rootMeanSquareOfSuccessiveDifferencesMilliseconds` |
-| `respiratory-rate-sleep-summary` | breaths/min | `…deepSleepStats.breathsPerMinute` |
-| `daily-sleep-temperature-derivations` | Δ°C vs baseline | `nightlyTemperatureCelsius − baselineTemperatureCelsius` |
-| `oxygen-saturation` | % | **SHAPE NOT YET INSPECTED — verify first** |
-| `heart-rate` | — (status row only) | n/a |
+Each dataPoint nests its payload under a type-specific key. **Arrays are NOT time-sorted** —
+`extractLatest` must scan for the max date/sampleTime, never take `data[-1]`. Card = appears in
+the "latest readings" card; status-only = per-type table count only.
+
+| type | card? | key | date path | value |
+|---|---|---|---|---|
+| `daily-resting-heart-rate` | ✅ | `dailyRestingHeartRate` | `.date` | `.beatsPerMinute` (string) bpm |
+| `steps` | ✅ | `rollupDataPoints[]` | `.civilStartTime.date` | `.steps.countSum` (string) |
+| `sleep` | ✅ | `sleep` | `.interval.endTime` (RFC3339) | `.summary.minutesAsleep` + `stagesSummary[DEEP].minutes` |
+| `daily-heart-rate-variability` | ✅ | `dailyHeartRateVariability` | `.date` | `.averageHeartRateVariabilityMilliseconds` (num) ms |
+| `respiratory-rate-sleep-summary` | ✅ | `respiratoryRateSleepSummary` | `.sampleTime.civilTime.date` | `.deepSleepStats.breathsPerMinute` (num) /min |
+| `daily-sleep-temperature-derivations` | ✅ | `dailySleepTemperatureDerivations` | `.date` | `.nightlyTemperatureCelsius` (num) °C — **baseline is `"NaN"` until 30d; show absolute, no Δ yet** |
+| `oxygen-saturation` | ✅ | `oxygenSaturation` | `.sampleTime.civilTime.date` | `.percentage` (num) % — latest sample, label "(latest sample)" |
+| `heart-rate-variability` (raw) | status-only | `heartRateVariability` | `.sampleTime.civilTime.date` | redundant w/ daily HRV |
+| `heart-rate` | status-only | — | — | range-read count only, never parsed |
+
+**`"NaN"` guard:** temp baseline/stddev fields arrive as the JSON string `"NaN"`; treat non-finite
+numeric strings as missing. **SpO2 caveat:** a single latest sample is noisy (saw 90.1%); label it
+"(latest sample)" so it's not read as a daily figure. Both are acceptable for a verification screen.
 
 ## Backend — `GET /api/fitness/summary`
 

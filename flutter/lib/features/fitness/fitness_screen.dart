@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../app/shell.dart';
@@ -57,9 +58,13 @@ class _FitnessScreenState extends ConsumerState<FitnessScreen> {
   @override
   void initState() {
     super.initState();
-    final cached = ref.read(cacheStoreProvider).read(_cacheKey, _cacheTtl);
-    if (cached != null) _summary = FitnessSummary.fromJson(cached);
-    _load(background: _summary != null);
+    // Show stale cache immediately — user pulls to refresh.
+    final stale = ref.read(cacheStoreProvider).readStale(_cacheKey);
+    if (stale != null) _summary = FitnessSummary.fromJson(stale);
+    // Auto-load once if no cache yet (first visit).
+    if (_summary == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    }
   }
 
   Future<void> _load({bool background = false}) async {
@@ -73,10 +78,19 @@ class _FitnessScreenState extends ConsumerState<FitnessScreen> {
         });
       }
     } catch (e) {
-      // Background-refresh failures keep showing cached data.
       if (!background && mounted) {
-        setState(() => _error = 'Could not load fitness data.');
+        // On network failure, try stale cache before showing an error.
+        final stale = ref.read(cacheStoreProvider).readStale(_cacheKey);
+        if (stale != null) {
+          setState(() {
+            _summary = FitnessSummary.fromJson(stale);
+            _error = null;
+          });
+        } else {
+          setState(() => _error = 'Could not load fitness data.');
+        }
       }
+      // Background-refresh failures silently keep whatever is already shown.
     }
   }
 
@@ -108,8 +122,13 @@ class _FitnessScreenState extends ConsumerState<FitnessScreen> {
     final t = context.hd;
     final summary = _summary;
 
-    return HdScaffold(
-      title: 'Fitness',
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) context.findAncestorWidgetOfExactType<StatefulNavigationShell>()?.goBranch(0);
+      },
+      child: HdScaffold(
+        title: 'Fitness',
       actions: [
         IconButton(
           onPressed: _syncing ? null : _sync,
@@ -126,8 +145,23 @@ class _FitnessScreenState extends ConsumerState<FitnessScreen> {
       body: summary == null
           ? (_error != null
               ? _errorView(t)
-              : const Center(child: CircularProgressIndicator()))
-          : ListView(
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      const SizedBox(height: 120),
+                      Center(
+                        child: Text('Pull to load fitness data',
+                            style: TextStyle(color: t.textMuted)),
+                      ),
+                    ],
+                  ),
+                ))
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16),
               children: [
                 _healthLine(t, summary),
@@ -153,7 +187,9 @@ class _FitnessScreenState extends ConsumerState<FitnessScreen> {
                     child: Text('${_fmtMb(summary.totals.bytes)} stored in GCS',
                         style: TextStyle(fontSize: 12, color: t.textMuted))),
               ],
+              ),
             ),
+      ),
     );
   }
 

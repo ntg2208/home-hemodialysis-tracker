@@ -39,6 +39,11 @@ class InventoryApi {
         if (note != null) 'note': note,
       });
 
+  /// Reverses the inventory deduction logged for [sessionId]. Best-effort —
+  /// call with catchError; safe to call even if no event exists.
+  Future<void> rollbackSession(String sessionId) =>
+      _rest.send('DELETE', '/api/inventory/session/$sessionId');
+
   Future<void> confirmOrder(String callDate, Map<String, int> order,
           {String? deliveryDate}) =>
       _rest.send('POST', '/api/inventory/confirm-order', body: {

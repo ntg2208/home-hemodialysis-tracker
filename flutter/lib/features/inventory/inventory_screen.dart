@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../app/providers.dart' show cacheStoreProvider;
 import '../../app/shell.dart';
 import '../../app/theme.dart';
 import '../treatment/providers.dart' show inventoryApiProvider;
@@ -39,16 +41,31 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   InventoryResponse? _data;
   String? _error;
 
+  static const _cacheKey = 'inventory';
+
   @override
   void initState() {
     super.initState();
-    _load(autoApply: true);
+    // Show cached data immediately — user pulls to refresh.
+    try {
+      final cached = ref.read(cacheStoreProvider).readStale(_cacheKey);
+      if (cached != null) _data = InventoryResponse.fromJson(cached);
+    } catch (_) {/* cache unavailable (e.g. first launch) */}
+    // Auto-load once if there's no cached data yet (first visit).
+    if (_data == null) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _load(autoApply: true));
+    }
   }
 
   Future<void> _load({bool autoApply = false}) async {
     try {
       final data = await ref.read(inventoryApiProvider).fetchInventory();
       if (!mounted) return;
+      // Persist to cache for offline reads.
+      try {
+        ref.read(cacheStoreProvider).write(_cacheKey, data.toJson());
+      } catch (_) {}
       setState(() {
         _data = data;
         _error = null;
@@ -64,7 +81,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         _load();
       }
     } catch (e) {
-      if (mounted) setState(() => _error = 'Could not load inventory.');
+      if (mounted && _data == null) {
+        setState(() => _error = 'Could not load inventory.');
+      }
     }
   }
 
@@ -81,6 +100,46 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       if (mounted) {
         setState(() => _data = _withStock(_data!, {code: (_data!.stock[code] ?? 0) - delta}));
       }
+    }
+  }
+
+  /// Long-press the current stock count to set an exact quantity directly.
+  /// Uses stock_count event type which does an absolute set, not a relative delta.
+  Future<void> _setExact(String code, int current) async {
+    final controller = TextEditingController(text: '$current');
+    final result = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Set exact count', style: TextStyle(color: context.hd.textPrimary)),
+        backgroundColor: context.hd.panel,
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Quantity'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              final v = int.tryParse(controller.text);
+              if (v != null && v >= 0) Navigator.pop(ctx, v);
+            },
+            child: const Text('Set'),
+          ),
+        ],
+      ),
+    );
+    if (result == null || !mounted) return;
+    final prev = _data!.stock[code] ?? 0;
+    setState(() => _data = _withStock(_data!, {code: result}));
+    try {
+      await ref.read(inventoryApiProvider).logEvent('stock_count', {code: result});
+    } catch (_) {
+      if (mounted) setState(() => _data = _withStock(_data!, {code: prev}));
     }
   }
 
@@ -116,7 +175,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       final hospital =
           sorted.where((e) => getItem(e.code)?.section == 'hospital').toList();
 
-      body = ListView(
+      body = RefreshIndicator(
+        onRefresh: () => _load(autoApply: true),
+        child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
           _Banner(cycle: data.cycle, onAction: _onBannerAction),
@@ -138,10 +200,17 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           const SizedBox(height: 16),
           _section(t, 'Hospital Prescriptions', hospital, data),
         ],
+        ),
       );
     }
 
-    return HdScaffold(title: 'Inventory', body: body);
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) context.findAncestorWidgetOfExactType<StatefulNavigationShell>()?.goBranch(0);
+      },
+      child: HdScaffold(title: 'Inventory', body: body),
+    );
   }
 
   Widget _section(
@@ -166,6 +235,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   item: getItem(e.code)!,
                   qty: e.qty,
                   onAdjust: (d) => _adjust(e.code, d),
+                  onSetExact: () => _setExact(e.code, e.qty),
                   pakInstalledAt: e.code == 'PAK-001' ? data.pakInstalledAt : null,
                   pakSessions: e.code == 'PAK-001' ? data.pakSessions : null,
                 ),
@@ -246,12 +316,14 @@ class _StockRow extends StatelessWidget {
     required this.item,
     required this.qty,
     required this.onAdjust,
+    required this.onSetExact,
     this.pakInstalledAt,
     this.pakSessions,
   });
   final ItemDef item;
   final int qty;
   final ValueChanged<int> onAdjust;
+  final VoidCallback onSetExact;
   final String? pakInstalledAt;
   final int? pakSessions;
 
@@ -286,8 +358,11 @@ class _StockRow extends StatelessWidget {
                       child: Text(item.label,
                           style: TextStyle(color: t.textPrimary, fontSize: 14))),
                   const SizedBox(width: 8),
-                  Text('$qty ${item.unit}${qty != 1 ? 's' : ''}',
-                      style: TextStyle(color: color, fontSize: 12)),
+                  GestureDetector(
+                    onLongPress: onSetExact,
+                    child: Text('$qty ${item.unit}${qty != 1 ? 's' : ''}',
+                        style: TextStyle(color: color, fontSize: 12)),
+                  ),
                   if (sr != null)
                     Text(' ~$sr sess',
                         style: TextStyle(color: t.textMuted, fontSize: 12)),
@@ -337,83 +412,146 @@ class _Banner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.hd;
-    Widget card(Color bg, Color border, Widget child) => Container(
-          padding: const EdgeInsets.all(12),
+
+    Widget card(Widget child) => Container(
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-              color: bg,
-              border: Border.all(color: border),
-              borderRadius: BorderRadius.circular(12)),
+            color: t.panel,
+            border: Border.all(color: t.border),
+            borderRadius: BorderRadius.circular(14),
+          ),
           child: child,
         );
 
+    // ── No cycle ──────────────────────────────────────────────
     if (cycle == null) {
-      return card(t.panel, t.border,
-          Row(children: [
-            Expanded(
-                child: Text('No delivery cycle set up yet.',
-                    style: TextStyle(color: t.textSecondary, fontSize: 13))),
-            TextButton(
-                onPressed: () => onAction(_BannerAction.setup),
-                child: const Text('Set dates')),
-          ]));
+      return card(Column(children: [
+        _headerRow(t, 'DELIVERY CYCLE'),
+        const SizedBox(height: 12),
+        Text('No delivery cycle set up yet.',
+            style: TextStyle(color: t.textSecondary, fontSize: 13)),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () => onAction(_BannerAction.setup),
+            icon: const Icon(Icons.calendar_today, size: 18),
+            label: const Text('Set dates'),
+          ),
+        ),
+      ]));
     }
 
     final c = cycle!;
+    final callDays = _daysUntil(c.callDate);
     final deliveryDays = _daysUntil(c.deliveryDate);
-    final due = c.orderPlaced && deliveryDays <= 0;
+    final deliveryDue = c.orderPlaced && deliveryDays <= 0;
 
-    if (due) {
-      final label = deliveryDays == 0 ? 'today' : '${deliveryDays.abs()}d overdue';
-      return card(t.warning.withValues(alpha: 0.12), t.warning,
-          Row(children: [
-            Icon(Icons.local_shipping_outlined, size: 16, color: t.warning),
-            const SizedBox(width: 8),
-            Expanded(
-                child: Text('Delivery $label · ${_fmt(c.deliveryDate)}',
-                    style: TextStyle(color: t.warning, fontSize: 13))),
-            TextButton(
-                onPressed: () => onAction(_BannerAction.adjustDelivery),
-                child: const Text('Adjust')),
-            TextButton(
-                onPressed: () => onAction(_BannerAction.deliver),
-                child: const Text('Delivered')),
-          ]));
+    final callLabel = callDays == 0
+        ? 'today'
+        : callDays < 0
+            ? '${callDays.abs()}d ago'
+            : 'in ${callDays}d';
+    final deliveryLabel = deliveryDays == 0
+        ? 'today'
+        : deliveryDays < 0
+            ? '${deliveryDays.abs()}d overdue'
+            : 'in ${deliveryDays}d';
+
+    // ── Main action button (context-dependent) ─────────────────
+    Widget action;
+    if (deliveryDue) {
+      action = SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: () => onAction(_BannerAction.deliver),
+          icon: const Icon(Icons.check_circle_outline, size: 18),
+          label: const Text('Mark delivered'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: t.good,
+            foregroundColor: t.accentOn,
+          ),
+        ),
+      );
+    } else if (c.orderPlaced) {
+      action = SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: () => onAction(_BannerAction.viewOrder),
+          icon: const Icon(Icons.local_shipping_outlined, size: 18),
+          label: const Text('View order'),
+        ),
+      );
+    } else {
+      action = SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: () => onAction(_BannerAction.placeOrder),
+          icon: const Icon(Icons.local_shipping_outlined, size: 18),
+          label: const Text('Place order'),
+        ),
+      );
     }
 
-    final callDays = _daysUntil(c.callDate);
-    return card(t.panel, t.border,
-        Column(children: [
-          Row(children: [
-            Icon(Icons.calendar_today_outlined, size: 14, color: t.textMuted),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                c.orderPlaced
-                    ? 'Called · ${_fmt(c.callDate)}  →  delivery in ${deliveryDays}d · ${_fmt(c.deliveryDate)}'
-                    : (callDays <= 0
-                        ? 'Call today · ${_fmt(c.callDate)}'
-                        : 'Call in ${callDays}d · ${_fmt(c.callDate)}'),
-                style: TextStyle(color: t.textSecondary, fontSize: 13),
-              ),
-            ),
-            if (c.orderPlaced)
-              TextButton(
-                  onPressed: () => onAction(_BannerAction.viewOrder),
-                  child: const Text('View order'))
-            else
-              TextButton(
-                  onPressed: () => onAction(_BannerAction.placeOrder),
-                  child: const Text('Place order')),
-          ]),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: () => onAction(_BannerAction.editDates),
-              child: Text('Edit dates',
-                  style: TextStyle(fontSize: 12, color: t.textMuted)),
-            ),
+    return card(Column(children: [
+      _headerRow(t, 'DELIVERY CYCLE',
+          onEdit: () => onAction(_BannerAction.editDates)),
+      const SizedBox(height: 16),
+      // CALL BY ──▶ DELIVERY timeline
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: _dateBlock(t, 'CALL BY', _fmt(c.callDate), callLabel,
+              overdue: callDays < 0)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Icon(Icons.arrow_forward, size: 18, color: t.textMuted),
           ),
-        ]));
+          Expanded(
+              child: _dateBlock(t, 'DELIVERY', _fmt(c.deliveryDate),
+                  deliveryLabel,
+                  overdue: deliveryDue)),
+        ],
+      ),
+      const SizedBox(height: 16),
+      action,
+    ]));
+  }
+
+  /// Section header: muted uppercase label + optional edit pencil.
+  Widget _headerRow(HdTokens t, String title, {VoidCallback? onEdit}) =>
+      Row(children: [
+        Text(title,
+            style:
+                TextStyle(fontSize: 11, letterSpacing: 1, color: t.textMuted)),
+        const Spacer(),
+        if (onEdit != null)
+          GestureDetector(
+            onTap: onEdit,
+            child: Icon(Icons.edit_outlined, size: 16, color: t.textMuted),
+          ),
+      ]);
+
+  /// One side of the CALL BY → DELIVERY timeline.
+  Widget _dateBlock(
+      HdTokens t, String label, String date, String relative,
+      {bool overdue = false}) {
+    final labelColor = overdue ? t.warning : t.textMuted;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: TextStyle(
+                fontSize: 10, letterSpacing: 1, color: t.textMuted)),
+        const SizedBox(height: 4),
+        Text(date,
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: overdue ? t.warning : t.textPrimary)),
+        Text(relative, style: TextStyle(fontSize: 12, color: labelColor)),
+      ],
+    );
   }
 }
 

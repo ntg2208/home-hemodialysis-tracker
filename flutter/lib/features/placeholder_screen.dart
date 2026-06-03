@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../app/shell.dart';
 import '../app/theme.dart';
@@ -11,11 +12,17 @@ class PlaceholderScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return HdScaffold(
-      title: title,
-      body: Center(
-        child: Text(note ?? '$title — coming soon',
-            style: TextStyle(color: context.hd.textMuted)),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) context.findAncestorWidgetOfExactType<StatefulNavigationShell>()?.goBranch(0);
+      },
+      child: HdScaffold(
+        title: title,
+        body: Center(
+          child: Text(note ?? '$title — coming soon',
+              style: TextStyle(color: context.hd.textMuted)),
+        ),
       ),
     );
   }

@@ -12,6 +12,10 @@ String _fmt(num? v) {
 /// Labelled numeric input. Port of frontend NumberField, including the behaviour
 /// the auto-fill pattern depends on: when the parent feeds a new derived [value]
 /// (and the user hasn't typed since), the displayed text updates to match.
+///
+/// [textInputAction] defaults to [TextInputAction.next] so pressing the keyboard
+/// action key moves focus to the next field instead of closing the keyboard.
+/// [suffix] can be used for an "AUTO" badge or similar overlay inside the field.
 class NumberField extends StatefulWidget {
   const NumberField({
     super.key,
@@ -20,6 +24,8 @@ class NumberField extends StatefulWidget {
     required this.onChanged,
     this.integer = false,
     this.required = false,
+    this.textInputAction = TextInputAction.next,
+    this.suffix,
   });
 
   final String label;
@@ -27,20 +33,21 @@ class NumberField extends StatefulWidget {
   final ValueChanged<num?> onChanged;
   final bool integer;
   final bool required;
+  final TextInputAction textInputAction;
+  final Widget? suffix;
 
   @override
   State<NumberField> createState() => _NumberFieldState();
 }
 
 class _NumberFieldState extends State<NumberField> {
-  late final TextEditingController _c = TextEditingController(text: _fmt(widget.value));
+  late final TextEditingController _c =
+      TextEditingController(text: _fmt(widget.value));
   final _focus = FocusNode();
 
   @override
   void didUpdateWidget(NumberField old) {
     super.didUpdateWidget(old);
-    // Sync external (derived) value into the field, but never while the user is
-    // actively editing it.
     if (!_focus.hasFocus && _parse(_c.text) != widget.value) {
       _c.text = _fmt(widget.value);
     }
@@ -84,13 +91,39 @@ class _NumberFieldState extends State<NumberField> {
           inputFormatters: widget.integer
               ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9-]'))]
               : [FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]'))],
+          textInputAction: widget.textInputAction,
           style: TextStyle(
-              fontSize: 18, color: t.textPrimary, fontFeatures: const [
-            FontFeature.tabularFigures(),
-          ]),
+              fontSize: 18,
+              color: t.textPrimary,
+              fontFeatures: const [FontFeature.tabularFigures()]),
+          decoration: InputDecoration(suffix: widget.suffix),
           onChanged: (raw) => widget.onChanged(_parse(raw)),
+          onSubmitted: (_) => FocusScope.of(context).nextFocus(),
         ),
       ],
+    );
+  }
+}
+
+/// Small "AUTO" badge shown inside a NumberField suffix when a value is derived.
+class AutoBadge extends StatelessWidget {
+  const AutoBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.hd;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: t.accent.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text('AUTO',
+          style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+              color: t.accent)),
     );
   }
 }

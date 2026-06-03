@@ -24,6 +24,14 @@ class Cycle {
         orderPlacedAt: j['order_placed_at'] as String?,
         deliveryAppliedAt: j['delivery_applied_at'] as String?,
       );
+
+  Map<String, dynamic> toJson() => {
+        'call_date': callDate,
+        'delivery_date': deliveryDate,
+        if (order != null) 'order': order,
+        if (orderPlacedAt != null) 'order_placed_at': orderPlacedAt,
+        if (deliveryAppliedAt != null) 'delivery_applied_at': deliveryAppliedAt,
+      };
 }
 
 class DeliveryEvent {
@@ -63,4 +71,11 @@ class InventoryResponse {
         pakInstalledAt: j['pak_installed_at'] as String?,
         pakSessions: (j['pak_sessions'] as num?)?.toInt() ?? 0,
       );
+
+  Map<String, dynamic> toJson() => {
+        'stock': stock,
+        'cycle': cycle?.toJson(),
+        'pak_installed_at': pakInstalledAt,
+        'pak_sessions': pakSessions,
+      };
 }

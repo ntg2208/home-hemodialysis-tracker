@@ -40,14 +40,26 @@ bool _matchesTo(String datetime, String to) =>
 List<BloodTestRow> filterRows(
   List<BloodTestRow> rows, {
   List<String>? phase,
+  String? rangePreset,
   String? from,
   String? to,
 }) {
+  // Resolve a range-preset pill like '6m' into a concrete YYYY-MM floor.
+  String? effectiveFrom = from;
+  if (effectiveFrom == null &&
+      rangePreset != null &&
+      rangePreset.isNotEmpty &&
+      rangePreset != 'all') {
+    effectiveFrom = rangeFrom(rangePreset);
+  }
+
   return rows.where((r) {
     if (phase != null && phase.isNotEmpty && !phase.contains(r.phase)) {
       return false;
     }
-    if (from != null && from.isNotEmpty && !_matchesFrom(r.datetime, from)) {
+    if (effectiveFrom != null &&
+        effectiveFrom.isNotEmpty &&
+        !_matchesFrom(r.datetime, effectiveFrom)) {
       return false;
     }
     if (to != null && to.isNotEmpty && !_matchesTo(r.datetime, to)) return false;
@@ -78,6 +90,24 @@ String _pad2(int n) => n.toString().padLeft(2, '0');
 String sixMonthsAgo(DateTime now) {
   final d = DateTime(now.year, now.month - 6, 1);
   return '${d.year}-${_pad2(d.month)}';
+}
+
+/// `YYYY-MM` start of the window for a range preset key.
+/// Presets: '3m', '6m', '1y'. Anything else returns '' (no floor).
+String rangeFrom(String preset) {
+  final now = DateTime.now();
+  return switch (preset) {
+    '3m' => () {
+        final d = DateTime(now.year, now.month - 3, 1);
+        return '${d.year}-${_pad2(d.month)}';
+      }(),
+    '6m' => sixMonthsAgo(now),
+    '1y' => () {
+        final d = DateTime(now.year - 1, now.month, 1);
+        return '${d.year}-${_pad2(d.month)}';
+      }(),
+    _ => '',
+  };
 }
 
 /// Is month [a] earlier than [b]? '' is open-ended (earliest possible).

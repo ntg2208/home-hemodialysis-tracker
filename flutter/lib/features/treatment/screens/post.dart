@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -37,7 +39,9 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
   bool _totalUfTouched = false;
   bool _saving = false;
   String? _error;
-  bool _epoUsed = true;
+  late bool _heparinUsed = widget.consumed.heparinUsed;
+  late bool _epoUsed = widget.consumed.epoUsed;
+  num? _heparinStock;
   num? _epoStock;
 
   @override
@@ -46,7 +50,12 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
     _durationMin = widget.consumed.durationMin ?? _defaultDurationMin;
     _dialysateVolume = _defaultDialysateVolume.toDouble();
     ref.read(inventoryApiProvider).fetchStock().then((stock) {
-      if (mounted) setState(() => _epoStock = stock['epo']);
+      if (mounted) {
+        setState(() {
+          _heparinStock = stock['heparin'];
+          _epoStock = stock['epo'];
+        });
+      }
     });
   }
 
@@ -63,38 +72,48 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
       _error = null;
       _saving = true;
     });
+    bool saved = false;
     try {
-      await ref.read(treatmentRepoProvider).updateSession(
-        widget.session.sessionId,
-        {
-          if (_postWeight != null) 'post_weight': _postWeight,
-          if (_bpSys != null) 'post_bp_sys': _bpSys,
-          if (_bpDia != null) 'post_bp_dia': _bpDia,
-          if (_pulse != null) 'post_pulse': _pulse,
-          if (_durationMin != null) 'duration_min': _durationMin,
-          if (_dialysateVolume != null) 'dialysate_volume': _dialysateVolume,
-          if (_effectiveTotalUf != null) 'total_uf': _effectiveTotalUf,
-          if (_bloodProcessed != null) 'blood_processed': _bloodProcessed,
-        },
-      );
-
-      // Fire the inventory session deduction (best-effort — don't block Finish).
-      final deltas = <String, num>{
-        ...sessionFixedDeltas,
-        'P00012326': -widget.consumed.needles,
-        'UK00000774': -widget.consumed.onOffPacks,
-        if (widget.consumed.heparinUsed) 'heparin': -1,
-        if (_epoUsed) 'epo': -1,
-      };
-      ref.read(inventoryApiProvider).logEvent('session', deltas).catchError((_) {});
-
-      widget.onSaved();
+      await ref
+          .read(treatmentRepoProvider)
+          .updateSession(
+            widget.session.sessionId,
+            {
+              if (_postWeight != null) 'post_weight': _postWeight,
+              if (_bpSys != null) 'post_bp_sys': _bpSys,
+              if (_bpDia != null) 'post_bp_dia': _bpDia,
+              if (_pulse != null) 'post_pulse': _pulse,
+              if (_durationMin != null) 'duration_min': _durationMin,
+              if (_dialysateVolume != null) 'dialysate_volume': _dialysateVolume,
+              if (_effectiveTotalUf != null) 'total_uf': _effectiveTotalUf,
+              if (_bloodProcessed != null) 'blood_processed': _bloodProcessed,
+            },
+          )
+          .timeout(const Duration(seconds: 6));
+      saved = true;
+    } on TimeoutException {
+      // Offline: Firestore wrote to local cache and will sync when online.
+      saved = true;
     } catch (e) {
       if (mounted) {
         setState(() => _error = 'Save failed: ${treatmentErrorCode(e)}');
       }
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+    if (saved) {
+      // Fire inventory deduction best-effort — don't block Finish.
+      final deltas = <String, num>{
+        ...sessionFixedDeltas,
+        'P00012326': -widget.consumed.needles,
+        'UK00000774': -widget.consumed.onOffPacks,
+        if (_heparinUsed) 'heparin': -1,
+        if (_epoUsed) 'epo': -1,
+      };
+      ref.read(inventoryApiProvider)
+          .logEvent('session', deltas, note: widget.session.sessionId)
+          .catchError((_) {});
+      widget.onSaved();
     }
   }
 
@@ -163,7 +182,15 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
             ],
           ),
           const SizedBox(height: 16),
-          _EpoToggle(
+          _MedToggle(
+            label: 'Heparin',
+            stock: _heparinStock,
+            used: _heparinUsed,
+            onToggle: () => setState(() => _heparinUsed = !_heparinUsed),
+          ),
+          const SizedBox(height: 8),
+          _MedToggle(
+            label: 'EPO',
             stock: _epoStock,
             used: _epoUsed,
             onToggle: () => setState(() => _epoUsed = !_epoUsed),
@@ -184,9 +211,13 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
   }
 }
 
-class _EpoToggle extends StatelessWidget {
-  const _EpoToggle(
-      {required this.stock, required this.used, required this.onToggle});
+class _MedToggle extends StatelessWidget {
+  const _MedToggle(
+      {required this.label,
+      required this.stock,
+      required this.used,
+      required this.onToggle});
+  final String label;
   final num? stock;
   final bool used;
   final VoidCallback onToggle;
@@ -202,7 +233,7 @@ class _EpoToggle extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(children: [
-        Text('EPO', style: TextStyle(color: t.textPrimary)),
+        Text(label, style: TextStyle(color: t.textPrimary)),
         if (stock != null) ...[
           const SizedBox(width: 8),
           Text('$stock remaining',

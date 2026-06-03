@@ -19,6 +19,15 @@ class CacheStore {
     return data is Map ? Map<String, dynamic>.from(data) : null;
   }
 
+  /// Returns cached JSON for [key] regardless of age. Used as a fallback when
+  /// the network is unavailable and fresh data can't be fetched.
+  Map<String, dynamic>? readStale(String key) {
+    final raw = _box.get(key);
+    if (raw is! Map) return null;
+    final data = raw['data'];
+    return data is Map ? Map<String, dynamic>.from(data) : null;
+  }
+
   Future<void> write(String key, Map<String, dynamic> data) => _box.put(key, {
         'data': data,
         'cachedAt': DateTime.now().millisecondsSinceEpoch,

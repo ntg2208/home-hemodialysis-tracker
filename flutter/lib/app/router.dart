@@ -1,6 +1,8 @@
 import 'package:go_router/go_router.dart';
 
+import 'branch_switcher.dart';
 import 'providers.dart';
+import 'shell.dart';
 import '../features/placeholder_screen.dart';
 import '../features/blood_tests/blood_tests_screen.dart';
 import '../features/fitness/fitness_screen.dart';
@@ -9,8 +11,12 @@ import '../features/settings/settings_screen.dart';
 import '../features/setup/setup_screen.dart';
 import '../features/treatment/treatment_flow.dart';
 
-/// App router with the Setup gate. [auth] drives redirects via `refreshListenable`:
-/// no key → Setup; key present while on Setup → Treatment Home.
+/// App router with the Setup gate and a [StatefulShellRoute] for the five main
+/// sections. Switching between sections via the drawer never pushes to the
+/// back-stack — pressing back at any section root exits the app cleanly.
+///
+/// /setup  and /settings live outside the shell so they can be pushed onto the
+/// back-stack: back from Settings returns to whichever section the user was in.
 GoRouter buildRouter(AuthController auth) {
   return GoRouter(
     refreshListenable: auth,
@@ -23,17 +29,48 @@ GoRouter buildRouter(AuthController auth) {
     },
     routes: [
       GoRoute(path: '/setup', builder: (_, _) => const SetupScreen()),
-      GoRoute(path: '/treatment', builder: (_, _) => const TreatmentFlow()),
-      GoRoute(
-          path: '/blood-tests', builder: (_, _) => const BloodTestsScreen()),
-      GoRoute(path: '/inventory', builder: (_, _) => const InventoryScreen()),
-      GoRoute(path: '/fitness', builder: (_, _) => const FitnessScreen()),
-      GoRoute(
-          path: '/kb',
-          builder: (_, _) => const PlaceholderScreen(
-              title: 'Knowledge Base',
-              note: 'NxStage error codes — coming soon.')),
+
+      // Settings is outside the shell so context.push('/settings') puts it on
+      // the back-stack and back-button returns to the previous shell branch.
       GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
+
+      StatefulShellRoute(
+        navigatorContainerBuilder: (context, navigationShell, children) =>
+            BranchSwitcher(
+              currentIndex: navigationShell.currentIndex,
+              children: children,
+            ),
+        builder: (context, state, navigationShell) =>
+            AppShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/treatment',
+                builder: (_, _) => const TreatmentFlow()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/blood-tests',
+                builder: (_, _) => const BloodTestsScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/inventory',
+                builder: (_, _) => const InventoryScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/fitness', builder: (_, _) => const FitnessScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/kb',
+                builder: (_, _) => const PlaceholderScreen(
+                    title: 'Knowledge Base',
+                    note: 'NxStage error codes — coming soon.')),
+          ]),
+        ],
+      ),
     ],
   );
 }

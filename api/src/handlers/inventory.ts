@@ -33,15 +33,15 @@ export const inventory = new Hono()
     const pakData = pakDoc.exists ? (pakDoc.data() as { installed_at?: string }) : null;
     const pak_installed_at = pakData?.installed_at ?? null;
 
+    // Count actual treatment sessions since the PAK was installed.
+    // Using treatment_sessions (not inventory_events) so deletes are reflected
+    // automatically — inventory_events are never cleaned up on session delete.
     let pak_sessions = 0;
     if (pak_installed_at) {
-      const eventsSnap = await db.collection('inventory_events')
-        .where('type', '==', 'session')
+      const sessionsSnap = await db.collection('treatment_sessions')
+        .where('date', '>=', pak_installed_at)
         .get();
-      pak_sessions = eventsSnap.docs.filter(d => {
-        const ts = (d.data() as { timestamp: string }).timestamp;
-        return typeof ts === 'string' && ts >= pak_installed_at;
-      }).length;
+      pak_sessions = sessionsSnap.size;
     }
 
     return c.json({ stock, cycle, pak_installed_at, pak_sessions });
@@ -78,6 +78,35 @@ export const inventory = new Hono()
     await db.collection('inventory_events').add({ type, deltas, note: note ?? '', timestamp: now });
 
     return c.json({ ok: true });
+  })
+
+  // Reverse the inventory deduction for a specific session. Called when a
+  // treatment session is deleted. Finds the session event by its session_id
+  // stored in the note field, reverses the deltas, and removes the event.
+  .delete('/session/:sessionId', async (c) => {
+    const sessionId = c.req.param('sessionId');
+    const db = getDb();
+
+    // Query by note only to avoid needing a composite index.
+    const snap = await db.collection('inventory_events')
+      .where('note', '==', sessionId)
+      .get();
+
+    const sessionEvents = snap.docs.filter(d => d.data().type === 'session');
+    if (sessionEvents.length === 0) return c.json({ ok: true, reversed: false });
+
+    const now = new Date().toISOString();
+    const batch = db.batch();
+    for (const doc of sessionEvents) {
+      const deltas = (doc.data() as { deltas: Record<string, number> }).deltas;
+      for (const [code, delta] of Object.entries(deltas)) {
+        const ref = db.collection('inventory_stock').doc(code);
+        batch.set(ref, { qty: FieldValue.increment(-delta), updated_at: now }, { merge: true });
+      }
+      batch.delete(doc.ref);
+    }
+    await batch.commit();
+    return c.json({ ok: true, reversed: true });
   })
 
   .post('/confirm-order', async (c) => {

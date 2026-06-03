@@ -18,6 +18,7 @@ class ActiveState {
     this.existingIds,
     this.readings,
     this.heparinUsed,
+    this.epoUsed,
     this.consumed,
     this.countdownStartedAt,
     this.targetMin,
@@ -29,6 +30,7 @@ class ActiveState {
   final List<String>? existingIds;
   final List<PendingReading>? readings;
   final bool? heparinUsed;
+  final bool? epoUsed;
   final SessionConsumed? consumed;
   final int? countdownStartedAt;
   final int? targetMin;
@@ -47,11 +49,13 @@ class ActiveState {
                   })
               .toList(),
         if (heparinUsed != null) 'heparinUsed': heparinUsed,
+        if (epoUsed != null) 'epoUsed': epoUsed,
         if (consumed != null)
           'consumed': {
             'needles': consumed!.needles,
             'onOffPacks': consumed!.onOffPacks,
             'heparinUsed': consumed!.heparinUsed,
+            'epoUsed': consumed!.epoUsed,
             if (consumed!.durationMin != null)
               'durationMin': consumed!.durationMin,
           },
@@ -79,6 +83,7 @@ class ActiveState {
         );
       }).toList(),
       heparinUsed: m['heparinUsed'] as bool?,
+      epoUsed: m['epoUsed'] as bool?,
       consumed: m['consumed'] == null
           ? null
           : () {
@@ -86,7 +91,8 @@ class ActiveState {
               return SessionConsumed(
                 needles: (c['needles'] as num?)?.toInt() ?? 2,
                 onOffPacks: (c['onOffPacks'] as num?)?.toInt() ?? 1,
-                heparinUsed: c['heparinUsed'] as bool? ?? false,
+                heparinUsed: c['heparinUsed'] as bool? ?? true,
+                epoUsed: c['epoUsed'] as bool? ?? true,
                 durationMin: (c['durationMin'] as num?)?.toInt(),
               );
             }(),

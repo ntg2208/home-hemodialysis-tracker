@@ -171,11 +171,13 @@ class SessionConsumed {
   const SessionConsumed({
     this.needles = 2,
     this.onOffPacks = 1,
-    this.heparinUsed = false,
+    this.heparinUsed = true,
+    this.epoUsed = true,
     this.durationMin,
   });
   final int needles;
   final int onOffPacks;
   final bool heparinUsed;
+  final bool epoUsed;
   final int? durationMin;
 }

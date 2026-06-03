@@ -5,7 +5,7 @@
   },
   "hosting": {
     "site": "homehd",
-    "public": "frontend/dist",
+    "public": "flutter/build/web",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
       {
@@ -16,7 +16,7 @@
     ],
     "headers": [
       {
-        "source": "/sw.js",
+        "source": "/flutter_service_worker.js",
         "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
       }
     ]

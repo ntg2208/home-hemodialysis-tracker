@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../app/theme.dart';
 import '../../../widgets/number_field.dart';
-import '../../../widgets/save_button.dart';
 import '../models.dart';
 import '../session_id.dart';
 
@@ -119,17 +118,11 @@ class _AddReadingSheetState extends State<_AddReadingSheet> {
                       borderRadius: BorderRadius.circular(2)),
                 ),
               ),
-              Row(children: [
-                Text('Reading #${widget.seq}',
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: t.textPrimary)),
-                const Spacer(),
-                TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Close')),
-              ]),
+              Text('Reading #${widget.seq}',
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: t.textPrimary)),
               const SizedBox(height: 8),
               InkWell(
                 onTap: _pickTime,
@@ -183,17 +176,95 @@ class _AddReadingSheetState extends State<_AddReadingSheet> {
               ),
               const SizedBox(height: 12),
               TextField(
-                decoration: const InputDecoration(labelText: 'Note'),
+                decoration: const InputDecoration(
+                  labelText: 'Note (optional)',
+                  hintText: 'e.g. felt lightheaded, slowed UF',
+                ),
                 onChanged: (v) => _note = v,
               ),
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                Text(_error!,
+                    style: TextStyle(color: t.danger, fontSize: 13)),
+              ],
               const SizedBox(height: 16),
-              SaveButton(
-                saving: _saving,
-                error: _error,
-                icon: Icons.check,
-                label: 'Save reading',
-                onPressed: _submit,
-              ),
+              Row(children: [
+                Expanded(
+                  child: _SheetButton(
+                    label: 'Cancel',
+                    onPressed: _saving ? null : () => Navigator.of(context).pop(),
+                    accent: false,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _SheetButton(
+                    label: 'Save reading',
+                    icon: Icons.check,
+                    onPressed: _saving ? null : _submit,
+                    loading: _saving,
+                    accent: true,
+                  ),
+                ),
+              ]),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Pill-shaped sheet action button. [accent] = cyan fill; otherwise dark fill.
+class _SheetButton extends StatelessWidget {
+  const _SheetButton({
+    required this.label,
+    required this.onPressed,
+    required this.accent,
+    this.icon,
+    this.loading = false,
+  });
+  final String label;
+  final VoidCallback? onPressed;
+  final bool accent;
+  final IconData? icon;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.hd;
+    final bg = accent ? t.accent : t.panel;
+    final fg = accent ? t.accentOn : t.textPrimary;
+    return GestureDetector(
+      onTap: onPressed,
+      child: AnimatedOpacity(
+        opacity: onPressed == null ? 0.5 : 1.0,
+        duration: const Duration(milliseconds: 150),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(999),
+            border: accent ? null : Border.all(color: t.border),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (loading)
+                SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: fg))
+              else if (icon != null) ...[
+                Icon(icon, size: 16, color: fg),
+                const SizedBox(width: 6),
+              ],
+              Text(label,
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: fg)),
             ],
           ),
         ),
