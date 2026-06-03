@@ -99,3 +99,41 @@ class ThemeModeController extends Notifier<ThemeMode> {
     Hive.box(cacheBoxName).put(_key, mode.name);
   }
 }
+
+/// Holds current AI assistant settings in memory.
+class AiSettings {
+  const AiSettings({this.enabled = false, this.apiKey});
+  final bool enabled;
+  final String? apiKey;
+  bool get ready => enabled && (apiKey?.isNotEmpty ?? false);
+}
+
+final aiSettingsControllerProvider =
+    NotifierProvider<AiSettingsController, AiSettings>(AiSettingsController.new);
+
+class AiSettingsController extends Notifier<AiSettings> {
+  @override
+  AiSettings build() => const AiSettings();
+
+  Future<void> load() async {
+    final store = ref.read(secureStoreProvider);
+    final enabled = await store.readAiEnabled();
+    final key = await store.readAiKey();
+    state = AiSettings(enabled: enabled, apiKey: key);
+  }
+
+  Future<void> setEnabled(bool v) async {
+    await ref.read(secureStoreProvider).writeAiEnabled(v);
+    state = AiSettings(enabled: v, apiKey: state.apiKey);
+  }
+
+  Future<void> setKey(String k) async {
+    await ref.read(secureStoreProvider).writeAiKey(k);
+    state = AiSettings(enabled: state.enabled, apiKey: k);
+  }
+
+  Future<void> clearKey() async {
+    await ref.read(secureStoreProvider).clearAiKey();
+    state = AiSettings(enabled: state.enabled, apiKey: null);
+  }
+}

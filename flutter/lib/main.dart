@@ -28,6 +28,12 @@ Future<void> main() async {
           'Credential store timed out. Try restarting the app.');
     });
 
+    // Load AI settings (non-fatal — chat just stays in disabled state on failure)
+    try {
+      await container.read(aiSettingsControllerProvider.notifier).load()
+          .timeout(const Duration(seconds: 5), onTimeout: () {});
+    } catch (_) {}
+
     runApp(
       UncontrolledProviderScope(
         container: container,
