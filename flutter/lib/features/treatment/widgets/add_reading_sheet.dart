@@ -134,13 +134,15 @@ class _AddReadingSheetState extends State<_AddReadingSheet> {
                 ),
               ),
               const SizedBox(height: 12),
-              GridView.count(
+              FocusTraversalGroup(
+                policy: OrderedTraversalPolicy(),
+                child: GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 12,
+                mainAxisSpacing: 10,
                 crossAxisSpacing: 12,
-                childAspectRatio: 2.4,
+                childAspectRatio: 2.2,
                 children: [
                   NumberField(
                       label: 'BP sys',
@@ -173,6 +175,7 @@ class _AddReadingSheetState extends State<_AddReadingSheet> {
                       integer: true,
                       onChanged: (v) => _ap = v?.toInt()),
                 ],
+                ),
               ),
               const SizedBox(height: 12),
               TextField(
