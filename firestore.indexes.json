@@ -7,6 +7,20 @@
         { "fieldPath": "session_id", "order": "ASCENDING" },
         { "fieldPath": "seq", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "chat_conversations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "updated_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "kb_entries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "updated_at", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

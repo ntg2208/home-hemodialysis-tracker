@@ -1,8 +1,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Treatment data: only accessible via the Firebase custom token (uid: homehd-treatment).
-    // All other writes to Firestore go through Cloud Run (server-side, bypasses these rules).
     match /treatment_sessions/{id} {
       allow read, write: if request.auth != null
                          && request.auth.uid == 'homehd-treatment';
@@ -11,7 +9,22 @@ service cloud.firestore {
       allow read, write: if request.auth != null
                          && request.auth.uid == 'homehd-treatment';
     }
-    // All other collections are accessed server-side — deny client access.
+    match /inventory_events/{id} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == 'homehd-treatment';
+    }
+    match /inventory_config/{id} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == 'homehd-treatment';
+    }
+    match /kb_entries/{id} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == 'homehd-treatment';
+    }
+    match /chat_conversations/{id} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == 'homehd-treatment';
+    }
     match /{document=**} {
       allow read, write: if false;
     }

@@ -3,13 +3,13 @@ import 'package:go_router/go_router.dart';
 import 'branch_switcher.dart';
 import 'providers.dart';
 import 'shell.dart';
-import '../features/placeholder_screen.dart';
 import '../features/blood_tests/blood_tests_screen.dart';
 import '../features/fitness/fitness_screen.dart';
 import '../features/inventory/inventory_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/setup/setup_screen.dart';
 import '../features/treatment/treatment_flow.dart';
+import '../features/kb/kb_screen.dart';
 
 /// App router with the Setup gate and a [StatefulShellRoute] for the five main
 /// sections. Switching between sections via the drawer never pushes to the
@@ -65,9 +65,7 @@ GoRouter buildRouter(AuthController auth) {
           StatefulShellBranch(routes: [
             GoRoute(
                 path: '/kb',
-                builder: (_, _) => const PlaceholderScreen(
-                    title: 'Knowledge Base',
-                    note: 'NxStage error codes — coming soon.')),
+                builder: (_, _) => const KbScreen()),
           ]),
         ],
       ),
