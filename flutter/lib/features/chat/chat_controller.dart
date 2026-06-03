@@ -1,4 +1,5 @@
 import 'dart:async' show unawaited;
+import 'dart:convert' show jsonDecode;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -148,6 +149,17 @@ class ChatController extends Notifier<ChatState> {
           state = state.copyWith(messages: updated);
         }
       }
+      // Parse KB update proposal from completed response
+      final proposal = parseKbUpdate(accumulated);
+      if (proposal != null) {
+        accumulated = stripKbUpdate(accumulated);
+        final updated = [...state.messages];
+        if (assistantIdx < updated.length) {
+          updated[assistantIdx] =
+              ChatMessage(ChatRole.assistant, accumulated, kbUpdate: proposal);
+          state = state.copyWith(messages: updated);
+        }
+      }
       // Auto-save after each assistant reply
       unawaited(_saveCurrentIfNonEmpty());
       if (accumulated.isEmpty) {
@@ -251,3 +263,27 @@ class ChatController extends Notifier<ChatState> {
   String _newConvId() =>
       'conv_${DateTime.now().millisecondsSinceEpoch}';
 }
+
+/// Parses a <!--KB_UPDATE {"title":"...","content":"..."}--> comment from the
+/// end of a model response. Returns null if not present or malformed.
+KbUpdateProposal? parseKbUpdate(String text) {
+  final pattern =
+      RegExp(r'<!--KB_UPDATE\s+(\{.*?\})\s*-->', dotAll: true);
+  final match = pattern.firstMatch(text);
+  if (match == null) return null;
+  try {
+    final map = jsonDecode(match.group(1)!) as Map<String, dynamic>;
+    final title = map['title'] as String?;
+    final content = map['content'] as String?;
+    if (title == null || content == null) return null;
+    return KbUpdateProposal(title: title, content: content);
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Strips the <!--KB_UPDATE --> comment from visible text.
+String stripKbUpdate(String text) => text
+    .replaceAll(
+        RegExp(r'\n?<!--KB_UPDATE\s+\{.*?\}\s*-->', dotAll: true), '')
+    .trim();

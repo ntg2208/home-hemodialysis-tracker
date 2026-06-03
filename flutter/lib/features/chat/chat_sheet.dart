@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart' show aiSettingsControllerProvider;
 import '../../app/theme.dart';
+import '../kb/kb_providers.dart';
+import '../kb/kb_store.dart';
 import 'chat_controller.dart';
 
 const _suggestions = [
@@ -382,13 +384,29 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
                 ),
     );
 
-    return Row(
-      mainAxisAlignment:
-          isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment:
+          isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
-        if (!isUser) ...[_avatar(t, 32), const SizedBox(width: 8)],
-        Flexible(child: bubble),
+        Row(
+          mainAxisAlignment:
+              isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!isUser) ...[_avatar(t, 32), const SizedBox(width: 8)],
+            Flexible(child: bubble),
+          ],
+        ),
+        if (m.kbUpdate != null && !isUser) ...[
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.only(left: 40),
+            child: _KbUpdateChip(
+              proposal: m.kbUpdate!,
+              onConfirm: () => _applyKbUpdate(m.kbUpdate!),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -433,6 +451,73 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
           style: TextStyle(fontSize: 11, color: t.textMuted),
         ),
       );
+
+  Future<void> _applyKbUpdate(KbUpdateProposal proposal) async {
+    final t = context.hd;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Update Knowledge Base'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Save "${proposal.title}" to your Knowledge Base?',
+                style: TextStyle(color: t.textSecondary, fontSize: 13)),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: t.panel,
+                border: Border.all(color: t.border),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(proposal.content,
+                  style: TextStyle(color: t.textPrimary, fontSize: 13)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Save to KB')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      final now = DateTime.now();
+      final entries = await ref.read(kbStoreProvider).getAll();
+      final matching =
+          entries.where((e) => e.title == proposal.title).toList();
+      final existing = matching.isEmpty ? null : matching.first;
+      final entry = KbEntry(
+        id: existing?.id ?? KbEntry.newId(),
+        title: proposal.title,
+        content: proposal.content,
+        source: 'ai-proposed',
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      );
+      await ref.read(kbStoreProvider).save(entry);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content:
+                  Text('"${proposal.title}" saved to Knowledge Base')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save to Knowledge Base.')),
+        );
+      }
+    }
+  }
 }
 
 class _SendButton extends StatelessWidget {
@@ -453,6 +538,26 @@ class _SendButton extends StatelessWidget {
           child: Icon(Icons.send, size: 20, color: t.accentOn),
         ),
       ),
+    );
+  }
+}
+
+class _KbUpdateChip extends StatelessWidget {
+  const _KbUpdateChip({required this.proposal, required this.onConfirm});
+  final KbUpdateProposal proposal;
+  final VoidCallback onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.hd;
+    return ActionChip(
+      avatar: Icon(Icons.save_outlined, size: 14, color: t.accent),
+      label: Text('Save "${proposal.title}" to KB',
+          style: TextStyle(fontSize: 11, color: t.accent)),
+      backgroundColor: t.accent.withValues(alpha: 0.08),
+      side: BorderSide(color: t.accent.withValues(alpha: 0.3)),
+      shape: const StadiumBorder(),
+      onPressed: onConfirm,
     );
   }
 }
