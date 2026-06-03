@@ -173,52 +173,60 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
           _confirmCancelSession(context);
         }
       },
-      child: switch (screen) {
-        _Loading() => const HdScaffold(
-            title: 'Treatment',
-            body: Center(child: CircularProgressIndicator()),
-          ),
-        _ErrorScreen() => _errorView(),
-        _Home() => TreatmentHome(onStartSession: _goPre),
-        _Pre() => PreTreatment(
-            existingIds: screen.existingIds,
-            onSaved: (session, heparinUsed, epoUsed) =>
-                _goActive(session, heparinUsed, epoUsed),
-            onCancel: _goHome,
-          ),
-        _Active() => ActiveSession(
-            key: ValueKey(screen.session.sessionId),
-            session: screen.session,
-            initialReadings: screen.readings,
-            heparinUsed: screen.heparinUsed,
-            epoUsed: screen.epoUsed,
-            initialCountdownStartedAt: screen.countdownStartedAt,
-            initialTargetMin: screen.targetMin,
-            onReadingsChanged: (rs) {
-              screen.readings = rs;
-              _persistActive(screen);
-            },
-            onCountdownChanged: (startedAt, targetMin) {
-              screen.countdownStartedAt = startedAt;
-              screen.targetMin = targetMin;
-              _persistActive(screen);
-            },
-            onHeparinChanged: (h) {
-              screen.heparinUsed = h;
-              _persistActive(screen);
-            },
-            onEpoChanged: (e) {
-              screen.epoUsed = e;
-              _persistActive(screen);
-            },
-            onEnd: (consumed) => _goPost(screen.session, consumed),
-          ),
-        _Post() => PostTreatment(
-            session: screen.session,
-            consumed: screen.consumed,
-            onSaved: _goHome,
-          ),
-      },
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        switchInCurve: Curves.easeOut,
+        switchOutCurve: Curves.easeIn,
+        child: switch (screen) {
+          _Loading() => const HdScaffold(
+              key: ValueKey('loading'),
+              title: 'Treatment',
+              body: Center(child: CircularProgressIndicator()),
+            ),
+          _ErrorScreen() => _errorView(key: ValueKey('error')),
+          _Home() => TreatmentHome(key: ValueKey('home'), onStartSession: _goPre),
+          _Pre() => PreTreatment(
+              key: ValueKey('pre'),
+              existingIds: screen.existingIds,
+              onSaved: (session, heparinUsed, epoUsed) =>
+                  _goActive(session, heparinUsed, epoUsed),
+              onCancel: _goHome,
+            ),
+          _Active() => ActiveSession(
+              key: ValueKey('active_${screen.session.sessionId}'),
+              session: screen.session,
+              initialReadings: screen.readings,
+              heparinUsed: screen.heparinUsed,
+              epoUsed: screen.epoUsed,
+              initialCountdownStartedAt: screen.countdownStartedAt,
+              initialTargetMin: screen.targetMin,
+              onReadingsChanged: (rs) {
+                screen.readings = rs;
+                _persistActive(screen);
+              },
+              onCountdownChanged: (startedAt, targetMin) {
+                screen.countdownStartedAt = startedAt;
+                screen.targetMin = targetMin;
+                _persistActive(screen);
+              },
+              onHeparinChanged: (h) {
+                screen.heparinUsed = h;
+                _persistActive(screen);
+              },
+              onEpoChanged: (e) {
+                screen.epoUsed = e;
+                _persistActive(screen);
+              },
+              onEnd: (consumed) => _goPost(screen.session, consumed),
+            ),
+          _Post() => PostTreatment(
+              key: ValueKey('post'),
+              session: screen.session,
+              consumed: screen.consumed,
+              onSaved: _goHome,
+            ),
+        },
+      ),
     );
   }
 
@@ -252,9 +260,10 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
     );
   }
 
-  Widget _errorView() {
+  Widget _errorView({Key? key}) {
     final t = context.hd;
     return HdScaffold(
+      key: key,
       title: 'Treatment',
       body: Center(
         child: Column(
