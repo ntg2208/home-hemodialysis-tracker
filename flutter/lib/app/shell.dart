@@ -77,6 +77,7 @@ class HdScaffold extends StatelessWidget {
     this.showDrawer = true,
     this.actions,
     this.showChatFab = true,
+    this.floatingActionButton,
     this.leading,
     this.titleWidget,
   });
@@ -86,6 +87,9 @@ class HdScaffold extends StatelessWidget {
   final bool showDrawer;
   final List<Widget>? actions;
   final bool showChatFab;
+
+  /// Optional custom FAB. When provided, takes precedence over [showChatFab].
+  final Widget? floatingActionButton;
 
   /// Replaces the hamburger on pushed sub-screens (e.g. a close X or back arrow).
   final Widget? leading;
@@ -103,7 +107,8 @@ class HdScaffold extends StatelessWidget {
         automaticallyImplyLeading: showDrawer,
       ),
       drawer: showDrawer ? const _HdDrawer() : null,
-      floatingActionButton: showChatFab ? const ChatFab() : null,
+      floatingActionButton:
+          floatingActionButton ?? (showChatFab ? const ChatFab() : null),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: RepaintBoundary(
         child: SafeArea(
