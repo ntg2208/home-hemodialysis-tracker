@@ -59,4 +59,24 @@ class SecureStore {
       _storage.write(key: _key, value: jsonEncode(a.toJson()));
 
   Future<void> clear() => _storage.delete(key: _key);
+
+  // ── AI settings keys ──────────────────────────────────────────────
+
+  static const _aiEnabledKey = 'ai_enabled';
+  static const _aiKeyKey = 'ai_studio_key';
+
+  Future<bool> readAiEnabled() async {
+    final v = await _storage.read(key: _aiEnabledKey);
+    return v == 'true';
+  }
+
+  Future<void> writeAiEnabled(bool enabled) =>
+      _storage.write(key: _aiEnabledKey, value: enabled ? 'true' : 'false');
+
+  Future<String?> readAiKey() => _storage.read(key: _aiKeyKey);
+
+  Future<void> writeAiKey(String key) =>
+      _storage.write(key: _aiKeyKey, value: key);
+
+  Future<void> clearAiKey() => _storage.delete(key: _aiKeyKey);
 }
