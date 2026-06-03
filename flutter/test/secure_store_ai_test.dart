@@ -64,5 +64,13 @@ void main() {
       await store.clearAiKey();
       expect(await store.readAiKey(), isNull);
     });
+
+    test('clear() also wipes AI keys', () async {
+      await store.writeAiEnabled(true);
+      await store.writeAiKey('AIzaTestKey123');
+      await store.clear();
+      expect(await store.readAiEnabled(), isFalse);
+      expect(await store.readAiKey(), isNull);
+    });
   });
 }
