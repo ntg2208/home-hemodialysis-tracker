@@ -18,6 +18,7 @@ class HdTokens extends ThemeExtension<HdTokens> {
     required this.textMuted,
     required this.good,
     required this.warning,
+    required this.success,
     required this.danger,
     required this.vital,
     required this.primaryContainer,
@@ -37,6 +38,7 @@ class HdTokens extends ThemeExtension<HdTokens> {
   // Status colours — shade chosen per mode so flags stay legible on that bg.
   final Color good; // emerald — in-range / saved
   final Color warning; // amber — warning / stale
+  final Color success; // emerald — success / ready
   final Color danger; // red — error / out-of-range / critical
   final Color vital; // rose — blood-pressure & heart metrics
 
@@ -55,6 +57,7 @@ class HdTokens extends ThemeExtension<HdTokens> {
     textMuted: Color(0xFF64748B),
     good: Color(0xFF34D399),
     warning: Color(0xFFFBBF24),
+    success: Color(0xFF34D399),
     danger: Color(0xFFF87171),
     vital: Color(0xFFFB7185),
     primaryContainer: Color(0xFF004F58),
@@ -73,6 +76,7 @@ class HdTokens extends ThemeExtension<HdTokens> {
     textMuted: Color(0xFF6F797A),
     good: Color(0xFF2E7D32),
     warning: Color(0xFFE65100),
+    success: Color(0xFF10B981),
     danger: Color(0xFFB71C1C),
     vital: Color(0xFFE11D48),
     primaryContainer: Color(0xFF97F0FF),
@@ -92,6 +96,7 @@ class HdTokens extends ThemeExtension<HdTokens> {
     Color? textMuted,
     Color? good,
     Color? warning,
+    Color? success,
     Color? danger,
     Color? vital,
     Color? primaryContainer,
@@ -109,6 +114,7 @@ class HdTokens extends ThemeExtension<HdTokens> {
       textMuted: textMuted ?? this.textMuted,
       good: good ?? this.good,
       warning: warning ?? this.warning,
+      success: success ?? this.success,
       danger: danger ?? this.danger,
       vital: vital ?? this.vital,
       primaryContainer: primaryContainer ?? this.primaryContainer,
@@ -131,6 +137,7 @@ class HdTokens extends ThemeExtension<HdTokens> {
       textMuted: Color.lerp(textMuted, other.textMuted, t)!,
       good: Color.lerp(good, other.good, t)!,
       warning: Color.lerp(warning, other.warning, t)!,
+      success: Color.lerp(success, other.success, t)!,
       danger: Color.lerp(danger, other.danger, t)!,
       vital: Color.lerp(vital, other.vital, t)!,
       primaryContainer: Color.lerp(primaryContainer, other.primaryContainer, t)!,
