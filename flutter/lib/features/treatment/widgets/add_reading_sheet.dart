@@ -45,7 +45,8 @@ class _AddReadingSheet extends StatefulWidget {
 
 class _AddReadingSheetState extends State<_AddReadingSheet> {
   late String _time = nowHHMM();
-  int? _bpSys, _bpDia, _pulse, _vp, _ap;
+  // TODO(debug): remove default values before release
+  int? _bpSys = 120, _bpDia = 80, _pulse = 72, _vp = 180, _ap = 160;
   late int? _bloodFlow = widget.defaultBloodFlow;
   String? _note;
   bool _saving = false;
