@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/shell.dart';
 import '../../../app/theme.dart';
+import '../../../widgets/pressable_scale.dart';
 import '../alerts.dart';
 import '../models.dart';
 import '../providers.dart';
@@ -20,22 +21,26 @@ class ActiveSession extends ConsumerStatefulWidget {
     required this.session,
     required this.initialReadings,
     required this.heparinUsed,
+    required this.epoUsed,
     this.initialCountdownStartedAt,
     this.initialTargetMin,
     required this.onReadingsChanged,
     required this.onCountdownChanged,
     required this.onHeparinChanged,
+    required this.onEpoChanged,
     required this.onEnd,
   });
 
   final Session session;
   final List<PendingReading> initialReadings;
   final bool heparinUsed;
+  final bool epoUsed;
   final int? initialCountdownStartedAt;
   final int? initialTargetMin;
   final void Function(List<PendingReading>) onReadingsChanged;
   final void Function(int? startedAt, int targetMin) onCountdownChanged;
   final void Function(bool) onHeparinChanged;
+  final void Function(bool) onEpoChanged;
   final void Function(SessionConsumed) onEnd;
 
   @override
@@ -47,8 +52,11 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
   late int _targetMin = widget.initialTargetMin ?? _defaultTargetMin;
   late int? _countdownStartedAt = widget.initialCountdownStartedAt;
   late bool _heparinUsed = widget.heparinUsed;
+  // EPO is set on Pre and carried to Post; Active threads it but shows no toggle.
+  late final bool _epoUsed = widget.epoUsed;
   int _needles = 2;
   int _onOffPacks = 1;
+  num? _heparinStock;
   String? _inAppAlert;
   Timer? _ticker;
   final _notified = <int>{};
@@ -65,6 +73,9 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
       }
       _startTicker();
     }
+    ref.read(inventoryApiProvider).fetchStock().then((stock) {
+      if (mounted) setState(() => _heparinStock = stock['heparin']);
+    });
   }
 
   @override
@@ -127,19 +138,29 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
     });
     _emitReadings();
     try {
-      await ref.read(treatmentRepoProvider).saveReading(reading);
-      _setStatus(reading.readingId, SaveStatus.saved);
+      await ref
+          .read(treatmentRepoProvider)
+          .saveReading(reading)
+          .timeout(const Duration(seconds: 6));
+    } on TimeoutException {
+      // Offline: Firestore queued the write locally; sync happens on reconnect.
     } catch (e) {
       _setStatus(reading.readingId, SaveStatus.error,
           msg: treatmentErrorCode(e));
       rethrow;
     }
+    _setStatus(reading.readingId, SaveStatus.saved);
   }
 
   Future<void> _retry(PendingReading r) async {
     _setStatus(r.reading.readingId, SaveStatus.pending);
     try {
-      await ref.read(treatmentRepoProvider).saveReading(r.reading);
+      await ref
+          .read(treatmentRepoProvider)
+          .saveReading(r.reading)
+          .timeout(const Duration(seconds: 6));
+      _setStatus(r.reading.readingId, SaveStatus.saved);
+    } on TimeoutException {
       _setStatus(r.reading.readingId, SaveStatus.saved);
     } catch (e) {
       _setStatus(r.reading.readingId, SaveStatus.error,
@@ -182,6 +203,7 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
       needles: _needles,
       onOffPacks: _onOffPacks,
       heparinUsed: _heparinUsed,
+      epoUsed: _epoUsed,
       durationMin: duration,
     ));
   }
@@ -208,18 +230,12 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
                 : t.good;
 
     return HdScaffold(
-      title: 'Session',
+      title: widget.session.sessionId,
       showDrawer: false,
-      titleWidget: Row(mainAxisSize: MainAxisSize.min, children: [
-        const Text('Session  '),
-        Text(widget.session.sessionId,
-            style: hdMono.copyWith(fontSize: 15, color: t.textSecondary)),
-      ]),
       actions: [
-        TextButton.icon(
+        TextButton(
           onPressed: _end,
-          icon: const Icon(Icons.stop, size: 16),
-          label: const Text('End'),
+          child: const Text('End'),
         ),
       ],
       body: Column(
@@ -229,29 +245,65 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                _preValuesCard(t),
+                _timerCard(t, started, remainingMs, timerColor),
                 const SizedBox(height: 12),
-                _countdownCard(t, started, remainingMs, timerColor),
-                const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  onPressed: () => showAddReadingSheet(
-                    context,
-                    sessionId: widget.session.sessionId,
-                    seq: _nextSeq,
-                    defaultBloodFlow: _lastBloodFlow,
-                    onSave: _persist,
+                SizedBox(
+                  width: double.infinity,
+                  child: PressableScale(
+                    child: ElevatedButton.icon(
+                      onPressed: () => showAddReadingSheet(
+                        context,
+                        sessionId: widget.session.sessionId,
+                        seq: _nextSeq,
+                        defaultBloodFlow: _lastBloodFlow,
+                        onSave: _persist,
+                      ),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add reading'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        textStyle: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
                   ),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add reading'),
                 ),
+                const SizedBox(height: 20),
+                Text('PRE-SESSION REFERENCE',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.2,
+                        color: t.textMuted)),
+                const SizedBox(height: 8),
+                _preValuesGrid(t),
                 const SizedBox(height: 12),
                 _consumedCard(t),
                 const SizedBox(height: 12),
                 _heparinToggle(t),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
+                Row(children: [
+                  Text('READINGS',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.2,
+                          color: t.textMuted)),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${sorted.length} reading${sorted.length == 1 ? '' : 's'}',
+                    style: TextStyle(fontSize: 11, color: t.textMuted),
+                  ),
+                ]),
+                const SizedBox(height: 8),
                 if (sorted.isEmpty)
-                  Text('No readings yet.',
-                      style: TextStyle(color: t.textMuted))
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text('No readings yet.',
+                        style: TextStyle(color: t.textMuted)),
+                  )
                 else
                   ...sorted.map((r) => _readingRow(t, r)),
               ],
@@ -278,139 +330,209 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
         ),
       );
 
-  Widget _preValuesCard(HdTokens t) {
-    Widget cell(IconData ic, Color c, String label, String value) => Row(
-          children: [
-            Icon(ic, size: 14, color: c),
-            const SizedBox(width: 6),
-            Text('$label ',
-                style: TextStyle(color: t.textSecondary, fontSize: 13)),
-            Flexible(
-              child: Text(value,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: t.textPrimary, fontSize: 13)),
-            ),
-          ],
-        );
-    final s = widget.session;
-    return _card(t,
-        child: GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: 5,
-          children: [
-            cell(Icons.scale, t.textMuted, 'Weight',
-                '${s.preWeight ?? '–'} kg'),
-            cell(Icons.water_drop_outlined, t.accent, 'UF goal',
-                '${s.ufGoal ?? '–'} L'),
-            cell(Icons.favorite_border, t.vital, 'BP',
-                '${s.preBpSys ?? '–'}/${s.preBpDia ?? '–'}'),
-            cell(Icons.monitor_heart_outlined, t.good, 'Pulse',
-                '${s.prePulse ?? '–'}'),
-          ],
-        ));
-  }
-
-  Widget _countdownCard(
+  Widget _timerCard(
       HdTokens t, bool started, int remainingMs, Color timerColor) {
     return _card(t,
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Icon(Icons.timer_outlined, size: 18, color: timerColor),
-            const SizedBox(width: 8),
-            if (started)
-              Text(_formatRemaining(remainingMs),
-                  style: hdMono.copyWith(
-                      fontSize: 22,
+            Row(children: [
+              Text('TREATMENT TIMER',
+                  style: TextStyle(
+                      fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      color: timerColor))
-            else
-              Flexible(
-                child: Text('Waiting for first reading',
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: t.textMuted, fontSize: 13)),
+                      letterSpacing: 1.2,
+                      color: t.textMuted)),
+              const Spacer(),
+              InkWell(
+                onTap: _editTarget,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(Icons.edit_outlined,
+                      size: 16, color: t.textSecondary),
+                ),
               ),
-            const Spacer(),
-            InkWell(
-              onTap: _editTarget,
-              child: Row(children: [
-                Text(_formatTarget(_targetMin),
-                    style:
-                        hdMono.copyWith(color: t.textSecondary, fontSize: 13)),
-                const SizedBox(width: 4),
-                Icon(Icons.edit_outlined, size: 12, color: t.textMuted),
+            ]),
+            const SizedBox(height: 12),
+            if (started)
+              Center(
+                child: Text(_formatRemaining(remainingMs),
+                    style: hdMono.copyWith(
+                        fontSize: 48,
+                        fontWeight: FontWeight.w700,
+                        color: timerColor)),
+              )
+            else
+              Column(children: [
+                SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.5, color: t.textMuted)),
+                const SizedBox(height: 10),
+                Text('Waiting for first reading…',
+                    style: TextStyle(color: t.textMuted, fontSize: 14)),
               ]),
-            ),
+            const SizedBox(height: 6),
+            if (started)
+              Center(
+                child: Text(
+                  'REMAINING · TARGET ${_formatTarget(_targetMin).toUpperCase()}',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.8,
+                      color: timerColor),
+                ),
+              ),
           ],
         ));
   }
 
-  Widget _consumedCard(HdTokens t) {
-    Widget stepper(String label, int value, ValueChanged<int> onChange) =>
-        Expanded(
+  Widget _preValuesGrid(HdTokens t) {
+    final s = widget.session;
+    Widget refCard(IconData icon, Color iconColor, String label, String value,
+            String unit) =>
+        Container(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+          decoration: BoxDecoration(
+            color: t.panel,
+            border: Border.all(color: t.border),
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label,
-                  style: TextStyle(fontSize: 12, color: t.textSecondary)),
-              const SizedBox(height: 4),
               Row(children: [
-                _StepperButton(
-                    icon: Icons.remove,
-                    onTap: () => onChange(value > 0 ? value - 1 : 0)),
-                Expanded(
-                    child: Text('$value',
-                        textAlign: TextAlign.center,
-                        style: hdMono.copyWith(
-                            fontSize: 16, color: t.textPrimary))),
-                _StepperButton(
-                    icon: Icons.add, onTap: () => onChange(value + 1)),
+                Icon(icon, size: 13, color: iconColor),
+                const SizedBox(width: 5),
+                Text(label,
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.0,
+                        color: t.textMuted)),
               ]),
+              const SizedBox(height: 6),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(value,
+                      style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: t.textPrimary)),
+                  if (unit.isNotEmpty) ...[
+                    const SizedBox(width: 3),
+                    Text(unit,
+                        style: TextStyle(
+                            fontSize: 13, color: t.textSecondary)),
+                  ],
+                ],
+              ),
             ],
           ),
         );
+
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 8,
+      crossAxisSpacing: 8,
+      childAspectRatio: 1.8,
+      children: [
+        refCard(Icons.scale_outlined, t.textSecondary, 'WEIGHT',
+            '${s.preWeight ?? '–'}', 'kg'),
+        refCard(Icons.water_drop_outlined, t.accent, 'UF GOAL',
+            '${s.ufGoal ?? '–'}', 'L'),
+        refCard(Icons.favorite_border, t.vital, 'PRE BP',
+            s.preBpSys != null ? '${s.preBpSys}/${s.preBpDia}' : '–', ''),
+        refCard(Icons.monitor_heart_outlined, t.good, 'PULSE',
+            '${s.prePulse ?? '–'}', 'bpm'),
+      ],
+    );
+  }
+
+  Widget _consumedCard(HdTokens t) {
+    Widget row(String label, int value, ValueChanged<int> onChange) => Row(
+          children: [
+            Text(label,
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: t.textPrimary)),
+            const Spacer(),
+            _StepperButton(
+                icon: Icons.remove,
+                onTap: () => onChange(value > 0 ? value - 1 : 0)),
+            SizedBox(
+              width: 36,
+              child: Text('$value',
+                  textAlign: TextAlign.center,
+                  style: hdMono.copyWith(
+                      fontSize: 16, color: t.textPrimary)),
+            ),
+            _StepperButton(
+                icon: Icons.add, onTap: () => onChange(value + 1)),
+          ],
+        );
+
     return _card(t,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Consumed this session',
-                style: TextStyle(fontSize: 12, color: t.textMuted)),
-            const SizedBox(height: 8),
-            Row(children: [
-              stepper('Needles used', _needles,
-                  (v) => setState(() => _needles = v)),
-              const SizedBox(width: 16),
-              stepper('On/Off packs', _onOffPacks,
-                  (v) => setState(() => _onOffPacks = v)),
-            ]),
+            Text('CONSUMED THIS SESSION',
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.2,
+                    color: t.textMuted)),
+            const SizedBox(height: 12),
+            row('Needles used', _needles, (v) => setState(() => _needles = v)),
+            Divider(height: 20, color: t.border),
+            row('On/Off packs', _onOffPacks,
+                (v) => setState(() => _onOffPacks = v)),
           ],
         ));
   }
 
-  Widget _heparinToggle(HdTokens t) => _card(t,
-      child: Row(children: [
-        Text('Heparin', style: TextStyle(color: t.textPrimary)),
-        const Spacer(),
-        GestureDetector(
-          onTap: () {
-            setState(() => _heparinUsed = !_heparinUsed);
-            widget.onHeparinChanged(_heparinUsed);
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            decoration: BoxDecoration(
-              color: _heparinUsed ? t.accent : t.border,
-              borderRadius: BorderRadius.circular(999),
+
+  Widget _heparinToggle(HdTokens t) => _card(
+        t,
+        child: Row(children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Text('Heparin',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600, color: t.textPrimary)),
+                  if (_heparinStock != null) ...[
+                    const SizedBox(width: 8),
+                    Text('$_heparinStock left',
+                        style: TextStyle(fontSize: 12, color: t.textMuted)),
+                  ],
+                ]),
+                const SizedBox(height: 2),
+                Text('Actioned during session',
+                    style: TextStyle(fontSize: 12, color: t.textMuted)),
+              ],
             ),
-            child: Text(_heparinUsed ? 'Used' : 'Not used',
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: _heparinUsed ? t.accentOn : t.textSecondary)),
           ),
-        ),
-      ]));
+          Switch(
+            value: _heparinUsed,
+            onChanged: (v) {
+              setState(() => _heparinUsed = v);
+              widget.onHeparinChanged(v);
+            },
+            activeThumbColor: t.accent,
+          ),
+        ]),
+      );
 
   Widget _readingRow(HdTokens t, PendingReading p) {
     final r = p.reading;

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/shell.dart';
 import '../../../app/theme.dart';
+import '../../../widgets/pressable_scale.dart';
 import '../models.dart';
 import '../providers.dart';
 import '../treatment_repo.dart';
@@ -32,8 +33,11 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
     super.initState();
     final store = ref.read(treatmentStoreProvider);
     _driedWeight = store.getDriedWeight();
-    _sessions = store.getCachedSessions(); // instant render from cache
-    _load();
+    _sessions = store.getCachedSessions();
+    // Auto-load once if never synced before (no cache). Subsequent opens use cache.
+    if (_sessions == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    }
   }
 
   @override
@@ -94,12 +98,16 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
     ref.read(treatmentStoreProvider).saveCachedSessions(_sessions!);
     try {
       await ref.read(treatmentRepoProvider).deleteSession(s.sessionId);
+      // Reverse any inventory deduction logged for this session (best-effort).
+      ref.read(inventoryApiProvider)
+          .rollbackSession(s.sessionId)
+          .catchError((_) {});
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Delete failed — restoring.')));
       }
-      _load(); // pull authoritative state back
+      _load();
     }
   }
 
@@ -120,19 +128,24 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
 
     return HdScaffold(
       title: 'Treatment',
-      body: ListView(
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
-          ElevatedButton.icon(
-            onPressed: loaded ? () => widget.onStartSession(ids) : null,
-            icon: loaded
-                ? const Icon(Icons.play_arrow)
-                : SizedBox(
+          PressableScale(
+            child: ElevatedButton.icon(
+              onPressed: loaded ? () => widget.onStartSession(ids) : null,
+              icon: loaded
+                  ? const Icon(Icons.play_arrow_outlined)
+                  : SizedBox(
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: t.accentOn)),
-            label: const Text('Start session'),
+              label: const Text('Start session'),
+            ),
           ),
           const SizedBox(height: 16),
           _driedWeightCard(t),
@@ -189,6 +202,7 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
                   ),
                 )),
         ],
+        ),
       ),
     );
   }

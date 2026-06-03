@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -21,7 +23,7 @@ class PreTreatment extends ConsumerStatefulWidget {
   });
 
   final List<String> existingIds;
-  final void Function(Session session, bool heparinUsed) onSaved;
+  final void Function(Session session, bool heparinUsed, bool epoUsed) onSaved;
   final VoidCallback onCancel;
 
   @override
@@ -36,14 +38,21 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
   String? _error;
   late double _driedWeight;
   bool _heparinUsed = true;
+  bool _epoUsed = false;
   num? _heparinStock;
+  num? _epoStock;
 
   @override
   void initState() {
     super.initState();
     _driedWeight = ref.read(treatmentStoreProvider).getDriedWeight();
     ref.read(inventoryApiProvider).fetchStock().then((stock) {
-      if (mounted) setState(() => _heparinStock = stock['heparin']);
+      if (mounted) {
+        setState(() {
+          _heparinStock = stock['heparin'];
+          _epoStock = stock['epo'];
+        });
+      }
     });
   }
 
@@ -76,10 +85,15 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
       preBpDia: _bpDia,
       prePulse: _pulse,
     );
+    bool saved = false;
     try {
-      await ref.read(treatmentRepoProvider).saveSession(session);
-      ref.read(treatmentStoreProvider).saveLastSession(session);
-      widget.onSaved(session, _heparinUsed);
+      await ref
+          .read(treatmentRepoProvider)
+          .saveSession(session)
+          .timeout(const Duration(seconds: 6));
+      saved = true;
+    } on TimeoutException {
+      saved = true;
     } catch (e) {
       if (mounted) {
         setState(() => _error = 'Save failed: ${treatmentErrorCode(e)}');
@@ -87,10 +101,15 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+    if (saved) {
+      ref.read(treatmentStoreProvider).saveLastSession(session);
+      widget.onSaved(session, _heparinUsed, _epoUsed);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final t = context.hd;
     return HdScaffold(
       title: 'Pre-treatment',
       showDrawer: false,
@@ -101,66 +120,117 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 2.4,
-            children: [
-              NumberField(
-                  label: 'Weight (kg)',
-                  value: _preWeight,
-                  required: true,
-                  onChanged: (v) => setState(() => _preWeight = v)),
-              NumberField(
-                  label: 'UF goal (L)',
-                  value: _effectiveGoal,
-                  required: true,
-                  onChanged: (v) => setState(() {
-                        _goalTouched = v != null;
-                        _ufGoal = v;
-                      })),
-              NumberField(
-                  label: 'UF rate',
-                  value: _effectiveRate,
-                  onChanged: (v) => setState(() {
-                        _rateTouched = v != null;
-                        _ufRate = v;
-                      })),
-              NumberField(
-                  label: 'BP sys',
-                  value: _bpSys,
-                  integer: true,
-                  required: true,
-                  onChanged: (v) => setState(() => _bpSys = v?.toInt())),
-              NumberField(
-                  label: 'BP dia',
-                  value: _bpDia,
-                  integer: true,
-                  required: true,
-                  onChanged: (v) => setState(() => _bpDia = v?.toInt())),
-              NumberField(
-                  label: 'Pulse',
-                  value: _pulse,
-                  integer: true,
-                  onChanged: (v) => setState(() => _pulse = v?.toInt())),
-            ],
+          // Instructional tip
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: t.panel,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              'Enter pre-treatment vitals. UF goal and rate auto-calculate '
+              'from your dried weight (${_driedWeight.toStringAsFixed(0)} kg) '
+              '— edit any field to override.',
+              style: TextStyle(fontSize: 13, color: t.textSecondary),
+            ),
           ),
           const SizedBox(height: 16),
+          // Weight + UF goal
+          Row(children: [
+            Expanded(
+              child: NumberField(
+                label: 'Weight (kg)',
+                value: _preWeight,
+                required: true,
+                onChanged: (v) => setState(() => _preWeight = v),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: NumberField(
+                label: 'UF goal (L)',
+                value: _effectiveGoal,
+                required: true,
+                suffix: !_goalTouched && _derivedGoal != null
+                    ? const AutoBadge()
+                    : null,
+                onChanged: (v) => setState(() {
+                  _goalTouched = v != null;
+                  _ufGoal = v;
+                }),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          // UF rate — full width
+          NumberField(
+            label: 'UF rate (mL/h)',
+            value: _effectiveRate,
+            integer: true,
+            suffix: !_rateTouched && _derivedRate != null
+                ? const AutoBadge()
+                : null,
+            onChanged: (v) => setState(() {
+              _rateTouched = v != null;
+              _ufRate = v;
+            }),
+          ),
+          const SizedBox(height: 12),
+          // BP sys + BP dia
+          Row(children: [
+            Expanded(
+              child: NumberField(
+                label: 'BP systolic',
+                value: _bpSys,
+                integer: true,
+                required: true,
+                onChanged: (v) => setState(() => _bpSys = v?.toInt()),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: NumberField(
+                label: 'BP diastolic',
+                value: _bpDia,
+                integer: true,
+                required: true,
+                onChanged: (v) => setState(() => _bpDia = v?.toInt()),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          // Pulse — full width, last numeric field → done action
+          NumberField(
+            label: 'Pulse (bpm)',
+            value: _pulse,
+            integer: true,
+            textInputAction: TextInputAction.done,
+            onChanged: (v) => setState(() => _pulse = v?.toInt()),
+          ),
+          const SizedBox(height: 20),
+          // EPO toggle
+          _MedToggle(
+            label: 'EPO',
+            subtitle: 'Erythropoietin — carried to Post',
+            stock: _epoStock,
+            used: _epoUsed,
+            onChanged: (v) => setState(() => _epoUsed = v),
+          ),
+          const SizedBox(height: 8),
+          // Heparin toggle
           _MedToggle(
             label: 'Heparin',
+            subtitle: 'Carried into Active & Post',
             stock: _heparinStock,
             used: _heparinUsed,
-            onToggle: () => setState(() => _heparinUsed = !_heparinUsed),
+            onChanged: (v) => setState(() => _heparinUsed = v),
           ),
           const SizedBox(height: 20),
           SaveButton(
             saving: _saving,
             enabled: _ready,
             error: _error,
-            icon: Icons.play_arrow,
+            icon: Icons.play_arrow_outlined,
             label: 'Start session',
             onPressed: _submit,
           ),
@@ -171,18 +241,19 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
   }
 }
 
-/// Used/Not-used pill toggle for a medication, with optional remaining-stock hint.
 class _MedToggle extends StatelessWidget {
   const _MedToggle({
     required this.label,
-    required this.stock,
+    required this.subtitle,
     required this.used,
-    required this.onToggle,
+    required this.onChanged,
+    this.stock,
   });
   final String label;
-  final num? stock;
+  final String subtitle;
   final bool used;
-  final VoidCallback onToggle;
+  final ValueChanged<bool> onChanged;
+  final num? stock;
 
   @override
   Widget build(BuildContext context) {
@@ -194,32 +265,34 @@ class _MedToggle extends StatelessWidget {
         border: Border.all(color: t.border),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
-        children: [
-          Text(label, style: TextStyle(color: t.textPrimary)),
-          if (stock != null) ...[
-            const SizedBox(width: 8),
-            Text('$stock remaining',
-                style: TextStyle(fontSize: 12, color: t.textMuted)),
-          ],
-          const Spacer(),
-          GestureDetector(
-            onTap: onToggle,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: used ? t.accent : t.border,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(used ? 'Used' : 'Not used',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: used ? t.accentOn : t.textSecondary)),
-            ),
+      child: Row(children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Text(label,
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: t.textPrimary)),
+                if (stock != null) ...[
+                  const SizedBox(width: 8),
+                  Text('$stock left',
+                      style: TextStyle(fontSize: 12, color: t.textMuted)),
+                ],
+              ]),
+              const SizedBox(height: 2),
+              Text(subtitle,
+                  style: TextStyle(fontSize: 12, color: t.textMuted)),
+            ],
           ),
-        ],
-      ),
+        ),
+        Switch(
+          value: used,
+          onChanged: onChanged,
+          activeThumbColor: t.accent,
+        ),
+      ]),
     );
   }
 }

@@ -25,11 +25,12 @@ class _Pre extends _FlowScreen {
 }
 
 class _Active extends _FlowScreen {
-  _Active(this.session, this.readings, this.heparinUsed,
+  _Active(this.session, this.readings, this.heparinUsed, this.epoUsed,
       {this.countdownStartedAt, this.targetMin});
   final Session session;
   List<PendingReading> readings;
   bool heparinUsed;
+  bool epoUsed;
   int? countdownStartedAt;
   int? targetMin;
 }
@@ -96,7 +97,8 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
         setState(() => _screen = _Active(
               active.session!,
               readings,
-              active.heparinUsed ?? false,
+              active.heparinUsed ?? true,
+              active.epoUsed ?? true,
               countdownStartedAt: active.countdownStartedAt,
               targetMin: active.targetMin,
             ));
@@ -121,8 +123,8 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
         savedAt: DateTime.now().millisecondsSinceEpoch));
   }
 
-  void _goActive(Session session, bool heparinUsed) {
-    final s = _Active(session, [], heparinUsed);
+  void _goActive(Session session, bool heparinUsed, bool epoUsed) {
+    final s = _Active(session, [], heparinUsed, epoUsed);
     setState(() => _screen = s);
     _persistActive(s);
   }
@@ -133,6 +135,7 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
       session: s.session,
       readings: s.readings,
       heparinUsed: s.heparinUsed,
+      epoUsed: s.epoUsed,
       countdownStartedAt: s.countdownStartedAt,
       targetMin: s.targetMin,
       savedAt: DateTime.now().millisecondsSinceEpoch,
@@ -157,46 +160,96 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
   @override
   Widget build(BuildContext context) {
     final screen = _screen;
-    return switch (screen) {
-      _Loading() => const HdScaffold(
-          title: 'Treatment',
-          body: Center(child: CircularProgressIndicator()),
+    // Allow normal pop (and app exit) only from the Home/Loading/Error states.
+    // Pre → back cancels session start (same as the X button).
+    // Active/Post → back shows a confirmation to avoid mid-session accidents.
+    return PopScope(
+      canPop: screen is _Home || screen is _Loading || screen is _ErrorScreen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (screen is _Pre) {
+          _goHome();
+        } else if (screen is _Active || screen is _Post) {
+          _confirmCancelSession(context);
+        }
+      },
+      child: switch (screen) {
+        _Loading() => const HdScaffold(
+            title: 'Treatment',
+            body: Center(child: CircularProgressIndicator()),
+          ),
+        _ErrorScreen() => _errorView(),
+        _Home() => TreatmentHome(onStartSession: _goPre),
+        _Pre() => PreTreatment(
+            existingIds: screen.existingIds,
+            onSaved: (session, heparinUsed, epoUsed) =>
+                _goActive(session, heparinUsed, epoUsed),
+            onCancel: _goHome,
+          ),
+        _Active() => ActiveSession(
+            key: ValueKey(screen.session.sessionId),
+            session: screen.session,
+            initialReadings: screen.readings,
+            heparinUsed: screen.heparinUsed,
+            epoUsed: screen.epoUsed,
+            initialCountdownStartedAt: screen.countdownStartedAt,
+            initialTargetMin: screen.targetMin,
+            onReadingsChanged: (rs) {
+              screen.readings = rs;
+              _persistActive(screen);
+            },
+            onCountdownChanged: (startedAt, targetMin) {
+              screen.countdownStartedAt = startedAt;
+              screen.targetMin = targetMin;
+              _persistActive(screen);
+            },
+            onHeparinChanged: (h) {
+              screen.heparinUsed = h;
+              _persistActive(screen);
+            },
+            onEpoChanged: (e) {
+              screen.epoUsed = e;
+              _persistActive(screen);
+            },
+            onEnd: (consumed) => _goPost(screen.session, consumed),
+          ),
+        _Post() => PostTreatment(
+            session: screen.session,
+            consumed: screen.consumed,
+            onSaved: _goHome,
+          ),
+      },
+    );
+  }
+
+  void _confirmCancelSession(BuildContext context) {
+    final t = context.hd;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: t.panel,
+        title: Text('Cancel session?',
+            style: TextStyle(color: t.textPrimary)),
+        content: Text(
+          'Your readings have been saved. The session will remain in Firestore and can be completed later.',
+          style: TextStyle(color: t.textSecondary),
         ),
-      _ErrorScreen() => _errorView(),
-      _Home() => TreatmentHome(onStartSession: _goPre),
-      _Pre() => PreTreatment(
-          existingIds: screen.existingIds,
-          onSaved: _goActive,
-          onCancel: _goHome,
-        ),
-      _Active() => ActiveSession(
-          key: ValueKey(screen.session.sessionId),
-          session: screen.session,
-          initialReadings: screen.readings,
-          heparinUsed: screen.heparinUsed,
-          initialCountdownStartedAt: screen.countdownStartedAt,
-          initialTargetMin: screen.targetMin,
-          onReadingsChanged: (rs) {
-            screen.readings = rs;
-            _persistActive(screen);
-          },
-          onCountdownChanged: (startedAt, targetMin) {
-            screen.countdownStartedAt = startedAt;
-            screen.targetMin = targetMin;
-            _persistActive(screen);
-          },
-          onHeparinChanged: (h) {
-            screen.heparinUsed = h;
-            _persistActive(screen);
-          },
-          onEnd: (consumed) => _goPost(screen.session, consumed),
-        ),
-      _Post() => PostTreatment(
-          session: screen.session,
-          consumed: screen.consumed,
-          onSaved: _goHome,
-        ),
-    };
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Stay', style: TextStyle(color: t.accent)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _goHome();
+            },
+            child: Text('Cancel session',
+                style: TextStyle(color: t.warning)),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _errorView() {
@@ -214,7 +267,7 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
             const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: _bootstrap,
-              icon: const Icon(Icons.refresh),
+              icon: const Icon(Icons.refresh_outlined),
               label: const Text('Retry'),
             ),
           ],
