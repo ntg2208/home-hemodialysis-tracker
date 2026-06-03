@@ -133,9 +133,9 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
             crossAxisCount: 2,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
+            mainAxisSpacing: 10,
             crossAxisSpacing: 12,
-            childAspectRatio: 2.4,
+            childAspectRatio: 2.2,
             children: [
               NumberField(
                   label: 'Blood processed (L)',
