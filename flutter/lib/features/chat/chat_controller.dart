@@ -24,31 +24,30 @@ class ChatState {
 }
 
 abstract class ChatResponder {
-  Future<String> reply(String prompt, List<ChatMessage> history);
+  Stream<String> reply(String prompt, List<ChatMessage> history);
 }
 
 /// Canned, domain-flavoured markdown replies until the RAG endpoint exists.
 class MockChatResponder implements ChatResponder {
   @override
-  Future<String> reply(String prompt, List<ChatMessage> history) async {
+  Stream<String> reply(String prompt, List<ChatMessage> history) async* {
     await Future.delayed(const Duration(milliseconds: 700));
     final p = prompt.toLowerCase();
     if (p.contains('blood pressure') || p.contains('bp')) {
-      return 'Your pre-dialysis systolic has trended **down** over the last '
+      yield 'Your pre-dialysis systolic has trended **down** over the last '
           '2 weeks:\n\n| Week | Avg pre-sys |\n|---|---|\n| This | 132 |\n'
-          '| Last | 138 |\n\n_(mock reply — the assistant backend isn’t wired yet.)_';
+          '| Last | 138 |\n\n_(mock reply — AI backend not connected yet.)_';
+    } else if (p.contains('delivery') || p.contains('order')) {
+      yield 'Your next **call date** is in a few days, with delivery ~7 days '
+          'after.\n\n_(mock reply — AI backend not connected yet.)_';
+    } else if (p.contains('hrv') || p.contains('heart')) {
+      yield 'Recent **HRV (daily)** is stable around your baseline.\n\n'
+          '_(mock reply — AI backend not connected yet.)_';
+    } else {
+      yield 'I can summarise your BP, blood tests, fitness and inventory '
+          'once the AI assistant is enabled in Settings.\n\n'
+          '_(mock reply — enable AI in Settings to connect.)_';
     }
-    if (p.contains('delivery') || p.contains('order')) {
-      return 'Your next **call date** is in a few days, with delivery ~7 days '
-          'after.\n\n_(mock reply — chat backend pending.)_';
-    }
-    if (p.contains('hrv') || p.contains('heart')) {
-      return 'Recent **HRV (daily)** is stable around your baseline.\n\n'
-          '_(mock reply — chat backend pending.)_';
-    }
-    return 'I can summarise your BP, blood tests, fitness and inventory once the '
-        'assistant backend is connected.\n\n_(mock reply — `/api/chat` is a '
-        'placeholder for now.)_';
   }
 }
 
@@ -65,22 +64,44 @@ class ChatController extends Notifier<ChatState> {
   Future<void> send(String text) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty || state.sending) return;
-    state = state.copyWith(
-      messages: [
-        ...state.messages,
-        ChatMessage(ChatRole.user, trimmed),
-        const ChatMessage(ChatRole.assistant, '', thinking: true),
-      ],
-      sending: true,
-    );
+
+    final baseMessages = [
+      ...state.messages,
+      ChatMessage(ChatRole.user, trimmed),
+      const ChatMessage(ChatRole.assistant, '', thinking: true),
+    ];
+    final assistantIdx = baseMessages.length - 1;
+
+    state = state.copyWith(messages: baseMessages, sending: true);
+
     try {
-      final reply = await ref
-          .read(chatResponderProvider)
-          .reply(trimmed, state.messages);
-      _replaceThinking(ChatMessage(ChatRole.assistant, reply));
+      var accumulated = '';
+      final stream = ref.read(chatResponderProvider).reply(trimmed, baseMessages);
+      await for (final chunk in stream) {
+        accumulated += chunk;
+        final updated = [...state.messages];
+        if (assistantIdx < updated.length) {
+          updated[assistantIdx] = ChatMessage(ChatRole.assistant, accumulated);
+          state = state.copyWith(messages: updated);
+        }
+      }
+      if (accumulated.isEmpty) {
+        final updated = [...state.messages];
+        if (assistantIdx < updated.length) {
+          updated[assistantIdx] =
+              const ChatMessage(ChatRole.assistant, 'No response received.');
+          state = state.copyWith(messages: updated);
+        }
+      }
     } catch (_) {
-      _replaceThinking(const ChatMessage(
-          ChatRole.assistant, 'Sorry — could not get a response.'));
+      final updated = [...state.messages];
+      if (assistantIdx < updated.length) {
+        updated[assistantIdx] = const ChatMessage(
+            ChatRole.assistant, 'Sorry — could not get a response.');
+        state = state.copyWith(messages: updated);
+      }
+    } finally {
+      state = state.copyWith(sending: false);
     }
   }
 
