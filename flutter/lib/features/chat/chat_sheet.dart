@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../app/providers.dart' show aiSettingsControllerProvider;
 import '../../app/theme.dart';
 import 'chat_controller.dart';
 
 const _suggestions = [
-  "How's my blood pressure trending?",
+  'Summarise my last session',
   "When's my next delivery?",
   'Show my recent HRV',
 ];
@@ -73,17 +75,9 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
             _grabHandle(t),
             _header(t),
             Divider(height: 1, color: t.border),
-            Expanded(
-              child: state.messages.isEmpty
-                  ? _emptyState(t)
-                  : ListView.builder(
-                      controller: _scroll,
-                      padding: const EdgeInsets.all(16),
-                      itemCount: state.messages.length,
-                      itemBuilder: (_, i) => _bubble(t, state.messages[i]),
-                    ),
-            ),
-            _inputRow(t, state),
+            Expanded(child: _body(t, state)),
+            if (state.mode == ChatMode.active) _inputRow(t, state),
+            if (state.mode == ChatMode.viewing) _readOnlyFooter(t),
           ],
         ),
       ),
@@ -113,15 +107,52 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
                   fontWeight: FontWeight.w600,
                   color: t.textPrimary)),
           const Spacer(),
-          TextButton(
-            onPressed: () => ref.read(chatControllerProvider.notifier).newChat(),
-            child: const Text('New chat'),
-          ),
-          IconButton(
-              onPressed: () => Navigator.of(context).pop(),
-              icon: Icon(Icons.close, color: t.textSecondary)),
+          _iconBtn(t, Icons.history, 'History',
+              () => ref.read(chatControllerProvider.notifier).openHistory()),
+          _iconBtn(t, Icons.add, 'New chat',
+              () => ref.read(chatControllerProvider.notifier).newChat()),
+          _iconBtn(t, Icons.close, 'Close', () {
+            ref.read(chatControllerProvider.notifier).onClose();
+            Navigator.of(context).pop();
+          }),
         ]),
       );
+
+  Widget _iconBtn(HdTokens t, IconData icon, String tooltip, VoidCallback onTap) =>
+      Tooltip(
+        message: tooltip,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: t.border),
+            ),
+            child: Icon(icon, size: 18, color: t.textSecondary),
+          ),
+        ),
+      );
+
+  Widget _body(HdTokens t, ChatState state) {
+    switch (state.mode) {
+      case ChatMode.active:
+        return state.messages.isEmpty
+            ? _emptyState(t)
+            : ListView.builder(
+                controller: _scroll,
+                padding: const EdgeInsets.all(16),
+                itemCount: state.messages.length,
+                itemBuilder: (_, i) => _bubble(t, state.messages[i]),
+              );
+      case ChatMode.history:
+        return _historyList(t, state);
+      case ChatMode.viewing:
+        return _viewingConversation(t, state);
+    }
+  }
 
   Widget _avatar(HdTokens t, double size) => Container(
         width: size,
@@ -130,38 +161,193 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
         child: Icon(Icons.auto_awesome, size: size * 0.55, color: t.accentOn),
       );
 
-  Widget _emptyState(HdTokens t) => Center(
+  Widget _emptyState(HdTokens t) {
+    final ai = ref.watch(aiSettingsControllerProvider);
+
+    if (!ai.enabled) {
+      return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _avatar(t, 48),
-              const SizedBox(height: 12),
-              Text('Ask about your BP, labs, fitness or supplies.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: t.textSecondary)),
-              const SizedBox(height: 16),
-              Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 8,
-                runSpacing: 8,
-                children: _suggestions
-                    .map((s) => ActionChip(
-                          label: Text(s),
-                          shape: const StadiumBorder(),
-                          backgroundColor: t.panel,
-                          side: BorderSide(color: t.border),
-                          labelStyle:
-                              TextStyle(fontSize: 12, color: t.textSecondary),
-                          onPressed: () => _send(s),
-                        ))
-                    .toList(),
-              ),
-            ],
-          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.smart_toy_outlined, size: 48, color: t.textMuted),
+            const SizedBox(height: 12),
+            Text('AI assistant is disabled',
+                style: TextStyle(color: t.textSecondary)),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                context.push('/settings');
+              },
+              child: const Text('Enable in Settings'),
+            ),
+          ]),
         ),
       );
+    }
+
+    if (!ai.ready) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.key_off_outlined, size: 48, color: t.textMuted),
+            const SizedBox(height: 12),
+            Text('API key not set — add one in Settings.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: t.textSecondary)),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                context.push('/settings');
+              },
+              child: const Text('Go to Settings'),
+            ),
+          ]),
+        ),
+      );
+    }
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _avatar(t, 48),
+            const SizedBox(height: 12),
+            Text('Ask about your BP, labs, fitness or supplies.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: t.textSecondary)),
+            const SizedBox(height: 16),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: _suggestions
+                  .map((s) => ActionChip(
+                        label: Text(s),
+                        shape: const StadiumBorder(),
+                        backgroundColor: t.panel,
+                        side: BorderSide(color: t.border),
+                        labelStyle:
+                            TextStyle(fontSize: 12, color: t.textSecondary),
+                        onPressed: () => _send(s),
+                      ))
+                  .toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _historyList(HdTokens t, ChatState state) {
+    if (state.conversations.isEmpty) {
+      return Center(
+        child: Text('No past conversations.',
+            style: TextStyle(color: t.textMuted)),
+      );
+    }
+    return Column(children: [
+      Expanded(
+        child: ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: state.conversations.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          itemBuilder: (_, i) {
+            final conv = state.conversations[i];
+            return InkWell(
+              onTap: () => ref
+                  .read(chatControllerProvider.notifier)
+                  .viewConversation(conv),
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: t.panel,
+                  border: Border.all(color: t.border),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(conv.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: t.textPrimary)),
+                        const SizedBox(height: 2),
+                        Text(
+                            '${conv.messages.length} messages · '
+                            '${_fmtDate(conv.updatedAt)}',
+                            style: TextStyle(
+                                fontSize: 11, color: t.textMuted)),
+                      ],
+                    ),
+                  ),
+                ]),
+              ),
+            );
+          },
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: TextButton.icon(
+          onPressed: () =>
+              ref.read(chatControllerProvider.notifier).deleteAllHistory(),
+          icon: Icon(Icons.delete_outline, size: 16, color: t.danger),
+          label: Text('Clear all history',
+              style: TextStyle(color: t.danger, fontSize: 13)),
+        ),
+      ),
+    ]);
+  }
+
+  String _fmtDate(DateTime d) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${d.day} ${months[d.month - 1]} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _viewingConversation(HdTokens t, ChatState state) {
+    final conv = state.viewingConversation;
+    if (conv == null) return const SizedBox.shrink();
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+        child: Row(children: [
+          TextButton.icon(
+            onPressed: () =>
+                ref.read(chatControllerProvider.notifier).backToHistory(),
+            icon: const Icon(Icons.arrow_back, size: 16),
+            label: const Text('Back'),
+            style: TextButton.styleFrom(padding: EdgeInsets.zero),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(conv.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, color: t.textMuted)),
+          ),
+        ]),
+      ),
+      Divider(height: 1, color: t.border),
+      Expanded(
+        child: ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: conv.messages.length,
+          itemBuilder: (_, i) => _bubble(t, conv.messages[i]),
+        ),
+      ),
+    ]);
+  }
 
   Widget _bubble(HdTokens t, ChatMessage m) {
     final isUser = m.role == ChatRole.user;
@@ -213,7 +399,7 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
         left: 12,
         right: 12,
         top: 8,
-        bottom: 8 + MediaQuery.of(context).viewInsets.bottom,
+        bottom: 24 + MediaQuery.of(context).viewInsets.bottom,
       ),
       child: Row(children: [
         Expanded(
@@ -238,6 +424,15 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
       ]),
     );
   }
+
+  Widget _readOnlyFooter(HdTokens t) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Text(
+          'read-only · start a new chat to ask questions',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 11, color: t.textMuted),
+        ),
+      );
 }
 
 class _SendButton extends StatelessWidget {
