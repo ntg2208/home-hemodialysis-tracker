@@ -187,16 +187,18 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
           const SizedBox(height: 16),
           _MedToggle(
             label: 'Heparin',
+            subtitle: 'Used during session',
             stock: _heparinStock,
             used: _heparinUsed,
-            onToggle: () => setState(() => _heparinUsed = !_heparinUsed),
+            onChanged: (v) => setState(() => _heparinUsed = v),
           ),
           const SizedBox(height: 8),
           _MedToggle(
             label: 'EPO',
+            subtitle: 'Erythropoietin',
             stock: _epoStock,
             used: _epoUsed,
-            onToggle: () => setState(() => _epoUsed = !_epoUsed),
+            onChanged: (v) => setState(() => _epoUsed = v),
           ),
           const SizedBox(height: 20),
           SaveButton(
@@ -215,15 +217,18 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
 }
 
 class _MedToggle extends StatelessWidget {
-  const _MedToggle(
-      {required this.label,
-      required this.stock,
-      required this.used,
-      required this.onToggle});
+  const _MedToggle({
+    required this.label,
+    required this.subtitle,
+    required this.used,
+    required this.onChanged,
+    this.stock,
+  });
   final String label;
-  final num? stock;
+  final String subtitle;
   final bool used;
-  final VoidCallback onToggle;
+  final ValueChanged<bool> onChanged;
+  final num? stock;
 
   @override
   Widget build(BuildContext context) {
@@ -236,27 +241,31 @@ class _MedToggle extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(children: [
-        Text(label, style: TextStyle(color: t.textPrimary)),
-        if (stock != null) ...[
-          const SizedBox(width: 8),
-          Text('$stock remaining',
-              style: TextStyle(fontSize: 12, color: t.textMuted)),
-        ],
-        const Spacer(),
-        GestureDetector(
-          onTap: onToggle,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            decoration: BoxDecoration(
-              color: used ? t.accent : t.border,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(used ? 'Used' : 'Not used',
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: used ? t.accentOn : t.textSecondary)),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Text(label,
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: t.textPrimary)),
+                if (stock != null) ...[
+                  const SizedBox(width: 8),
+                  Text('$stock left',
+                      style: TextStyle(fontSize: 12, color: t.textMuted)),
+                ],
+              ]),
+              const SizedBox(height: 2),
+              Text(subtitle,
+                  style: TextStyle(fontSize: 12, color: t.textMuted)),
+            ],
           ),
+        ),
+        Switch(
+          value: used,
+          onChanged: onChanged,
+          activeThumbColor: t.accent,
         ),
       ]),
     );
