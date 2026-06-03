@@ -23,11 +23,13 @@ class PostTreatment extends ConsumerStatefulWidget {
     required this.session,
     required this.consumed,
     required this.onSaved,
+    required this.onCancel,
   });
 
   final Session session;
   final SessionConsumed consumed;
   final VoidCallback onSaved;
+  final VoidCallback onCancel;
 
   @override
   ConsumerState<PostTreatment> createState() => _PostTreatmentState();
@@ -201,14 +203,25 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
             onChanged: (v) => setState(() => _epoUsed = v),
           ),
           const SizedBox(height: 20),
-          SaveButton(
-            saving: _saving,
-            enabled: _ready,
-            error: _error,
-            icon: Icons.check_circle_outline,
-            label: 'Finish session',
-            onPressed: _submit,
-          ),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _saving ? null : widget.onCancel,
+                child: const Text('Cancel'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: SaveButton(
+                saving: _saving,
+                enabled: _ready,
+                error: _error,
+                icon: Icons.check_circle_outline,
+                label: 'Finish session',
+                onPressed: _submit,
+              ),
+            ),
+          ]),
           const SizedBox(height: 24),
         ],
       ),

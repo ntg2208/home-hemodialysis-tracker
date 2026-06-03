@@ -123,10 +123,19 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
         savedAt: DateTime.now().millisecondsSinceEpoch));
   }
 
+  _Active? _lastActive;
+
   void _goActive(Session session, bool heparinUsed, bool epoUsed) {
     final s = _Active(session, [], heparinUsed, epoUsed);
+    _lastActive = s;
     setState(() => _screen = s);
     _persistActive(s);
+  }
+
+  void _goBackToActive() {
+    if (_lastActive != null) {
+      setState(() => _screen = _lastActive!);
+    }
   }
 
   void _persistActive(_Active s) {
@@ -162,15 +171,18 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
     final screen = _screen;
     // Allow normal pop (and app exit) only from the Home/Loading/Error states.
     // Pre → back cancels session start (same as the X button).
-    // Active/Post → back shows a confirmation to avoid mid-session accidents.
+    // Active → back shows a confirmation to avoid mid-session accidents.
+    // Post → back returns to Active so the treatment can continue.
     return PopScope(
       canPop: screen is _Home || screen is _Loading || screen is _ErrorScreen,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
         if (screen is _Pre) {
           _goHome();
-        } else if (screen is _Active || screen is _Post) {
+        } else if (screen is _Active) {
           _confirmCancelSession(context);
+        } else if (screen is _Post) {
+          _goBackToActive();
         }
       },
       child: AnimatedSwitcher(
@@ -224,6 +236,7 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
               session: screen.session,
               consumed: screen.consumed,
               onSaved: _goHome,
+              onCancel: _goBackToActive,
             ),
         },
       ),
