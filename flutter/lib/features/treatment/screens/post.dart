@@ -36,9 +36,8 @@ class PostTreatment extends ConsumerStatefulWidget {
 }
 
 class _PostTreatmentState extends ConsumerState<PostTreatment> {
-  // TODO(debug): remove default values before release
-  double? _postWeight = 68.5, _dialysateVolume, _totalUf, _bloodProcessed = 49.5;
-  int? _bpSys = 125, _bpDia = 82, _pulse = 70, _durationMin;
+  double? _postWeight, _dialysateVolume, _totalUf, _bloodProcessed;
+  int? _bpSys, _bpDia, _pulse, _durationMin;
   bool _totalUfTouched = false;
   bool _saving = false;
   String? _error;

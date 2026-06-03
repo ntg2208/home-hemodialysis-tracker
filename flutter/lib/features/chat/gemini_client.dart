@@ -71,7 +71,7 @@ class GeminiChatResponder implements ChatResponder {
 
     // 4. Call Gemini
     final model = GenerativeModel(
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.1-flash-lite',
       apiKey: apiKey,
       systemInstruction: Content.system(systemPrompt),
       generationConfig:

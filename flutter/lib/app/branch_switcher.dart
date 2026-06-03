@@ -84,6 +84,7 @@ class _BranchSwitcherState extends State<BranchSwitcher>
   @override
   Widget build(BuildContext context) {
     final animating = _ctrl.isAnimating;
+    final bg = Theme.of(context).scaffoldBackgroundColor;
 
     return Stack(
       children: List.generate(widget.children.length, (i) {
@@ -115,7 +116,10 @@ class _BranchSwitcherState extends State<BranchSwitcher>
               ignoring: !isCurrent,
               child: Opacity(
                 opacity: opacity,
-                child: widget.children[i],
+                child: ColoredBox(
+                  color: bg,
+                  child: widget.children[i],
+                ),
               ),
             ),
           ),

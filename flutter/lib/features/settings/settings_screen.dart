@@ -120,7 +120,7 @@ class _AiSection extends ConsumerStatefulWidget {
 
 class _AiSectionState extends ConsumerState<_AiSection> {
   final _keyCtrl = TextEditingController();
-  bool _obscure = true;
+  final bool _obscure = true;
 
   @override
   void initState() {
@@ -158,28 +158,25 @@ class _AiSectionState extends ConsumerState<_AiSection> {
           decoration: InputDecoration(
             labelText: 'AI Studio API key',
             hintText: 'AIza…',
-            suffixIcon: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (_keyCtrl.text.isNotEmpty)
-                  IconButton(
-                    icon: Icon(_obscure
-                        ? Icons.visibility_off
-                        : Icons.visibility,
-                        size: 18),
-                    onPressed: () => setState(() => _obscure = !_obscure),
-                  ),
-                IconButton(
-                  icon: const Icon(Icons.content_paste, size: 18),
-                  tooltip: 'Paste from clipboard',
-                  onPressed: ai.enabled ? _pasteKey : null,
-                ),
-              ],
+            suffixIcon: IconButton(
+              icon: const Icon(Icons.content_paste, size: 18),
+              tooltip: 'Paste from clipboard',
+              onPressed: ai.enabled ? _pasteKey : null,
             ),
           ),
+          onChanged: (_) => setState(() {}),
           onSubmitted: (v) => _saveKey(v),
-          onEditingComplete: () => _saveKey(_keyCtrl.text),
         ),
+        if (_keyCtrl.text.trim().isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Row(children: [
+            OutlinedButton.icon(
+              onPressed: () => _saveKey(_keyCtrl.text),
+              icon: const Icon(Icons.check, size: 16),
+              label: const Text('Save key'),
+            ),
+          ]),
+        ],
         const SizedBox(height: 4),
         Text(
           'Get a free key at aistudio.google.com',
@@ -224,7 +221,7 @@ class _AiSectionState extends ConsumerState<_AiSection> {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final text = data?.text?.trim() ?? '';
     if (text.isEmpty) return;
-    _keyCtrl.text = text;
+    setState(() => _keyCtrl.text = text);
     await _saveKey(text);
   }
 

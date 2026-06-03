@@ -31,9 +31,8 @@ class PreTreatment extends ConsumerStatefulWidget {
 }
 
 class _PreTreatmentState extends ConsumerState<PreTreatment> {
-  // TODO(debug): remove default values before release
-  num? _preWeight = 70.0, _ufGoal, _ufRate;
-  int? _bpSys = 120, _bpDia = 80, _pulse = 72;
+  num? _preWeight, _ufGoal, _ufRate;
+  int? _bpSys, _bpDia, _pulse;
   bool _goalTouched = false, _rateTouched = false;
   bool _saving = false;
   String? _error;

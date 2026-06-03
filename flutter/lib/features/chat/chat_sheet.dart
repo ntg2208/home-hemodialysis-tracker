@@ -35,11 +35,13 @@ class _ChatSheet extends ConsumerStatefulWidget {
 class _ChatSheetState extends ConsumerState<_ChatSheet> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
+  final _focus = FocusNode();
 
   @override
   void dispose() {
     _input.dispose();
     _scroll.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -47,6 +49,7 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
     if (text.trim().isEmpty) return;
     ref.read(chatControllerProvider.notifier).send(text);
     _input.clear();
+    _focus.requestFocus();
     _scrollToBottom();
   }
 
@@ -423,6 +426,7 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
         Expanded(
           child: TextField(
             controller: _input,
+            focusNode: _focus,
             minLines: 1,
             maxLines: 4,
             textInputAction: TextInputAction.send,
