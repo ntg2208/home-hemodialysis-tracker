@@ -44,6 +44,14 @@ class _BranchSwitcherState extends State<BranchSwitcher>
     );
     _ctrl.addListener(_onTick);
     _ctrl.addStatusListener(_onStatus);
+
+    // Warm up opacity shaders after first frame to prevent jank on the
+    // first real tab switch. Since currentIndex == _prevIndex, both
+    // branches map to the same child (opacity 1.0), so this is invisible.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _ctrl.forward();
+    });
   }
 
   void _onTick() => setState(() {});
@@ -105,8 +113,7 @@ class _BranchSwitcherState extends State<BranchSwitcher>
             offstage: !visible,
             child: IgnorePointer(
               ignoring: !isCurrent,
-              child: AnimatedOpacity(
-                duration: Duration.zero,
+              child: Opacity(
                 opacity: opacity,
                 child: widget.children[i],
               ),
