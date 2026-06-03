@@ -19,19 +19,61 @@ import 'chat_conversation.dart';
 enum ChatRole { user, assistant }
 
 class ChatMessage {
-  const ChatMessage(this.role, this.text, {this.thinking = false});
+  const ChatMessage(this.role, this.text,
+      {this.thinking = false, this.kbUpdate});
   final ChatRole role;
   final String text;
   final bool thinking; // assistant typing indicator placeholder
+  final KbUpdateProposal? kbUpdate;
+}
+
+enum ChatMode { active, history, viewing }
+
+class KbUpdateProposal {
+  const KbUpdateProposal({required this.title, required this.content});
+  final String title;
+  final String content;
 }
 
 class ChatState {
-  const ChatState({this.messages = const [], this.sending = false});
+  const ChatState({
+    this.messages = const [],
+    this.sending = false,
+    this.mode = ChatMode.active,
+    this.conversations = const [],
+    this.viewingConversation,
+    this.currentConversationId,
+  });
+
   final List<ChatMessage> messages;
   final bool sending;
+  final ChatMode mode;
+  final List<ChatConversation> conversations;
+  final ChatConversation? viewingConversation;
+  final String? currentConversationId;
 
-  ChatState copyWith({List<ChatMessage>? messages, bool? sending}) =>
-      ChatState(messages: messages ?? this.messages, sending: sending ?? this.sending);
+  ChatState copyWith({
+    List<ChatMessage>? messages,
+    bool? sending,
+    ChatMode? mode,
+    List<ChatConversation>? conversations,
+    ChatConversation? viewingConversation,
+    String? currentConversationId,
+    bool clearViewingConversation = false,
+    bool clearCurrentConversationId = false,
+  }) =>
+      ChatState(
+        messages: messages ?? this.messages,
+        sending: sending ?? this.sending,
+        mode: mode ?? this.mode,
+        conversations: conversations ?? this.conversations,
+        viewingConversation: clearViewingConversation
+            ? null
+            : viewingConversation ?? this.viewingConversation,
+        currentConversationId: clearCurrentConversationId
+            ? null
+            : currentConversationId ?? this.currentConversationId,
+      );
 }
 
 abstract class ChatResponder {
@@ -106,6 +148,8 @@ class ChatController extends Notifier<ChatState> {
           state = state.copyWith(messages: updated);
         }
       }
+      // Auto-save after each assistant reply
+      unawaited(_saveCurrentIfNonEmpty());
       if (accumulated.isEmpty) {
         final updated = [...state.messages];
         if (assistantIdx < updated.length) {
@@ -145,5 +189,65 @@ class ChatController extends Notifier<ChatState> {
     state = state.copyWith(messages: msgs, sending: false);
   }
 
-  void newChat() => state = const ChatState();
+  // ── History ──────────────────────────────────────────────
+
+  Future<void> openHistory() async {
+    await _saveCurrentIfNonEmpty();
+    final store = ref.read(conversationStoreProvider);
+    try {
+      final convs = await store.getRecent();
+      state = state.copyWith(mode: ChatMode.history, conversations: convs);
+    } catch (_) {
+      state = state.copyWith(mode: ChatMode.history, conversations: []);
+    }
+  }
+
+  void viewConversation(ChatConversation conv) {
+    state = state.copyWith(mode: ChatMode.viewing, viewingConversation: conv);
+  }
+
+  void backToHistory() {
+    state = state.copyWith(
+        mode: ChatMode.history, clearViewingConversation: true);
+  }
+
+  Future<void> newChat() async {
+    await _saveCurrentIfNonEmpty();
+    state = const ChatState();
+  }
+
+  Future<void> onClose() => _saveCurrentIfNonEmpty();
+
+  Future<void> deleteAllHistory() async {
+    await ref.read(conversationStoreProvider).deleteAll();
+    state = state.copyWith(conversations: []);
+  }
+
+  // ── Auto-save ─────────────────────────────────────────────
+
+  Future<void> _saveCurrentIfNonEmpty() async {
+    final msgs = state.messages.where((m) => !m.thinking).toList();
+    if (msgs.isEmpty) return;
+    final now = DateTime.now();
+    final title = msgs.first.role == ChatRole.user
+        ? (msgs.first.text.length > 60
+            ? '${msgs.first.text.substring(0, 60)}…'
+            : msgs.first.text)
+        : 'Conversation';
+    final id = state.currentConversationId ?? _newConvId();
+    final conv = ChatConversation(
+      id: id,
+      title: title,
+      messages: msgs,
+      createdAt: now,
+      updatedAt: now,
+    );
+    try {
+      await ref.read(conversationStoreProvider).save(conv);
+      state = state.copyWith(currentConversationId: id);
+    } catch (_) {/* non-fatal — conversation save failures are silent */}
+  }
+
+  String _newConvId() =>
+      'conv_${DateTime.now().millisecondsSinceEpoch}';
 }
