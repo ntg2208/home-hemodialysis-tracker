@@ -1,24 +1,68 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import 'theme.dart';
 import '../features/chat/chat_sheet.dart';
 
-/// Drawer destinations, in order. `route` is the go_router path.
-class _Dest {
-  const _Dest(this.label, this.icon, this.route);
-  final String label;
-  final IconData icon;
-  final String route;
+/// Thin shell widget required by [StatefulShellRoute.indexedStack].
+///
+/// Back-button behaviour:
+///   • Non-Treatment branch → go to Treatment (branch 0) instead of exiting.
+///   • Treatment branch (Home/Loading/Error) → toast "Press back again to exit";
+///     second press within 2 s exits the app.
+///   • Treatment sub-screens (Pre/Active/Post) → handled by TreatmentFlow's
+///     own PopScope before this one is reached.
+///
+/// Branch-switch animation is handled by [BranchSwitcher] via
+/// `navigatorContainerBuilder` in the router, not here.
+class AppShell extends StatefulWidget {
+  const AppShell({super.key, required this.navigationShell});
+  final StatefulNavigationShell navigationShell;
+
+  @override
+  State<AppShell> createState() => _AppShellState();
 }
 
-const _destinations = [
-  _Dest('Treatment', Icons.monitor_heart_outlined, '/treatment'),
-  _Dest('Blood Tests', Icons.science_outlined, '/blood-tests'),
-  _Dest('Inventory', Icons.inventory_2_outlined, '/inventory'),
-  _Dest('Fitness', Icons.fitness_center, '/fitness'),
-  _Dest('Knowledge Base', Icons.menu_book_outlined, '/kb'),
-];
+class _AppShellState extends State<AppShell> {
+  DateTime? _lastBackPress;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+
+        // Not on Treatment → go there instead of exiting.
+        if (widget.navigationShell.currentIndex != 0) {
+          widget.navigationShell.goBranch(0);
+          return;
+        }
+
+        // On Treatment branch root → double-tap to exit.
+        final now = DateTime.now();
+        if (_lastBackPress == null ||
+            now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
+          _lastBackPress = now;
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Press back again to exit'),
+                duration: Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        }
+
+        await SystemNavigator.pop();
+      },
+      child: widget.navigationShell,
+    );
+  }
+}
 
 /// Shared scaffold for every authenticated screen.
 ///
@@ -73,68 +117,81 @@ class HdScaffold extends StatelessWidget {
   }
 }
 
+// ── Drawer destinations ──────────────────────────────────────────────────────
+
+const _destPaths = [
+  '/treatment',
+  '/blood-tests',
+  '/inventory',
+  '/fitness',
+  '/kb',
+];
+
+int _drawerIndex(String location) {
+  for (var i = 0; i < _destPaths.length; i++) {
+    if (location.startsWith(_destPaths[i])) return i;
+  }
+  return -1; // Settings or unknown -- no highlight
+}
+
 class _HdDrawer extends StatelessWidget {
   const _HdDrawer();
 
   @override
   Widget build(BuildContext context) {
-    final t = context.hd;
-    final current = GoRouterState.of(context).matchedLocation;
-    return Drawer(
-      backgroundColor: t.panel,
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Home HD',
-                      style: TextStyle(
-                          color: t.textPrimary,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 4),
-                  Text('Dialysis tracker',
-                      style: TextStyle(color: t.textSecondary, fontSize: 13)),
-                ],
-              ),
-            ),
-            for (final d in _destinations)
-              _DrawerItem(d: d, active: current.startsWith(d.route)),
-            const Divider(height: 24),
-            _DrawerItem(
-              d: const _Dest('Settings', Icons.settings_outlined, '/settings'),
-              active: current.startsWith('/settings'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+    final location = GoRouterState.of(context).matchedLocation;
+    final selectedIndex = _drawerIndex(location);
 
-class _DrawerItem extends StatelessWidget {
-  const _DrawerItem({required this.d, required this.active});
-  final _Dest d;
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.hd;
-    return ListTile(
-      leading: Icon(d.icon, color: active ? t.accent : t.textSecondary),
-      title: Text(d.label,
-          style: TextStyle(
-              color: active ? t.accent : t.textPrimary,
-              fontWeight: active ? FontWeight.w600 : FontWeight.w400)),
-      tileColor: active ? t.accent.withValues(alpha: 0.10) : null,
-      onTap: () {
+    return NavigationDrawer(
+      selectedIndex: selectedIndex,
+      onDestinationSelected: (index) {
         Navigator.of(context).pop(); // close drawer
-        if (!active) context.go(d.route);
+        if (index < _destPaths.length) {
+          context.go(_destPaths[index]);
+        } else if (index == 5) {
+          // Settings -- pushed so back-button returns to previous branch
+          context.push('/settings');
+        }
       },
+      children: const [
+        Padding(
+          padding: EdgeInsets.fromLTRB(28, 24, 16, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Home HD',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+              SizedBox(height: 4),
+              Text('Dialysis tracker', style: TextStyle(fontSize: 13)),
+            ],
+          ),
+        ),
+        NavigationDrawerDestination(
+          icon: Icon(Icons.monitor_heart_outlined),
+          label: Text('Treatment'),
+        ),
+        NavigationDrawerDestination(
+          icon: Icon(Icons.science_outlined),
+          label: Text('Blood Tests'),
+        ),
+        NavigationDrawerDestination(
+          icon: Icon(Icons.inventory_2_outlined),
+          label: Text('Inventory'),
+        ),
+        NavigationDrawerDestination(
+          icon: Icon(Icons.fitness_center_outlined),
+          label: Text('Fitness'),
+        ),
+        NavigationDrawerDestination(
+          icon: Icon(Icons.menu_book_outlined),
+          label: Text('Knowledge Base'),
+        ),
+        Divider(indent: 28, endIndent: 28),
+        NavigationDrawerDestination(
+          icon: Icon(Icons.settings_outlined),
+          label: Text('Settings'),
+        ),
+      ],
     );
   }
 }
