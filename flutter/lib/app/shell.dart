@@ -105,11 +105,13 @@ class HdScaffold extends StatelessWidget {
       drawer: showDrawer ? const _HdDrawer() : null,
       floatingActionButton: showChatFab ? const ChatFab() : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: body,
+      body: RepaintBoundary(
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: body,
+            ),
           ),
         ),
       ),
@@ -142,7 +144,8 @@ class _HdDrawer extends StatelessWidget {
     final location = GoRouterState.of(context).matchedLocation;
     final selectedIndex = _drawerIndex(location);
 
-    return NavigationDrawer(
+    return RepaintBoundary(
+      child: NavigationDrawer(
       selectedIndex: selectedIndex,
       onDestinationSelected: (index) {
         Navigator.of(context).pop(); // close drawer
@@ -192,6 +195,7 @@ class _HdDrawer extends StatelessWidget {
           label: Text('Settings'),
         ),
       ],
+      ),
     );
   }
 }
