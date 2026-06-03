@@ -34,7 +34,7 @@ class _BranchSwitcherState extends State<BranchSwitcher>
     _prevIndex = widget.currentIndex;
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 300),
     );
     _oldFadeOut = Tween<double>(begin: 1.0, end: 0.0).animate(
       CurvedAnimation(parent: _ctrl, curve: Curves.easeIn),
@@ -42,8 +42,11 @@ class _BranchSwitcherState extends State<BranchSwitcher>
     _newFadeIn = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
     );
+    _ctrl.addListener(_onTick);
     _ctrl.addStatusListener(_onStatus);
   }
+
+  void _onTick() => setState(() {});
 
   void _onStatus(AnimationStatus status) {
     if (status == AnimationStatus.completed) {
@@ -64,6 +67,7 @@ class _BranchSwitcherState extends State<BranchSwitcher>
 
   @override
   void dispose() {
+    _ctrl.removeListener(_onTick);
     _ctrl.removeStatusListener(_onStatus);
     _ctrl.dispose();
     super.dispose();
