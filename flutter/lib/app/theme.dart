@@ -20,6 +20,9 @@ class HdTokens extends ThemeExtension<HdTokens> {
     required this.warning,
     required this.danger,
     required this.vital,
+    required this.primaryContainer,
+    required this.onPrimaryContainer,
+    required this.surfaceContainer,
   });
 
   final Color bg; // screen background
@@ -37,6 +40,10 @@ class HdTokens extends ThemeExtension<HdTokens> {
   final Color danger; // red — error / out-of-range / critical
   final Color vital; // rose — blood-pressure & heart metrics
 
+  final Color primaryContainer;
+  final Color onPrimaryContainer;
+  final Color surfaceContainer;
+
   static const dark = HdTokens(
     bg: Color(0xFF0F172A),
     panel: Color(0xFF1E293B),
@@ -46,25 +53,31 @@ class HdTokens extends ThemeExtension<HdTokens> {
     textPrimary: Color(0xFFF1F5F9),
     textSecondary: Color(0xFF94A3B8),
     textMuted: Color(0xFF64748B),
-    good: Color(0xFF34D399), // emerald-400
-    warning: Color(0xFFFBBF24), // amber-400
-    danger: Color(0xFFF87171), // red-400
-    vital: Color(0xFFFB7185), // rose-400
+    good: Color(0xFF34D399),
+    warning: Color(0xFFFBBF24),
+    danger: Color(0xFFF87171),
+    vital: Color(0xFFFB7185),
+    primaryContainer: Color(0xFF004F58),
+    onPrimaryContainer: Color(0xFF97F0FF),
+    surfaceContainer: Color(0xFF162022),
   );
 
   static const light = HdTokens(
-    bg: Color(0xFFF8FAFC),
+    bg: Color(0xFFFAFDFE),
     panel: Color(0xFFFFFFFF),
-    accent: Color(0xFF0891B2),
+    accent: Color(0xFF006874),
     accentOn: Color(0xFFFFFFFF),
-    border: Color(0xFFE2E8F0),
-    textPrimary: Color(0xFF0F172A),
-    textSecondary: Color(0xFF64748B),
-    textMuted: Color(0xFF94A3B8),
-    good: Color(0xFF059669), // emerald-600
-    warning: Color(0xFFD97706), // amber-600
-    danger: Color(0xFFDC2626), // red-600
-    vital: Color(0xFFE11D48), // rose-600
+    border: Color(0xFFDBE4E6),
+    textPrimary: Color(0xFF191C1D),
+    textSecondary: Color(0xFF3F484A),
+    textMuted: Color(0xFF6F797A),
+    good: Color(0xFF2E7D32),
+    warning: Color(0xFFE65100),
+    danger: Color(0xFFB71C1C),
+    vital: Color(0xFFE11D48),
+    primaryContainer: Color(0xFF97F0FF),
+    onPrimaryContainer: Color(0xFF001F24),
+    surfaceContainer: Color(0xFFE8F7F9),
   );
 
   @override
@@ -81,6 +94,9 @@ class HdTokens extends ThemeExtension<HdTokens> {
     Color? warning,
     Color? danger,
     Color? vital,
+    Color? primaryContainer,
+    Color? onPrimaryContainer,
+    Color? surfaceContainer,
   }) {
     return HdTokens(
       bg: bg ?? this.bg,
@@ -95,6 +111,9 @@ class HdTokens extends ThemeExtension<HdTokens> {
       warning: warning ?? this.warning,
       danger: danger ?? this.danger,
       vital: vital ?? this.vital,
+      primaryContainer: primaryContainer ?? this.primaryContainer,
+      onPrimaryContainer: onPrimaryContainer ?? this.onPrimaryContainer,
+      surfaceContainer: surfaceContainer ?? this.surfaceContainer,
     );
   }
 
@@ -114,6 +133,9 @@ class HdTokens extends ThemeExtension<HdTokens> {
       warning: Color.lerp(warning, other.warning, t)!,
       danger: Color.lerp(danger, other.danger, t)!,
       vital: Color.lerp(vital, other.vital, t)!,
+      primaryContainer: Color.lerp(primaryContainer, other.primaryContainer, t)!,
+      onPrimaryContainer: Color.lerp(onPrimaryContainer, other.onPrimaryContainer, t)!,
+      surfaceContainer: Color.lerp(surfaceContainer, other.surfaceContainer, t)!,
     );
   }
 }
@@ -126,16 +148,13 @@ extension HdTokensContext on BuildContext {
 const _mono = 'monospace';
 
 ThemeData _build(HdTokens t, Brightness brightness) {
-  final scheme = ColorScheme(
+  final scheme = ColorScheme.fromSeed(
+    seedColor: t.accent,
     brightness: brightness,
-    primary: t.accent,
-    onPrimary: t.accentOn,
-    secondary: t.accent,
-    onSecondary: t.accentOn,
-    error: t.danger,
-    onError: t.accentOn,
+  ).copyWith(
     surface: t.panel,
     onSurface: t.textPrimary,
+    error: t.danger,
   );
 
   // Every button is a full pill (StadiumBorder); ~52px comfortable height.
@@ -148,6 +167,12 @@ ThemeData _build(HdTokens t, Brightness brightness) {
     scaffoldBackgroundColor: t.bg,
     extensions: [t],
     fontFamily: null,
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: ZoomPageTransitionsBuilder(),
+        TargetPlatform.iOS: ZoomPageTransitionsBuilder(),
+      },
+    ),
     appBarTheme: AppBarTheme(
       backgroundColor: t.bg,
       foregroundColor: t.textPrimary,
