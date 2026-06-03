@@ -9,7 +9,7 @@ import '../blood_tests/providers.dart';
 import '../kb/kb_providers.dart';
 import '../treatment/providers.dart';
 import 'gemini_client.dart';
-// import 'chat_conversation.dart'; // needed in Task 12
+import 'chat_conversation.dart';
 
 /// Chat state + a mock responder. The backend `/api/chat` does not exist yet
 /// (api/src/handlers/chat.ts is a placeholder), so replies come from
