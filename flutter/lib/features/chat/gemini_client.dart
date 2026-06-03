@@ -3,7 +3,9 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 
 import '../../features/blood_tests/bt_store.dart';
 import '../../features/inventory/inventory_models.dart';
+import '../../features/treatment/models.dart';
 import '../../features/treatment/treatment_auth.dart';
+import '../../features/treatment/treatment_repo.dart';
 import '../../storage/cache_store.dart';
 import '../kb/kb_store.dart';
 import 'chat_context.dart';
@@ -24,7 +26,7 @@ class GeminiChatResponder implements ChatResponder {
   final String apiKey;
   final TreatmentAuth auth;
   final KbStore kbStore;
-  final dynamic treatmentRepo; // TreatmentRepo
+  final TreatmentRepo treatmentRepo;
   final BtStore btStore;
   final CacheStore cacheStore;
 
@@ -33,10 +35,11 @@ class GeminiChatResponder implements ChatResponder {
     // 1. Ensure Firebase auth (fast path <100ms if already authed)
     await auth.ensure();
 
-    // 2. Fetch data
+    // 2. Fetch data (TreatmentRepo is typed via the provider)
     final kbEntries = await kbStore.getAll();
+
     final treatmentData = await treatmentRepo.getAll()
-        as ({List<dynamic> sessions, List<dynamic> readings});
+        as ({List<Session> sessions, List<Reading> readings});
 
     final btCache = btStore.readCache();
     final fitnessSummary = cacheStore.readStale('fitness_summary');
@@ -48,15 +51,12 @@ class GeminiChatResponder implements ChatResponder {
       } catch (_) {}
     }
 
-    // 3. Build system prompt
-    final sessions = treatmentData.sessions.cast<dynamic>()
-      ..sort((a, b) => (b.date as String).compareTo(a.date as String));
-
+    final sessions = [...treatmentData.sessions]
+      ..sort((a, b) => b.date.compareTo(a.date));
     final lastSession = sessions.isEmpty ? null : sessions.first;
     final lastReadings = lastSession == null
-        ? <dynamic>[]
+        ? <Reading>[]
         : treatmentData.readings
-            .cast<dynamic>()
             .where((r) => r.sessionId == lastSession.sessionId)
             .toList();
 
