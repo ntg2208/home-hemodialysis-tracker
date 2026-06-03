@@ -1,0 +1,88 @@
+<h2>Chat History</h2>
+<p class="subtitle">Conversations stored in Firestore. Viewable from the chat sheet.</p>
+
+<div class="section">
+  <h3>Chat Sheet — Header with History Button</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family: monospace; font-size: 12px; line-height: 1.6;">
+      <div style="display:flex;align-items:center;padding:8px 12px;background:#1a2332;border-radius:8px;">
+        <span style="background:#7ecfff;width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;">✨</span>
+        <span style="color:#ccc;margin-left:8px;font-weight:600;">Assistant</span>
+        <span style="color:#555;margin-left:auto;margin-right:12px;font-size:11px;">History</span>
+        <span style="color:#555;font-size:11px;">New chat</span>
+        <span style="color:#555;margin-left:12px;">✕</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>History Sheet — List of Past Conversations</h3>
+  <div class="mockup">
+    <div class="mockup-header">Chat History (modal bottom sheet)</div>
+    <div class="mockup-body" style="font-family: monospace; font-size: 12px; line-height: 1.6;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <span style="color:#ccc;font-weight:600;">Past conversations</span>
+        <span style="color:#555;font-size:11px;">✕</span>
+      </div>
+      <div style="background:#1a2332;padding:10px;border-radius:6px;margin-bottom:6px;cursor:pointer;">
+        <span style="color:#ccc;">How's my blood pressure trending?</span><br>
+        <span style="color:#555;font-size:10px;">3 messages · Mon 2 Jun 14:23</span>
+      </div>
+      <div style="background:#1a2332;padding:10px;border-radius:6px;margin-bottom:6px;">
+        <span style="color:#ccc;">What's my latest creatinine?</span><br>
+        <span style="color:#555;font-size:10px;">5 messages · Sun 1 Jun 09:15</span>
+      </div>
+      <div style="background:#1a2332;padding:10px;border-radius:6px;margin-bottom:6px;">
+        <span style="color:#ccc;">When's the next delivery?</span><br>
+        <span style="color:#555;font-size:10px;">2 messages · Fri 30 May 18:40</span>
+      </div>
+      <div style="border-top:1px solid #333;margin-top:8px;padding-top:8px;">
+        <span style="color:#ff6b6b;font-size:11px;">Clear all history</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Input Row — Before vs After (padding fix)</h3>
+  <div style="display:flex;gap:16px;">
+    <div style="flex:1;">
+      <div class="mockup" style="border:1px solid #ff6b6b22;">
+        <div class="mockup-header">Before (too close to bottom)</div>
+        <div class="mockup-body" style="font-family: monospace; font-size: 12px; line-height: 1.6;padding-bottom:4px;">
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 0;">
+            <span style="flex:1;background:#1a2332;padding:8px;border-radius:8px;color:#555;">Message</span>
+            <span style="background:#7ecfff;width:36px;height:36px;border-radius:50%;display:inline-block;"></span>
+          </div>
+          <div style="border-top:2px solid #ff6b6b;width:100%;margin-top:2px;"></div>
+          <span style="color:#ff6b6b;font-size:10px;">8px bottom padding — cramped when keyboard hidden</span>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1;">
+      <div class="mockup" style="border:1px solid #7ecfff22;">
+        <div class="mockup-header">After (comfortable spacing)</div>
+        <div class="mockup-body" style="font-family: monospace; font-size: 12px; line-height: 1.6;padding-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 0 16px 0;">
+            <span style="flex:1;background:#1a2332;padding:8px;border-radius:8px;color:#555;">Message</span>
+            <span style="background:#7ecfff;width:36px;height:36px;border-radius:50%;display:inline-block;"></span>
+          </div>
+          <div style="border-top:2px solid #7ecfff;width:100%;margin-top:2px;"></div>
+          <span style="color:#7ecfff;font-size:10px;">bottom: 24 + viewInsets — comfortable with or without keyboard</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Firestore Schema</h3>
+  <table>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Collection</td><td style="padding:4px 8px;">chat_conversations/{conversation_id}</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Fields</td><td style="padding:4px 8px;">id: string, title: string (first message, truncated), created_at: timestamp, updated_at: timestamp, messages: [{role: 'user'|'assistant', text: string, timestamp}]</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Client access</td><td style="padding:4px 8px;">Direct Firestore from Flutter (same pattern as treatment sessions). No Cloud Run proxy.</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Firestore rules</td><td style="padding:4px 8px;">New chat_conversations collection, same UID lock as treatment_* collections</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Lifecycle</td><td style="padding:4px 8px;">Auto-saved on each assistant reply. "New chat" creates a fresh conversation. "Clear all history" deletes all docs.</td></tr>
+  </table>
+</div>

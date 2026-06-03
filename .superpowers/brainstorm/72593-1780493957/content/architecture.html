@@ -1,0 +1,93 @@
+<h2>Chat Backend Architecture — Option C (Smart Summary)</h2>
+<p class="subtitle">Flutter chat UI → Cloud Run → Gemini AI Studio, with pre-assembled patient context</p>
+
+<div class="section">
+  <h3>Request Flow</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family: monospace; font-size: 13px; line-height: 1.6;">
+      <div style="background:#1a2332;padding:12px;border-radius:8px;margin-bottom:12px;">
+        <span style="color:#7ecfff;">Flutter Chat Sheet</span><br>
+        <span style="color:#888;">POST /api/chat  { message, history }</span><br>
+        <span style="color:#888;">Authorization: Bearer &lt;MAIN_API_KEY&gt;</span>
+      </div>
+      <div style="text-align:center;color:#555;font-size:18px;padding:4px 0;">↓</div>
+      <div style="background:#1a2332;padding:12px;border-radius:8px;margin-bottom:12px;">
+        <span style="color:#7ecfff;">Cloud Run (Hono) — /api/chat</span><br>
+        <span style="color:#888;">1. Verify Bearer auth</span><br>
+        <span style="color:#888;">2. Assemble patient summary from live data</span><br>
+        <span style="color:#888;">3. Build system prompt with summary + instructions</span><br>
+        <span style="color:#888;">4. Forward [system, ...history, user message] to Gemini</span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <div style="flex:1;background:#1a2332;padding:8px;border-radius:6px;text-align:center;">
+          <span style="color:#ffa94d;font-size:11px;">Firestore</span><br>
+          <span style="color:#888;font-size:10px;">sessions + inventory</span>
+        </div>
+        <div style="flex:1;background:#1a2332;padding:8px;border-radius:6px;text-align:center;">
+          <span style="color:#ffa94d;font-size:11px;">GCS</span><br>
+          <span style="color:#888;font-size:10px;">fitness summary</span>
+        </div>
+        <div style="flex:1;background:#1a2332;padding:8px;border-radius:6px;text-align:center;">
+          <span style="color:#ffa94d;font-size:11px;">In-memory</span><br>
+          <span style="color:#888;font-size:10px;">blood tests JSON</span>
+        </div>
+      </div>
+      <div style="text-align:center;color:#555;font-size:18px;padding:4px 0;">↓</div>
+      <div style="background:#1a2332;padding:12px;border-radius:8px;">
+        <span style="color:#7ecfff;">Gemini AI Studio</span><br>
+        <span style="color:#888;">Model: gemini-2.5-flash (free tier)</span><br>
+        <span style="color:#888;">Auth: API key from Secret Manager</span><br>
+        <span style="color:#888;">Streaming SSE response back to Flutter</span>
+      </div>
+      <div style="text-align:center;color:#555;font-size:18px;padding:4px 0;">↓</div>
+      <div style="background:#1a2332;padding:12px;border-radius:8px;">
+        <span style="color:#7ecfff;">Flutter Chat Sheet</span><br>
+        <span style="color:#888;">SSE stream → typed words into markdown bubble</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Smart Summary — What Goes In the System Prompt</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family: monospace; font-size: 12px; line-height: 1.5;">
+      <span style="color:#ffa94d;">System:</span><br>
+      <span style="color:#888;">You are a personal health assistant for a home hemodialysis patient.</span><br><br>
+      <span style="color:#ffa94d;">Patient state (auto-assembled, current as of today):</span><br>
+      <span style="color:#888;">• Last dialysis: Sat 31 May, pre 142/88 HR76, post 126/78 HR72, UF 2.5L</span><br>
+      <span style="color:#888;">• Recent BP trend: 7-day avg pre-sys 138 (↓4 from prior week)</span><br>
+      <span style="color:#888;">• Latest bloods (18 May): creatinine 1073, K+ 5.1, Hb 112, Kt/V 1.4</span><br>
+      <span style="color:#888;">• Resting HR (7-day avg): 83 bpm. HRV (deep sleep RMSSD): 14ms.</span><br>
+      <span style="color:#888;">• Inventory: next delivery 30 Jun. SAK stock: 3 boxes. Cartridges: 2 boxes.</span><br>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Settings Design</h3>
+  <div class="mockup">
+    <div class="mockup-header">Settings Screen — New AI Section</div>
+    <div class="mockup-body" style="font-family: monospace; font-size: 12px; line-height: 1.6;">
+      <span style="color:#888;">System Theme:  [Light]</span><br>
+      <span style="color:#888;">Clear credentials:  [Clear]</span><br>
+      <div style="border-top:1px solid #333;margin:8px 0;"></div>
+      <span style="color:#ffa94d;">AI Assistant</span><br>
+      <span style="color:#888;">Enable AI chat  [Switch: OFF/ON]</span><br>
+      <span style="color:#888;">AI Studio API key  [····················]  [Clear]</span><br>
+      <span style="color:#555;">Get a free key at aistudio.google.com</span><br>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Key Design Points</h3>
+  <table>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Provider</td><td style="padding:4px 8px;">Gemini via AI Studio (free tier)</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Model</td><td style="padding:4px 8px;">gemini-2.5-flash (fast, cheap, strong enough for Q&A over structured data)</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Streaming</td><td style="padding:4px 8px;">Yes — SSE from Cloud Run, word-by-word into Flutter</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">System prompt</td><td style="padding:4px 8px;">Pre-assembled summary at request time from Firestore + GCS + blood-tests JSON</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Opt-in</td><td style="padding:4px 8px;">AI disabled by default. User enters key in Settings to enable.</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Swap ready</td><td style="padding:4px 8px;">LLM behind a pluggable interface — swap to Claude or on-device later</td></tr>
+  </table>
+</div>

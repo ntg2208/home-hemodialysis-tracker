@@ -1,0 +1,113 @@
+<h2>Knowledge Base → Chat Context</h2>
+<p class="subtitle">KB is the editable source of truth. Live data fills in the dynamic part. Both go into the system prompt.</p>
+
+<div class="section">
+  <h3>How It Fits Together</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family: monospace; font-size: 13px; line-height: 1.6;">
+      <div style="display:flex;gap:12px;">
+        <div style="flex:1;background:#1a2332;padding:12px;border-radius:8px;">
+          <span style="color:#ffa94d;">KB Screen (user-editable)</span><br>
+          <span style="color:#888;font-size:11px;">Dry weight: 59 kg</span><br>
+          <span style="color:#888;font-size:11px;">Access: left arm fistula, buttonhole</span><br>
+          <span style="color:#888;font-size:11px;">NxStage settings: dialysate flow...</span><br>
+          <span style="color:#888;font-size:11px;">Allergies: chlorhexidine (rash)</span><br>
+          <span style="color:#888;font-size:11px;">Target Kt/V: ≥1.4</span><br>
+          <span style="color:#888;font-size:11px;">Team: nurse Sarah, Dr. Chen...</span><br>
+          <div style="border-top:1px solid #333;margin-top:8px;padding-top:8px;">
+            <span style="color:#555;font-size:10px;">User can add / edit / delete any entry.</span><br>
+            <span style="color:#555;font-size:10px;">LLM can propose edits → user approves.</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;color:#555;font-size:24px;">+</div>
+        <div style="flex:1;background:#1a2332;padding:12px;border-radius:8px;">
+          <span style="color:#ffa94d;">Live Data Summary (auto)</span><br>
+          <span style="color:#888;font-size:11px;">Last session: Sat 31 May, UF 2.5L</span><br>
+          <span style="color:#888;font-size:11px;">BP trend: 7-day avg pre-sys 138 ↓</span><br>
+          <span style="color:#888;font-size:11px;">Latest bloods: Cr 1073, K+ 5.1</span><br>
+          <span style="color:#888;font-size:11px;">Resting HR: 83. HRV: 14ms.</span><br>
+          <span style="color:#888;font-size:11px;">Stock: 3 SAK, 2 cartridges</span><br>
+          <div style="border-top:1px solid #333;margin-top:8px;padding-top:8px;">
+            <span style="color:#555;font-size:10px;">Assembled from caches at request time.</span><br>
+            <span style="color:#555;font-size:10px;">Read-only — no user editing.</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;color:#555;font-size:24px;">→</div>
+        <div style="flex:1;background:#1a3344;padding:12px;border-radius:8px;border:1px solid #7ecfff;">
+          <span style="color:#7ecfff;">System Prompt</span><br>
+          <span style="color:#ccc;font-size:10px;">You are a home HD assistant.</span><br>
+          <span style="color:#ccc;font-size:10px;">---PATIENT KNOWLEDGE---</span><br>
+          <span style="color:#ccc;font-size:10px;">Dry weight: 59 kg...</span><br>
+          <span style="color:#ccc;font-size:10px;">---CURRENT STATE---</span><br>
+          <span style="color:#ccc;font-size:10px;">Last session: Sat 31 May...</span><br>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>KB Screen (replaces current placeholder)</h3>
+  <div class="mockup">
+    <div class="mockup-header">Knowledge Base — Entry List</div>
+    <div class="mockup-body" style="font-family: monospace; font-size: 12px; line-height: 1.6;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <span style="color:#ccc;">5 entries</span>
+        <span style="background:#7ecfff20;color:#7ecfff;padding:4px 12px;border-radius:16px;font-size:11px;">+ Add entry</span>
+      </div>
+      <div style="background:#1a2332;padding:10px;border-radius:6px;margin-bottom:6px;border-left:3px solid #ffa94d;">
+        <span style="color:#ffa94d;">Dry Weight</span><br>
+        <span style="color:#888;font-size:11px;">59 kg — target post-dialysis weight</span>
+      </div>
+      <div style="background:#1a2332;padding:10px;border-radius:6px;margin-bottom:6px;border-left:3px solid #7ecfff;">
+        <span style="color:#7ecfff;">Vascular Access</span><br>
+        <span style="color:#888;font-size:11px;">Left arm, radiocephalic fistula, buttonhole technique. Two sites — arterial (inner) and venous (outer).</span>
+      </div>
+      <div style="background:#1a2332;padding:10px;border-radius:6px;margin-bottom:6px;">
+        <span style="color:#ccc;">Allergies</span><br>
+        <span style="color:#888;font-size:11px;">Chlorhexidine — contact rash. Use iodine-based prep.</span>
+      </div>
+      <div style="background:#1a2332;padding:10px;border-radius:6px;margin-bottom:6px;">
+        <span style="color:#ccc;">Clinical Targets</span><br>
+        <span style="color:#888;font-size:11px;">Kt/V ≥ 1.4, Hb 100–120, PO4 1.1–1.8, K+ 3.5–5.0</span>
+      </div>
+      <div style="background:#1a2332;padding:10px;border-radius:6px;">
+        <span style="color:#ccc;">Care Team</span><br>
+        <span style="color:#888;font-size:11px;">Home HD nurse: Sarah. Consultant: Dr. Chen. Imperial College Healthcare NHS Trust.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>LLM Can Propose KB Updates</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family: monospace; font-size: 12px; line-height: 1.5;">
+      <div style="background:#1a2332;padding:10px;border-radius:6px;margin-bottom:8px;">
+        <span style="color:#888;">User: my dry weight was changed to 58.5 today</span>
+      </div>
+      <div style="background:#1a3344;padding:10px;border-radius:6px;margin-bottom:8px;">
+        <span style="color:#7ecfff;">Assistant: Got it. I can update your KB:</span><br>
+        <span style="color:#888;font-size:11px;">Dry Weight: 59 kg → 58.5 kg</span><br>
+        <div style="margin-top:6px;">
+          <span style="background:#7ecfff20;color:#7ecfff;padding:2px 10px;border-radius:12px;font-size:10px;">✓ Update KB</span>
+          <span style="color:#555;font-size:10px;margin-left:8px;">tapping updates the entry</span>
+        </div>
+      </div>
+      <div style="color:#555;font-size:11px;margin-top:8px;">
+        User taps "Update KB" → entry is saved → next chat includes the updated value.
+        <br>No write happens without user confirmation.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Data Model</h3>
+  <table>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Storage</td><td style="padding:4px 8px;">Firestore collection kb_entries/{id} — same pattern as inventory. Works offline with persistence.</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Schema</td><td style="padding:4px 8px;">{ id, title, content, updated_at, source: 'user' | 'ai-proposed' }</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">API</td><td style="padding:4px 8px;">CRUD via new /api/kb routes (or direct Firestore from Flutter — same as treatment)</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">AI updates</td><td style="padding:4px 8px;">LLM returns a structured response flag for proposed KB changes. Flutter renders the confirmation button. User must tap to save.</td></tr>
+  </table>
+</div>

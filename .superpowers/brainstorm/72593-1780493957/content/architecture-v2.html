@@ -1,0 +1,77 @@
+<h2>Chat Architecture — Fully On-Device</h2>
+<p class="subtitle">Flutter assembles context, calls Gemini AI Studio directly. Cloud Run not involved.</p>
+
+<div class="section">
+  <h3>Request Flow</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family: monospace; font-size: 13px; line-height: 1.6;">
+      <div style="background:#1a2332;padding:12px;border-radius:8px;margin-bottom:12px;">
+        <span style="color:#7ecfff;">Flutter ChatController.send(message)</span><br>
+        <span style="color:#888;">1. Build patient summary from local caches</span><br>
+        <span style="color:#888;">2. Read API key from flutter_secure_storage</span><br>
+        <span style="color:#888;">3. POST to generativeai.googleapis.com (SSE stream)</span><br>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <div style="flex:1;background:#1a2332;padding:8px;border-radius:6px;text-align:center;">
+          <span style="color:#ffa94d;font-size:11px;">BtStore</span><br>
+          <span style="color:#888;font-size:10px;">blood tests cache</span>
+        </div>
+        <div style="flex:1;background:#1a2332;padding:8px;border-radius:6px;text-align:center;">
+          <span style="color:#ffa94d;font-size:11px;">Firestore</span><br>
+          <span style="color:#888;font-size:10px;">sessions + inventory</span>
+        </div>
+        <div style="flex:1;background:#1a2332;padding:8px;border-radius:6px;text-align:center;">
+          <span style="color:#ffa94d;font-size:11px;">CacheStore</span><br>
+          <span style="color:#888;font-size:10px;">fitness summary</span>
+        </div>
+        <div style="flex:1;background:#1a2332;padding:8px;border-radius:6px;text-align:center;">
+          <span style="color:#ffa94d;font-size:11px;">Secure Storage</span><br>
+          <span style="color:#888;font-size:10px;">AI Studio key</span>
+        </div>
+      </div>
+      <div style="text-align:center;color:#555;font-size:18px;padding:4px 0;">↓</div>
+      <div style="background:#1a2332;padding:12px;border-radius:8px;">
+        <span style="color:#7ecfff;">Gemini AI Studio</span><br>
+        <span style="color:#888;">https://generativeai.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent</span><br>
+        <span style="color:#888;">Auth: x-goog-api-key header</span><br>
+        <span style="color:#888;">Response: SSE stream with content chunks</span>
+      </div>
+      <div style="text-align:center;color:#555;font-size:18px;padding:4px 0;">↓</div>
+      <div style="background:#1a2332;padding:12px;border-radius:8px;">
+        <span style="color:#7ecfff;">ChatSheet rebuilds</span><br>
+        <span style="color:#888;">SSE chunks → words append in real-time to markdown bubble</span><br>
+        <span style="color:#888;">No Cloud Run, no cold starts. Only online dependency: Gemini API.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>What Stays vs Goes</h3>
+  <table>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">API key</td><td style="padding:4px 8px;">Stored in flutter_secure_storage alongside existing main key. Entered once in Settings.</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Context assembly</td><td style="padding:4px 8px;">New ChatContextBuilder class in Flutter — reads from BtStore / Firestore / CacheStore, returns a formatted string.</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">LLM call</td><td style="padding:4px 8px;">Direct HTTP to Gemini REST API. SSE stream parsed in Dart. No proxy.</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Cloud Run</td><td style="padding:4px 8px;">Not involved. /api/chat placeholder stays as-is or can be removed.</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Offline</td><td style="padding:4px 8px;">Context works offline. LLM call fails gracefully — "AI requires internet" message.</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>Flutter File Changes</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family: monospace; font-size: 12px; line-height: 1.5;">
+      <span style="color:#888;">flutter/lib/features/chat/</span><br>
+      <span style="color:#888;">  chat_controller.dart   ← swap MockChatResponder → GeminiChatResponder</span><br>
+      <span style="color:#888;">  chat_sheet.dart        ← no change (already handles streaming UI)</span><br>
+      <span style="color:#7ecfff;">  chat_context.dart      ★ NEW — assembles patient summary from local caches</span><br>
+      <span style="color:#7ecfff;">  gemini_client.dart     ★ NEW — HTTP + SSE streaming client</span><br>
+      <br>
+      <span style="color:#888;">flutter/lib/features/settings/</span><br>
+      <span style="color:#888;">  settings_screen.dart   ← add AI toggle + key field</span><br>
+      <br>
+      <span style="color:#888;">flutter/lib/storage/</span><br>
+      <span style="color:#888;">  secure_store.dart      ← add aiKey read/write/delete</span><br>
+    </div>
+  </div>
+</div>

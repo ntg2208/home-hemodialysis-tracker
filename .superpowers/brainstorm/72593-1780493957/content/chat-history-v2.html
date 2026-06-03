@@ -1,0 +1,100 @@
+<h2>Chat Header & History — Revised</h2>
+<p class="subtitle">Icon buttons. Past conversations are read-only.</p>
+
+<div class="section">
+  <h3>Chat Sheet Header</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family: monospace; font-size: 12px; line-height: 1.6;">
+      <div style="display:flex;align-items:center;padding:8px 12px;background:#1a2332;border-radius:8px;">
+        <span style="background:#7ecfff;width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;">✨</span>
+        <span style="color:#ccc;margin-left:8px;font-weight:600;">Assistant</span>
+        <span style="margin-left:auto;display:flex;gap:4px;">
+          <span style="width:32px;height:32px;border-radius:50%;border:1px solid #444;display:inline-flex;align-items:center;justify-content:center;color:#888;">🕐</span>
+          <span style="width:32px;height:32px;border-radius:50%;border:1px solid #444;display:inline-flex;align-items:center;justify-content:center;color:#888;">+</span>
+          <span style="width:32px;height:32px;border-radius:50%;border:1px solid #444;display:inline-flex;align-items:center;justify-content:center;color:#888;">✕</span>
+        </span>
+      </div>
+      <div style="margin-top:4px;">
+        <span style="color:#555;font-size:10px;">history &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; new chat &nbsp;&nbsp;&nbsp; close</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Two Sheet Modes</h3>
+  <div style="display:flex;gap:16px;">
+    <div style="flex:1;">
+      <div class="mockup" style="border:1px solid #7ecfff;">
+        <div class="mockup-header" style="background:#1a2a3a;">Active Conversation</div>
+        <div class="mockup-body" style="font-family: monospace; font-size: 12px; line-height: 1.6;">
+          <div style="min-height:120px;">
+            <div style="background:#1a3344;padding:8px;border-radius:6px;margin-bottom:6px;">
+              <span style="color:#7ecfff;">Your pre-dialysis systolic...</span>
+            </div>
+            <div style="background:#1a2332;padding:8px;border-radius:6px;margin-left:40px;">
+              <span style="color:#ccc;">How's my BP trending?</span>
+            </div>
+          </div>
+          <div style="border-top:1px solid #333;padding-top:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="flex:1;background:#1a2332;padding:8px;border-radius:8px;color:#ccc;">Message</span>
+              <span style="background:#7ecfff;width:36px;height:36px;border-radius:50%;display:inline-block;"></span>
+            </div>
+            <span style="color:#7ecfff;font-size:10px;margin-top:4px;">Input enabled — live conversation</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1;">
+      <div class="mockup" style="border:1px solid #ffa94d;">
+        <div class="mockup-header" style="background:#2a2a1a;">Viewing History</div>
+        <div class="mockup-body" style="font-family: monospace; font-size: 12px; line-height: 1.6;">
+          <div style="display:flex;align-items:center;gap:4px;margin-bottom:8px;">
+            <span style="color:#555;font-size:10px;">← Back</span>
+            <span style="color:#888;font-size:10px;margin-left:4px;">How's my BP trending? · Mon 2 Jun</span>
+          </div>
+          <div style="min-height:120px;">
+            <div style="background:#1a3344;padding:8px;border-radius:6px;margin-bottom:6px;">
+              <span style="color:#7ecfff;">Your pre-dialysis systolic...</span>
+            </div>
+            <div style="background:#1a2332;padding:8px;border-radius:6px;margin-left:40px;">
+              <span style="color:#ccc;">How's my BP trending?</span>
+            </div>
+          </div>
+          <div style="border-top:1px solid #333;padding-top:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="flex:1;background:#1a1a1a;padding:8px;border-radius:8px;color:#444;">Viewing past conversation</span>
+              <span style="background:#444;width:36px;height:36px;border-radius:50%;display:inline-block;"></span>
+            </div>
+            <span style="color:#ffa94d;font-size:10px;margin-top:4px;">Input disabled — read-only</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>State Transitions</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family: monospace; font-size: 12px; line-height: 1.8;">
+      <span style="color:#888;">Chat opens → <b>Active mode</b> (new or resumed conversation, input enabled)</span><br>
+      <span style="color:#888;">Tap 🕐 → <b>History sheet</b> (list of past conversations)</span><br>
+      <span style="color:#888;">Tap a conversation → <b>Read-only mode</b> (loads messages, input disabled, "← Back" in header)</span><br>
+      <span style="color:#888;">Tap "← Back" → <b>History sheet</b> again</span><br>
+      <span style="color:#888;">Tap + → <b>Active mode</b> (new empty conversation, input enabled, title unset)</span><br>
+      <span style="color:#888;">Tap ✕ → close sheet (active conversation auto-saved)</span>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Auto-Save Behaviour</h3>
+  <table>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">On each reply</td><td style="padding:4px 8px;">Conversation saved to Firestore. If it's the first exchange, title is set from the user's first message.</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">On close</td><td style="padding:4px 8px;">Active conversation saved. Empty conversations (no messages) are not persisted.</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">On "New chat"</td><td style="padding:4px 8px;">Current conversation saved first, then fresh state.</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">History ordering</td><td style="padding:4px 8px;">Most recent first (by updated_at).</td></tr>
+  </table>
+</div>

@@ -1,0 +1,148 @@
+<h2>Screen transition style</h2>
+<p class="subtitle">These are the animations that play when you move Home → Pre-treatment → Active session → Post. Tap "Play" on each to preview, then pick your favourite.</p>
+
+<style>
+.demo-wrap { position:relative; height:160px; overflow:hidden; border-radius:12px; background:#0f172a; margin-bottom:8px; cursor:pointer; user-select:none; }
+.demo-screen { position:absolute; inset:0; padding:12px; border-radius:12px; }
+.demo-a { background:#0f172a; z-index:2; }
+.demo-b { background:#0f172a; z-index:1; }
+.screen-header { font-size:11px; font-weight:700; color:#67e8f9; margin-bottom:8px; letter-spacing:.05em; }
+.screen-card { background:#1e293b; border-radius:8px; padding:8px 10px; margin-bottom:6px; font-size:10px; color:#94a3b8; }
+.screen-btn { background:#0e7490; border-radius:8px; padding:8px; text-align:center; font-size:10px; font-weight:700; color:#cffafe; }
+.play-btn { display:inline-flex; align-items:center; gap:6px; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:7px 14px; font-size:12px; color:#94a3b8; cursor:pointer; transition:color .15s; margin-top:4px; }
+.play-btn:hover { color:#e2e8f0; }
+.option.selected .play-btn { border-color:#0e7490; color:#67e8f9; }
+
+/* FADE */
+@keyframes fadeOut { from { opacity:1 } to { opacity:0 } }
+@keyframes fadeIn  { from { opacity:0 } to { opacity:1 } }
+.anim-fade .demo-a.out { animation: fadeOut .35s ease forwards; }
+.anim-fade .demo-b.in  { animation: fadeIn  .35s ease forwards; z-index:3; }
+
+/* SLIDE */
+@keyframes slideOutLeft  { from { transform:translateX(0)    } to { transform:translateX(-30%) } }
+@keyframes slideInRight  { from { transform:translateX(100%) } to { transform:translateX(0)    } }
+.anim-slide .demo-a.out { animation: slideOutLeft .32s cubic-bezier(.4,0,.2,1) forwards; }
+.anim-slide .demo-b.in  { animation: slideInRight .32s cubic-bezier(.4,0,.2,1) forwards; z-index:3; }
+
+/* SCALE FADE (M3 style) */
+@keyframes scaleOut { from { transform:scale(1);    opacity:1 } to { transform:scale(.92);   opacity:0 } }
+@keyframes scaleIn  { from { transform:scale(1.04); opacity:0 } to { transform:scale(1);     opacity:1 } }
+.anim-m3 .demo-a.out { animation: scaleOut .28s cubic-bezier(.2,0,0,1) forwards; }
+.anim-m3 .demo-b.in  { animation: scaleIn  .3s  cubic-bezier(.2,0,0,1) forwards; z-index:3; }
+
+/* SHARED AXIS (M3 forward = slide up) */
+@keyframes axisOut { from { transform:translateY(0);   opacity:1 } to { transform:translateY(-8%);  opacity:0 } }
+@keyframes axisIn  { from { transform:translateY(10%); opacity:0 } to { transform:translateY(0);    opacity:1 } }
+.anim-axis .demo-a.out { animation: axisOut .3s cubic-bezier(.2,0,0,1) forwards; }
+.anim-axis .demo-b.in  { animation: axisIn  .3s cubic-bezier(.2,0,0,1) forwards; z-index:3; }
+</style>
+
+<script>
+function playDemo(id, cls) {
+  const wrap = document.getElementById(id);
+  const a = wrap.querySelector('.demo-a');
+  const b = wrap.querySelector('.demo-b');
+  // Reset
+  wrap.className = 'demo-wrap ' + cls;
+  a.className = 'demo-screen demo-a';
+  b.className = 'demo-screen demo-b';
+  void wrap.offsetWidth;
+  // Animate
+  a.classList.add('out');
+  b.classList.add('in');
+  // Reset back after
+  setTimeout(() => {
+    a.className = 'demo-screen demo-a';
+    b.className = 'demo-screen demo-b';
+  }, 900);
+}
+</script>
+
+<div class="options">
+
+  <div class="option" data-choice="fade" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <div id="demo-fade" class="demo-wrap anim-fade">
+        <div class="demo-screen demo-a">
+          <div class="screen-header">HOME</div>
+          <div class="screen-card">Last session: 2026-06-02</div>
+          <div class="screen-btn">▷ Start session</div>
+        </div>
+        <div class="demo-screen demo-b">
+          <div class="screen-header">PRE-TREATMENT</div>
+          <div class="screen-card">Weight · UF goal · UF rate</div>
+          <div class="screen-card">BP sys · BP dia · Pulse</div>
+        </div>
+      </div>
+      <button class="play-btn" type="button" onclick="event.stopPropagation();playDemo('demo-fade','anim-fade')">▷ Play</button>
+      <h3>Fade</h3>
+      <p>Old screen dissolves, new one appears. Subtle, zero distraction. Works well when content position stays the same.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="slide" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <div id="demo-slide" class="demo-wrap anim-slide">
+        <div class="demo-screen demo-a">
+          <div class="screen-header">HOME</div>
+          <div class="screen-card">Last session: 2026-06-02</div>
+          <div class="screen-btn">▷ Start session</div>
+        </div>
+        <div class="demo-screen demo-b">
+          <div class="screen-header">PRE-TREATMENT</div>
+          <div class="screen-card">Weight · UF goal · UF rate</div>
+          <div class="screen-card">BP sys · BP dia · Pulse</div>
+        </div>
+      </div>
+      <button class="play-btn" type="button" onclick="event.stopPropagation();playDemo('demo-slide','anim-slide')">▷ Play</button>
+      <h3>Slide horizontal</h3>
+      <p>Forward pushes left, back pulls right. Clear sense of direction and progress through the session flow.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="m3scale" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <div id="demo-m3" class="demo-wrap anim-m3">
+        <div class="demo-screen demo-a">
+          <div class="screen-header">HOME</div>
+          <div class="screen-card">Last session: 2026-06-02</div>
+          <div class="screen-btn">▷ Start session</div>
+        </div>
+        <div class="demo-screen demo-b">
+          <div class="screen-header">PRE-TREATMENT</div>
+          <div class="screen-card">Weight · UF goal · UF rate</div>
+          <div class="screen-card">BP sys · BP dia · Pulse</div>
+        </div>
+      </div>
+      <button class="play-btn" type="button" onclick="event.stopPropagation();playDemo('demo-m3','anim-m3')">▷ Play</button>
+      <h3>Scale fade (M3 default)</h3>
+      <p>Old screen shrinks away, new one zooms in slightly. This is Google's recommended M3 motion for top-level navigation — feels premium.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="axis" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content">
+      <div id="demo-axis" class="demo-wrap anim-axis">
+        <div class="demo-screen demo-a">
+          <div class="screen-header">HOME</div>
+          <div class="screen-card">Last session: 2026-06-02</div>
+          <div class="screen-btn">▷ Start session</div>
+        </div>
+        <div class="demo-screen demo-b">
+          <div class="screen-header">PRE-TREATMENT</div>
+          <div class="screen-card">Weight · UF goal · UF rate</div>
+          <div class="screen-card">BP sys · BP dia · Pulse</div>
+        </div>
+      </div>
+      <button class="play-btn" type="button" onclick="event.stopPropagation();playDemo('demo-axis','anim-axis')">▷ Play</button>
+      <h3>Shared axis (slide up)</h3>
+      <p>M3's forward navigation — content slides upward like moving deeper. Natural "step forward" feeling for a linear session flow.</p>
+    </div>
+  </div>
+
+</div>

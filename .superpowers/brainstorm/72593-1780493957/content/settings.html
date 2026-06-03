@@ -1,0 +1,113 @@
+<h2>Settings Screen — AI Section</h2>
+<p class="subtitle">Bottom of the Settings screen, below existing System Theme and Clear Credentials</p>
+
+<div class="section">
+  <h3>Three States</h3>
+
+  <div style="display:flex;gap:16px;">
+    <div style="flex:1;">
+      <div class="mockup" style="border:1px solid #333;">
+        <div class="mockup-header" style="background:#1a2a1a;">1. AI Disabled (default)</div>
+        <div class="mockup-body" style="font-family: monospace; font-size: 12px; line-height: 1.6;">
+          <div style="border-top:1px solid #333;margin-bottom:8px;padding-top:8px;">
+            <span style="color:#ffa94d;font-weight:600;">AI Assistant</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="color:#888;">Enable AI chat</span>
+            <span style="width:40px;height:22px;background:#444;border-radius:11px;display:inline-block;position:relative;">
+              <span style="position:absolute;left:2px;top:2px;width:18px;height:18px;background:#666;border-radius:50%;"></span>
+            </span>
+          </div>
+          <div style="margin-top:8px;">
+            <span style="color:#555;">API key</span><br>
+            <span style="color:#444;">····················</span>
+          </div>
+          <div style="margin-top:4px;">
+            <span style="color:#444;font-size:11px;">Get a free key at aistudio.google.com</span>
+          </div>
+          <div style="margin-top:8px;">
+            <span style="color:#444;font-size:11px;">When enabled, chat uses Gemini 2.5 Flash (free tier).<br>Your data stays on-device — only the current question is sent to the API.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:1;">
+      <div class="mockup" style="border:1px solid #7ecfff;">
+        <div class="mockup-header" style="background:#1a2a3a;">2. AI Enabled + Key Entered</div>
+        <div class="mockup-body" style="font-family: monospace; font-size: 12px; line-height: 1.6;">
+          <div style="border-top:1px solid #333;margin-bottom:8px;padding-top:8px;">
+            <span style="color:#ffa94d;font-weight:600;">AI Assistant</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="color:#ccc;">Enable AI chat</span>
+            <span style="width:40px;height:22px;background:#7ecfff;border-radius:11px;display:inline-block;position:relative;">
+              <span style="position:absolute;right:2px;top:2px;width:18px;height:18px;background:#fff;border-radius:50%;"></span>
+            </span>
+          </div>
+          <div style="margin-top:8px;">
+            <span style="color:#888;">API key</span><br>
+            <span style="color:#ccc;">····················</span>
+            <span style="color:#ff6b6b;margin-left:8px;font-size:11px;">Clear</span>
+          </div>
+          <div style="margin-top:4px;">
+            <span style="color:#555;font-size:11px;">Get a free key at aistudio.google.com</span>
+          </div>
+          <div style="margin-top:8px;">
+            <span style="color:#7ecfff;font-size:11px;">✓ AI assistant ready — tap the chat icon to ask questions</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:12px;">
+    <div class="mockup" style="border:1px solid #ffa94d;">
+      <div class="mockup-header" style="background:#2a1a1a;">3. Enabled but No Key</div>
+      <div class="mockup-body" style="font-family: monospace; font-size: 12px; line-height: 1.6;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span style="color:#ccc;">Enable AI chat</span>
+          <span style="width:40px;height:22px;background:#7ecfff;border-radius:11px;display:inline-block;position:relative;">
+            <span style="position:absolute;right:2px;top:2px;width:18px;height:18px;background:#fff;border-radius:50%;"></span>
+          </span>
+        </div>
+        <div style="margin-top:8px;">
+          <span style="color:#888;">API key</span><br>
+          <span style="color:#ffa94d;border-bottom:1px dashed #ffa94d;padding:2px 4px;">Enter key...</span>
+        </div>
+        <div style="margin-top:4px;">
+          <span style="color:#555;font-size:11px;">Get a free key at aistudio.google.com</span>
+        </div>
+        <div style="margin-top:8px;">
+          <span style="color:#ffa94d;font-size:11px;">⚠ API key required — chat will show an error until one is entered</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Behaviour Rules</h3>
+  <table>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Toggle OFF</td><td style="padding:4px 8px;">Chat FAB still visible. Sheet opens with a "AI is disabled — enable in Settings" message and a link to Settings. No API calls possible.</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Toggle ON + no key</td><td style="padding:4px 8px;">Chat sheet opens but send returns "API key not set — add one in Settings."</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Toggle ON + key set</td><td style="padding:4px 8px;">Full chat works. Key read from flutter_secure_storage on each send.</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Clear key</td><td style="padding:4px 8px;">Confirmation dialog: "Clear AI Studio key?" → Yes: remove from storage. Toggle stays ON, falls to "no key" state.</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Toggle OFF while key set</td><td style="padding:4px 8px;">Key stays stored — re-enabling restores chat immediately without re-entering.</td></tr>
+    <tr><td style="color:#7ecfff;padding:4px 8px;">Paste from clipboard</td><td style="padding:4px 8px;">Paste button next to key field. Reads clipboard, validates it looks like an API key, auto-fills.</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>API Key Storage</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family: monospace; font-size: 12px; line-height: 1.5;">
+      <span style="color:#888;">// flutter_secure_storage keys (new additions bolded)</span><br>
+      <span style="color:#888;">'main_api_key'      → existing (auth for Cloud Run /api/*)</span><br>
+      <span style="color:#7ecfff;">'ai_enabled'        → NEW 'true' | 'false'</span><br>
+      <span style="color:#7ecfff;">'ai_studio_key'     → NEW Gemini API key string</span><br><br>
+      <span style="color:#555;">All three are read on app start to configure the chat provider.</span><br>
+      <span style="color:#555;">Key is never sent to Cloud Run — stays on-device.</span>
+    </div>
+  </div>
+</div>

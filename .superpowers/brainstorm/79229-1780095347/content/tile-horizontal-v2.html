@@ -1,0 +1,160 @@
+<h2>Horizontal Tiles — with ref range + delta</h2>
+<p class="subtitle">Left: name · date · ref range &nbsp;|&nbsp; Right: value · change from previous</p>
+
+<div class="split">
+
+  <div class="mockup">
+    <div class="mockup-header">Option A — range below date</div>
+    <div class="mockup-body" style="background:#0f172a;padding:16px;font-family:sans-serif">
+
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:#475569;text-transform:uppercase;margin-bottom:8px">Haematology</div>
+      <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:20px">
+
+        <!-- in range -->
+        <div style="display:flex;align-items:center;gap:12px;border-left:4px solid #10b981;background:#1e293b;border-radius:0 6px 6px 0;padding:10px 12px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;color:#e2e8f0">Haemoglobin</div>
+            <div style="font-size:11px;color:#64748b;margin-top:1px">15 Jan 2026</div>
+            <div style="font-size:11px;color:#334155;margin-top:1px">130–170 g/L</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:13px;font-weight:600;color:#e2e8f0">118 g/L</div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">+3.0 from 115</div>
+          </div>
+          <svg width="13" height="13" viewBox="0 0 24 24"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" fill="none" stroke="#475569" stroke-width="2"/></svg>
+        </div>
+
+        <!-- out of range -->
+        <div style="display:flex;align-items:center;gap:12px;border-left:4px solid #ef4444;background:#1e293b;border-radius:0 6px 6px 0;padding:10px 12px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;color:#e2e8f0">Ferritin</div>
+            <div style="font-size:11px;color:#64748b;margin-top:1px">15 Jan 2026</div>
+            <div style="font-size:11px;color:#334155;margin-top:1px">200–500 µg/L</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:13px;font-weight:600;color:#f87171">178 µg/L</div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">−22.0 from 200</div>
+          </div>
+          <svg width="13" height="13" viewBox="0 0 24 24"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" fill="none" stroke="#475569" stroke-width="2"/></svg>
+        </div>
+
+        <!-- no ref range -->
+        <div style="display:flex;align-items:center;gap:12px;border-left:4px solid #475569;background:#1e293b;border-radius:0 6px 6px 0;padding:10px 12px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;color:#e2e8f0">Transferrin Sat.</div>
+            <div style="font-size:11px;color:#64748b;margin-top:1px">15 Jan 2026</div>
+            <div style="font-size:11px;color:#334155;margin-top:1px">no range set</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:13px;font-weight:600;color:#94a3b8">28 %</div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">+1.0 from 27</div>
+          </div>
+          <svg width="13" height="13" viewBox="0 0 24 24"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" fill="none" stroke="#475569" stroke-width="2"/></svg>
+        </div>
+
+      </div>
+
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:#475569;text-transform:uppercase;margin-bottom:8px">Renal</div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="display:flex;align-items:center;gap:12px;border-left:4px solid #ef4444;background:#1e293b;border-radius:0 6px 6px 0;padding:10px 12px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;color:#e2e8f0">Potassium</div>
+            <div style="font-size:11px;color:#64748b;margin-top:1px">15 Jan 2026</div>
+            <div style="font-size:11px;color:#334155;margin-top:1px">3.5–5.0 mmol/L</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:13px;font-weight:600;color:#f87171">6.1 mmol/L</div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">+0.8 from 5.3</div>
+          </div>
+          <svg width="13" height="13" viewBox="0 0 24 24"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" fill="#facc15" stroke="#facc15" stroke-width="2"/></svg>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;border-left:4px solid #10b981;background:#1e293b;border-radius:0 6px 6px 0;padding:10px 12px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;color:#e2e8f0">Phosphate</div>
+            <div style="font-size:11px;color:#64748b;margin-top:1px">15 Jan 2026</div>
+            <div style="font-size:11px;color:#334155;margin-top:1px">0.8–1.6 mmol/L</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:13px;font-weight:600;color:#e2e8f0">1.4 mmol/L</div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">−0.2 from 1.6</div>
+          </div>
+          <svg width="13" height="13" viewBox="0 0 24 24"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" fill="none" stroke="#475569" stroke-width="2"/></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">Option B — range inline with value</div>
+    <div class="mockup-body" style="background:#0f172a;padding:16px;font-family:sans-serif">
+
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:#475569;text-transform:uppercase;margin-bottom:8px">Haematology</div>
+      <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:20px">
+
+        <div style="display:flex;align-items:center;gap:12px;border-left:4px solid #10b981;background:#1e293b;border-radius:0 6px 6px 0;padding:10px 12px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;color:#e2e8f0">Haemoglobin</div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">15 Jan 2026</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:13px;font-weight:600;color:#e2e8f0">118 <span style="font-size:10px;color:#64748b;font-weight:400">/ 130–170 g/L</span></div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">+3.0 from 115</div>
+          </div>
+          <svg width="13" height="13" viewBox="0 0 24 24"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" fill="none" stroke="#475569" stroke-width="2"/></svg>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px;border-left:4px solid #ef4444;background:#1e293b;border-radius:0 6px 6px 0;padding:10px 12px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;color:#e2e8f0">Ferritin</div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">15 Jan 2026</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:13px;font-weight:600;color:#f87171">178 <span style="font-size:10px;color:#64748b;font-weight:400">/ 200–500 µg/L</span></div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">−22.0 from 200</div>
+          </div>
+          <svg width="13" height="13" viewBox="0 0 24 24"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" fill="none" stroke="#475569" stroke-width="2"/></svg>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px;border-left:4px solid #475569;background:#1e293b;border-radius:0 6px 6px 0;padding:10px 12px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;color:#e2e8f0">Transferrin Sat.</div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">15 Jan 2026</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:13px;font-weight:600;color:#94a3b8">28 <span style="font-size:10px;color:#334155;font-weight:400">/ no range</span></div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">+1.0 from 27</div>
+          </div>
+          <svg width="13" height="13" viewBox="0 0 24 24"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" fill="none" stroke="#475569" stroke-width="2"/></svg>
+        </div>
+
+      </div>
+
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:#475569;text-transform:uppercase;margin-bottom:8px">Renal</div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="display:flex;align-items:center;gap:12px;border-left:4px solid #ef4444;background:#1e293b;border-radius:0 6px 6px 0;padding:10px 12px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;color:#e2e8f0">Potassium</div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">15 Jan 2026</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:13px;font-weight:600;color:#f87171">6.1 <span style="font-size:10px;color:#64748b;font-weight:400">/ 3.5–5.0 mmol/L</span></div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">+0.8 from 5.3</div>
+          </div>
+          <svg width="13" height="13" viewBox="0 0 24 24"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" fill="#facc15" stroke="#facc15" stroke-width="2"/></svg>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;border-left:4px solid #10b981;background:#1e293b;border-radius:0 6px 6px 0;padding:10px 12px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;color:#e2e8f0">Phosphate</div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">15 Jan 2026</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:13px;font-weight:600;color:#e2e8f0">1.4 <span style="font-size:10px;color:#64748b;font-weight:400">/ 0.8–1.6 mmol/L</span></div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">−0.2 from 1.6</div>
+          </div>
+          <svg width="13" height="13" viewBox="0 0 24 24"><polygon points="12,2 15.1,8.3 22,9.3 17,14.1 18.2,21 12,17.8 5.8,21 7,14.1 2,9.3 8.9,8.3" fill="none" stroke="#475569" stroke-width="2"/></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
