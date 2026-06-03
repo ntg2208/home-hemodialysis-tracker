@@ -129,7 +129,9 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
           Text(widget.session.sessionId,
               style: hdMono.copyWith(color: t.textMuted)),
           const SizedBox(height: 12),
-          GridView.count(
+          FocusTraversalGroup(
+            policy: OrderedTraversalPolicy(),
+            child: GridView.count(
             crossAxisCount: 2,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -180,6 +182,7 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
                         _totalUf = v?.toDouble();
                       })),
             ],
+            ),
           ),
           const SizedBox(height: 16),
           _MedToggle(

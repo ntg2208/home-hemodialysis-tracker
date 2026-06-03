@@ -98,7 +98,7 @@ class _NumberFieldState extends State<NumberField> {
               fontFeatures: const [FontFeature.tabularFigures()]),
           decoration: InputDecoration(suffix: widget.suffix),
           onChanged: (raw) => widget.onChanged(_parse(raw)),
-          onSubmitted: (_) => FocusScope.of(context).nextFocus(),
+          onSubmitted: (_) => _focus.nextFocus(),
         ),
       ],
     );
