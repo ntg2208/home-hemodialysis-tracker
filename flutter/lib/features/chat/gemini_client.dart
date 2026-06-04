@@ -108,12 +108,15 @@ class GeminiChatResponder implements ChatResponder {
       Content.text(prompt),
     ];
 
+    const maxToolTurns = 5;
     String finalText = '';
     try {
       var response = await model.generateContent(contents);
 
       // Tool call loop — runs until model returns text with no function calls
-      while (response.functionCalls.isNotEmpty) {
+      for (var turn = 0;
+          turn < maxToolTurns && response.functionCalls.isNotEmpty;
+          turn++) {
         final functionResponses = <Content>[];
         for (final call in response.functionCalls) {
           debugPrint('[SPIKE] tool call: ${call.name} args: ${call.args}');
@@ -126,7 +129,9 @@ class GeminiChatResponder implements ChatResponder {
           );
         }
         // Append model response + function responses to content list
-        contents.add(response.candidates.first.content);
+        final candidate = response.candidates.firstOrNull;
+        if (candidate == null) break;
+        contents.add(candidate.content);
         contents.addAll(functionResponses);
         response = await model.generateContent(contents);
       }
