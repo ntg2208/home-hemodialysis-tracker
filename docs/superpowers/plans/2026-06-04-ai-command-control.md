@@ -277,6 +277,9 @@ void dispatchCommand(AppCommand cmd, Ref ref) {
     case FilterFitness():
       ref.read(fitnessFilterCommandProvider.notifier).state = cmd;
     case PrefillPreTreatment():
+      // Also navigate to /treatment — the form may not be visible yet.
+      // spec: "Navigates to /treatment first if not already there."
+      ref.read(pendingNavigationProvider.notifier).state = '/treatment';
       ref.read(prefillPreCommandProvider.notifier).state = cmd;
     case PrefillReading():
       ref.read(prefillReadingCommandProvider.notifier).state = cmd;
@@ -1146,26 +1149,7 @@ final responder = switch (ref.read(chatResponderProvider)) {
 };
 ```
 
-Note: `dispatchCommand` requires a `WidgetRef`. `ChatController` is a `Notifier` and has access to `ref` directly. Use `ref` directly — Notifier's `ref` satisfies `WidgetRef` interface. If it doesn't, use `ref.read(...)` pattern inline:
-
-```dart
-onCommand: (cmd) {
-  switch (cmd) {
-    case NavigateTo(:final route):
-      ref.read(pendingNavigationProvider.notifier).state = route;
-    case FilterBloodTests():
-      ref.read(btFilterCommandProvider.notifier).state = cmd;
-    case FilterFitness():
-      ref.read(fitnessFilterCommandProvider.notifier).state = cmd;
-    case PrefillPreTreatment():
-      ref.read(prefillPreCommandProvider.notifier).state = cmd;
-    case PrefillReading():
-      ref.read(prefillReadingCommandProvider.notifier).state = cmd;
-    case PrefillPostTreatment():
-      ref.read(prefillPostCommandProvider.notifier).state = cmd;
-  }
-},
-```
+Note: `dispatchCommand` takes `Ref` (not `WidgetRef`). `ChatController.ref` is `Ref`, so `onCommand: (cmd) => dispatchCommand(cmd, ref)` compiles directly. `dispatchCommand` handles navigation-for-prefill-pre automatically — no extra work needed here.
 
 Then replace `ref.read(chatResponderProvider)` in the rest of `send()` with the local `responder` variable.
 
@@ -1328,8 +1312,22 @@ final Set<String> _aiFilledFields = {};
 
 - [ ] **Step 3: Drain `prefillPreCommandProvider` in `initState`**
 
+`listenManual` fires `fireImmediately: false` by default — it misses any value already set before this widget mounts. **Always read the current value first**, then register for future changes:
+
 ```dart
 // After existing initState body:
+
+// 1. Apply any value already in the provider (set before this widget mounted)
+final pending = ref.read(prefillPreCommandProvider);
+if (pending != null) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!mounted) return;
+    _applyAiPrefill(pending);
+    ref.read(prefillPreCommandProvider.notifier).state = null;
+  });
+}
+
+// 2. Listen for future values
 ref.listenManual(prefillPreCommandProvider, (_, cmd) {
   if (cmd == null || !mounted) return;
   _applyAiPrefill(cmd);
@@ -1515,11 +1513,10 @@ import '../../../features/chat/command_dispatch.dart'
     show prefillReadingCommandProvider, PrefillReading;
 ```
 
-In `_ActiveSessionState.initState`:
+In `_ActiveSessionState.initState` — read current value first, then listen for future ones:
 
 ```dart
-ref.listenManual(prefillReadingCommandProvider, (_, cmd) {
-  if (cmd == null || !mounted) return;
+void _drainPrefillReading(PrefillReading cmd) {
   final nextSeq = _readings.length + 1;
   final lastBF = _readings.isNotEmpty ? _readings.last.reading.bloodFlow : null;
   showAddReadingSheet(
@@ -1530,7 +1527,19 @@ ref.listenManual(prefillReadingCommandProvider, (_, cmd) {
     onSave: _saveReading,
     prefill: cmd,
   );
-  ref.read(prefillReadingCommandProvider.notifier).state = null; // consume
+  ref.read(prefillReadingCommandProvider.notifier).state = null;
+}
+
+// In initState:
+final pendingReading = ref.read(prefillReadingCommandProvider);
+if (pendingReading != null) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (mounted) _drainPrefillReading(pendingReading);
+  });
+}
+ref.listenManual(prefillReadingCommandProvider, (_, cmd) {
+  if (cmd == null || !mounted) return;
+  _drainPrefillReading(cmd);
 });
 ```
 
@@ -1559,9 +1568,17 @@ import '../../../features/chat/command_dispatch.dart'
 final Set<String> _aiFilledFields = {};
 ```
 
-- [ ] **Step 2: Drain in `initState`**
+- [ ] **Step 2: Drain in `initState`** — read current value first to avoid missing a pre-mount value
 
 ```dart
+final pendingPost = ref.read(prefillPostCommandProvider);
+if (pendingPost != null) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!mounted) return;
+    _applyAiPrefill(pendingPost);
+    ref.read(prefillPostCommandProvider.notifier).state = null;
+  });
+}
 ref.listenManual(prefillPostCommandProvider, (_, cmd) {
   if (cmd == null || !mounted) return;
   _applyAiPrefill(cmd);
@@ -1599,141 +1616,7 @@ git commit -m "feat: PostTreatment drains prefillPostCommandProvider with AI-fil
 
 ---
 
-## Task 14: Chat sheet collapse mini-bar on prefill dispatch
-
-**Files:**
-- Modify: `flutter/lib/app/shell.dart`
-- Modify: `flutter/lib/features/chat/chat_sheet.dart`
-
-When a prefill command is dispatched, the chat sheet should collapse to a 48dp mini-bar so the user can see the form underneath. Tapping the bar re-expands it.
-
-This requires changing from `showModalBottomSheet` (which blocks) to a persistent overlay managed at the `HdScaffold` level.
-
-- [ ] **Step 1: Add a `chatSheetExpandedProvider` StateProvider**
-
-Add to `command_dispatch.dart`:
-
-```dart
-// Controls chat sheet expanded/collapsed state from outside the sheet
-final chatSheetExpandedProvider = StateProvider<bool>((ref) => false);
-```
-
-- [ ] **Step 2: Trigger collapse when any prefill command is dispatched**
-
-In `dispatchCommand()` in `command_dispatch.dart`, add after the switch:
-
-```dart
-void dispatchCommand(AppCommand cmd, Ref ref) {
-  switch (cmd) {
-    // ... existing cases ...
-  }
-  // Collapse chat sheet when a form prefill fires
-  if (cmd is PrefillPreTreatment || cmd is PrefillReading || cmd is PrefillPostTreatment) {
-    ref.read(chatSheetExpandedProvider.notifier).state = false;
-  }
-}
-```
-
-- [ ] **Step 3: Replace `showChatSheet` with a persistent overlay in `HdScaffold`**
-
-The current `ChatFab` calls `showChatSheet(context)` which opens a modal. Replace this with a `chatSheetExpandedProvider`-driven approach:
-
-In `shell.dart`, change `ChatFab.build`:
-
-```dart
-class ChatFab extends ConsumerWidget {
-  const ChatFab({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return FloatingActionButton(
-      onPressed: () => ref.read(chatSheetExpandedProvider.notifier).state = true,
-      shape: const CircleBorder(),
-      child: const Icon(Icons.chat_bubble_outline),
-    );
-  }
-}
-```
-
-- [ ] **Step 4: Add persistent chat sheet to `HdScaffold`**
-
-Wrap `HdScaffold`'s `Scaffold` body stack with a `Stack` that includes the chat overlay:
-
-```dart
-// In HdScaffold.build, wrap the Scaffold body in a Stack:
-body: Stack(
-  children: [
-    // existing body content
-    SafeArea(child: Center(child: ConstrainedBox(...))),
-    // Chat overlay
-    const _ChatOverlay(),
-  ],
-),
-```
-
-Create `_ChatOverlay`:
-
-```dart
-class _ChatOverlay extends ConsumerWidget {
-  const _ChatOverlay();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final expanded = ref.watch(chatSheetExpandedProvider);
-    if (!expanded) {
-      // Check if there's a pending prefill to show mini-bar
-      final hasPrefill = ref.watch(prefillPreCommandProvider) != null ||
-          ref.watch(prefillReadingCommandProvider) != null ||
-          ref.watch(prefillPostCommandProvider) != null;
-      if (!hasPrefill) return const SizedBox.shrink();
-      // Mini-bar
-      return Positioned(
-        bottom: 0, left: 0, right: 0,
-        child: GestureDetector(
-          onTap: () => ref.read(chatSheetExpandedProvider.notifier).state = true,
-          child: Container(
-            height: 48,
-            color: Theme.of(context).colorScheme.primary,
-            alignment: Alignment.center,
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.auto_awesome, size: 16, color: Colors.white),
-                SizedBox(width: 8),
-                Text('AI filled the form — tap to reopen',
-                    style: TextStyle(color: Colors.white, fontSize: 13)),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-    // Expanded chat sheet
-    return Positioned.fill(
-      child: GestureDetector(
-        onTap: () => ref.read(chatSheetExpandedProvider.notifier).state = false,
-        child: Container(color: Colors.black54),
-      ),
-    );
-    // Note: embed _ChatSheet here or use DraggableScrollableSheet.
-    // Full implementation mirrors chat_sheet.dart content — see existing _ChatSheet widget.
-  }
-}
-```
-
-Note: This task requires extracting `_ChatSheet` from `chat_sheet.dart` into a non-modal widget. If that refactor is too large for a single task, scope it to just the mini-bar appearing when `hasPrefill` is true. The full persistent sheet can be deferred.
-
-- [ ] **Step 5: Analyze + commit**
-
-```bash
-cd flutter && flutter analyze lib/app/shell.dart lib/features/chat/chat_sheet.dart
-git add lib/app/shell.dart lib/features/chat/ 
-git commit -m "feat: chat sheet collapse mini-bar on AI prefill dispatch"
-```
-
----
-
-## Task 15: Final integration test + cleanup
+## Task 14: Final integration test + cleanup
 
 **Files:**
 - Delete: `flutter/lib/features/chat/_spike_dispatch.dart` (if not already removed)
