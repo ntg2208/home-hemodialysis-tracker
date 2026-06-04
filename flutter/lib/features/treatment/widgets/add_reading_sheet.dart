@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/theme.dart';
 import '../../../widgets/number_field.dart';
+import '../../chat/command_dispatch.dart' show PrefillReading;
 import '../models.dart';
 import '../session_id.dart';
 
@@ -13,6 +14,7 @@ Future<void> showAddReadingSheet(
   required int seq,
   int? defaultBloodFlow,
   required Future<void> Function(Reading) onSave,
+  PrefillReading? prefill,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -23,6 +25,7 @@ Future<void> showAddReadingSheet(
       seq: seq,
       defaultBloodFlow: defaultBloodFlow,
       onSave: onSave,
+      prefill: prefill,
     ),
   );
 }
@@ -33,23 +36,58 @@ class _AddReadingSheet extends StatefulWidget {
     required this.seq,
     required this.defaultBloodFlow,
     required this.onSave,
+    this.prefill,
   });
   final String sessionId;
   final int seq;
   final int? defaultBloodFlow;
   final Future<void> Function(Reading) onSave;
+  final PrefillReading? prefill;
 
   @override
   State<_AddReadingSheet> createState() => _AddReadingSheetState();
 }
 
 class _AddReadingSheetState extends State<_AddReadingSheet> {
+  final Set<String> _aiFilledFields = {};
   late String _time = nowHHMM();
   int? _bpSys, _bpDia, _pulse, _vp, _ap;
   late int? _bloodFlow = widget.defaultBloodFlow;
   String? _note;
   bool _saving = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.prefill;
+    if (p != null) {
+      if (p.bpSys != null) {
+        _bpSys = p.bpSys;
+        _aiFilledFields.add('bpSys');
+      }
+      if (p.bpDia != null) {
+        _bpDia = p.bpDia;
+        _aiFilledFields.add('bpDia');
+      }
+      if (p.pulse != null) {
+        _pulse = p.pulse;
+        _aiFilledFields.add('pulse');
+      }
+      if (p.bloodFlow != null) {
+        _bloodFlow = p.bloodFlow;
+        _aiFilledFields.add('bloodFlow');
+      }
+      if (p.vp != null) {
+        _vp = p.vp;
+        _aiFilledFields.add('vp');
+      }
+      if (p.ap != null) {
+        _ap = p.ap;
+        _aiFilledFields.add('ap');
+      }
+    }
+  }
 
   Future<void> _submit() async {
     setState(() {
@@ -148,32 +186,74 @@ class _AddReadingSheetState extends State<_AddReadingSheet> {
                       label: 'BP sys',
                       value: _bpSys,
                       integer: true,
-                      onChanged: (v) => _bpSys = v?.toInt()),
+                      suffix: _aiFilledFields.contains('bpSys')
+                          ? const Icon(Icons.auto_awesome,
+                              size: 14, color: Color(0xFFF59E0B))
+                          : null,
+                      onChanged: (v) {
+                        _bpSys = v?.toInt();
+                        _aiFilledFields.remove('bpSys');
+                      }),
                   NumberField(
                       label: 'BP dia',
                       value: _bpDia,
                       integer: true,
-                      onChanged: (v) => _bpDia = v?.toInt()),
+                      suffix: _aiFilledFields.contains('bpDia')
+                          ? const Icon(Icons.auto_awesome,
+                              size: 14, color: Color(0xFFF59E0B))
+                          : null,
+                      onChanged: (v) {
+                        _bpDia = v?.toInt();
+                        _aiFilledFields.remove('bpDia');
+                      }),
                   NumberField(
                       label: 'Pulse',
                       value: _pulse,
                       integer: true,
-                      onChanged: (v) => _pulse = v?.toInt()),
+                      suffix: _aiFilledFields.contains('pulse')
+                          ? const Icon(Icons.auto_awesome,
+                              size: 14, color: Color(0xFFF59E0B))
+                          : null,
+                      onChanged: (v) {
+                        _pulse = v?.toInt();
+                        _aiFilledFields.remove('pulse');
+                      }),
                   NumberField(
                       label: 'Blood flow',
                       value: _bloodFlow,
                       integer: true,
-                      onChanged: (v) => _bloodFlow = v?.toInt()),
+                      suffix: _aiFilledFields.contains('bloodFlow')
+                          ? const Icon(Icons.auto_awesome,
+                              size: 14, color: Color(0xFFF59E0B))
+                          : null,
+                      onChanged: (v) {
+                        _bloodFlow = v?.toInt();
+                        _aiFilledFields.remove('bloodFlow');
+                      }),
                   NumberField(
                       label: 'VP',
                       value: _vp,
                       integer: true,
-                      onChanged: (v) => _vp = v?.toInt()),
+                      suffix: _aiFilledFields.contains('vp')
+                          ? const Icon(Icons.auto_awesome,
+                              size: 14, color: Color(0xFFF59E0B))
+                          : null,
+                      onChanged: (v) {
+                        _vp = v?.toInt();
+                        _aiFilledFields.remove('vp');
+                      }),
                   NumberField(
                       label: 'AP',
                       value: _ap,
                       integer: true,
-                      onChanged: (v) => _ap = v?.toInt()),
+                      suffix: _aiFilledFields.contains('ap')
+                          ? const Icon(Icons.auto_awesome,
+                              size: 14, color: Color(0xFFF59E0B))
+                          : null,
+                      onChanged: (v) {
+                        _ap = v?.toInt();
+                        _aiFilledFields.remove('ap');
+                      }),
                 ],
                 ),
               ),

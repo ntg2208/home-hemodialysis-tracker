@@ -11,6 +11,8 @@ import '../models.dart';
 import '../providers.dart';
 import '../treatment_repo.dart';
 import '../widgets/add_reading_sheet.dart';
+import '../../chat/command_dispatch.dart'
+    show prefillReadingCommandProvider, PrefillReading;
 
 const _defaultTargetMin = 255; // 4h 15m
 const _notifyAtMins = [120, 60, 5];
@@ -76,6 +78,20 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
     ref.read(inventoryApiProvider).fetchStock().then((stock) {
       if (mounted) setState(() => _heparinStock = stock['heparin']);
     });
+
+    // Read current value first (may have been set before this widget mounted)
+    final pendingReading = ref.read(prefillReadingCommandProvider);
+    if (pendingReading != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _drainPrefillReading(pendingReading);
+      });
+    }
+
+    // Listen for future AI prefill-reading commands
+    ref.listenManual(prefillReadingCommandProvider, (_, cmd) {
+      if (cmd == null || !mounted) return;
+      _drainPrefillReading(cmd);
+    });
   }
 
   @override
@@ -117,6 +133,19 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
       if (r.reading.bloodFlow != null) return r.reading.bloodFlow;
     }
     return null;
+  }
+
+  void _drainPrefillReading(PrefillReading cmd) {
+    final lastBF = _lastBloodFlow;
+    showAddReadingSheet(
+      context,
+      sessionId: widget.session.sessionId,
+      seq: _nextSeq,
+      defaultBloodFlow: lastBF,
+      onSave: _persist,
+      prefill: cmd,
+    );
+    ref.read(prefillReadingCommandProvider.notifier).set(null); // consume
   }
 
   Future<void> _persist(Reading reading) async {
@@ -262,8 +291,6 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
                       label: const Text('Add reading'),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        textStyle: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14)),
                       ),
