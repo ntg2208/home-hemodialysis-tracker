@@ -106,7 +106,11 @@ class AppScreenContext {
 
 ## Command Vocabulary
 
-Six tools declared in `GenerativeModel`. Tool names are snake_case. All parameters optional unless marked required.
+Seven tools declared in `GenerativeModel`. Tool names are snake_case. All parameters optional unless marked required.
+
+Two categories:
+- **UI control tools** (6) — execute in-process, call Riverpod/GoRouter directly, no network hop.
+- **Data tools** (1) — call Cloud Run API. Possible 2s cold start on first call of the day; acceptable for one-off data entry tasks. Handled directly in `GeminiChatResponder`, not via the AppCommand bus.
 
 ### `navigate_to`
 Navigate to any main route.
@@ -195,6 +199,39 @@ Pre-fill the post-treatment form.
 Execution: **fill + preview** — fields filled, user taps Finish.
 
 Invalid when: `treatmentState != postForm`.
+
+---
+
+### `insert_portal_paste`
+Parse a raw PKB portal paste and insert all blood test rows into Firestore.
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `paste` | string | ✓ | Full text copied from the PKB portal summary page |
+| `year` | int | | Year of the results. Defaults to current year if omitted |
+
+Execution: **Cloud Run call** — `GeminiChatResponder` calls `POST /api/blood-tests/parse-paste`, receives `{ ok, count }`, and returns the result to Gemini as the FunctionResponse. Gemini reports back to the user ("Parsed and inserted 25 rows. Your latest Hb is 112 g/L."). After a successful insert, Gemini optionally dispatches `filter_blood_tests` to show the newly added data.
+
+Does **not** go through the AppCommand bus — no Flutter widget state change needed.
+
+Cold start note: first call of the day may take ~2s. Acceptable for a monthly one-off task.
+
+**Backend: `POST /api/blood-tests/parse-paste`**
+
+New endpoint on the existing `bloodTests` Hono handler. Ports `_parse_portal_paste` from `scripts/pkb_backfill/parse_pkb.py` to TypeScript.
+
+Request body:
+```ts
+{ paste: string; year?: number }
+```
+
+Logic:
+1. Parse the paste text using a ported version of the Python block parser (`MARKER_MAP`, `SKIP_LINES`, `DATE_RE`).
+2. For each parsed row, look up the most recent `ref_low` / `ref_high` for that marker from the existing static data + Firestore (same merge logic as GET).
+3. Batch-insert all rows via Firestore `batch.set()` (same as existing `POST /`).
+4. Return `{ ok: true, count: N }`.
+
+Returns `400` if no rows could be parsed (format unrecognised).
 
 ---
 
@@ -451,9 +488,15 @@ When a prefill command is dispatched, the chat sheet animates to a collapsed min
 
 ### Not Changed
 
-- `api/` — no backend changes; everything is client-side
 - `apps-script/Code.gs` — treatment writes still go direct to Apps Script
-- `firestore.rules` — no new collections
+- `firestore.rules` — no new collections (`blood_tests` collection already exists)
+
+### API changes
+
+| File | Changes |
+|---|---|
+| `api/src/handlers/bloodTests.ts` | Add `POST /parse-paste` route: port `_parse_portal_paste` Python logic to TypeScript, ref-range lookup from static+Firestore, batch insert |
+| `api/src/schemas/bloodTests.ts` | Add `ParsePasteBodySchema` (`{ paste: string, year?: number }`) and `MARKER_MAP` constant |
 
 ---
 
@@ -508,3 +551,5 @@ External clients (same WiFi, no tunnel needed at home):
 Initial spec. Extends [[2026-06-03-chat-llm]] with Gemini function calling, AppCommand command bus, AppScreenContext for state-aware prompting, and six tool declarations covering navigation, filtering, and form prefill.
 
 Brainstorm also explored MCP server options (Cloud Run, embedded in app). Decision: Phase 1 is in-app function calling only — all in-process, no Cloud Run, no cold start. Phase 2 (deferred) will embed an MCP server in the Flutter app using `flutter_mcp`/`dart_mcp` so external clients (Gemini CLI, Claude Code, future Gemini Spark) can connect on the same WiFi. Phase 2 adds no new tool logic — just a transport layer over the same `AppCommand` handlers.
+
+Added 7th tool `insert_portal_paste` — a data tool (not UI control) that calls `POST /api/blood-tests/parse-paste` on Cloud Run. Ports the Python PKB paste parser from `scripts/pkb_backfill/parse_pkb.py` to TypeScript. Cold start (~2s) acceptable for a monthly one-off task. Conversation history unaffected by Cloud Run scaling — history lives in Firestore/Flutter memory, Cloud Run is stateless.
