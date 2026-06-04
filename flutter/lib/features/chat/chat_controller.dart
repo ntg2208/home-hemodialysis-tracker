@@ -10,7 +10,8 @@ import '../blood_tests/providers.dart';
 import '../kb/kb_providers.dart';
 import '../treatment/providers.dart';
 import 'gemini_client.dart';
-import '_spike_dispatch.dart' show spikeNavigationProvider;
+import 'command_dispatch.dart' show dispatchCommand;
+import 'screen_context.dart' show screenContextProvider;
 import 'chat_conversation.dart';
 
 /// Chat state + a mock responder. The backend `/api/chat` does not exist yet
@@ -110,18 +111,18 @@ final chatResponderProvider = Provider<ChatResponder>((ref) {
   final ai = ref.watch(aiSettingsControllerProvider);
   ref.watch(testModeProvider); // rebuild when test mode toggles
   if (!ai.ready) return MockChatResponder();
-  return GeminiChatResponder(
-    apiKey: ai.apiKey!,
-    auth: ref.read(treatmentAuthProvider),
-    kbStore: ref.read(kbStoreProvider),
-    treatmentRepo: ref.read(treatmentRepoProvider),
-    btStore: ref.read(btStoreProvider),
-    cacheStore: ref.read(cacheStoreProvider),
-    onNavigate: (route) {
-      ref.read(spikeNavigationProvider.notifier).setRoute(route);
-    },
-  );
+  // Return a sentinel — ChatController.send() builds the real responder per-call
+  return _AiReadyMarker(ai.apiKey!);
 });
+
+class _AiReadyMarker implements ChatResponder {
+  _AiReadyMarker(this.apiKey);
+  final String apiKey;
+  @override
+  Stream<String> reply(String prompt, List<ChatMessage> history) async* {
+    yield ''; // never called directly
+  }
+}
 
 final chatControllerProvider =
     NotifierProvider<ChatController, ChatState>(ChatController.new);
@@ -143,9 +144,26 @@ class ChatController extends Notifier<ChatState> {
 
     state = state.copyWith(messages: baseMessages, sending: true);
 
+    // Build responder with fresh context. screenContext is read at call-time so it
+    // reflects the current screen, not the screen when the provider was created.
+    final responder = switch (ref.read(chatResponderProvider)) {
+      MockChatResponder() => ref.read(chatResponderProvider),
+      _AiReadyMarker(:final apiKey) => GeminiChatResponder(
+          apiKey: apiKey,
+          auth: ref.read(treatmentAuthProvider),
+          kbStore: ref.read(kbStoreProvider),
+          treatmentRepo: ref.read(treatmentRepoProvider),
+          btStore: ref.read(btStoreProvider),
+          cacheStore: ref.read(cacheStoreProvider),
+          screenContext: ref.read(screenContextProvider),
+          onCommand: (cmd) => dispatchCommand(cmd, ref),
+        ),
+      _ => ref.read(chatResponderProvider),
+    };
+
     try {
       var accumulated = '';
-      final stream = ref.read(chatResponderProvider).reply(trimmed, baseMessages);
+      final stream = responder.reply(trimmed, baseMessages);
       await for (final chunk in stream) {
         accumulated += chunk;
         final updated = [...state.messages];
