@@ -1,4 +1,5 @@
 // flutter/lib/features/chat/gemini_client.dart
+import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 
 import '../../features/blood_tests/bt_store.dart';
@@ -21,6 +22,7 @@ class GeminiChatResponder implements ChatResponder {
     required this.treatmentRepo,
     required this.btStore,
     required this.cacheStore,
+    this.onNavigate,
   });
 
   final String apiKey;
@@ -29,6 +31,7 @@ class GeminiChatResponder implements ChatResponder {
   final TreatmentRepo treatmentRepo;
   final BtStore btStore;
   final CacheStore cacheStore;
+  final void Function(String route)? onNavigate; // spike only
 
   @override
   Stream<String> reply(String prompt, List<ChatMessage> history) async* {
@@ -70,9 +73,24 @@ class GeminiChatResponder implements ChatResponder {
     ).build();
 
     // 4. Call Gemini
+    final tools = [
+      Tool(functionDeclarations: [
+        FunctionDeclaration(
+          'navigate_to',
+          'Navigate to a screen. Call this when the user asks to go somewhere.',
+          Schema.object(properties: {
+            'route': Schema.string(
+              description: 'One of: /treatment, /blood-tests, /inventory, /fitness, /kb',
+            ),
+          }, requiredProperties: ['route']),
+        ),
+      ]),
+    ];
+
     final model = GenerativeModel(
       model: 'gemini-3.1-flash-lite',
       apiKey: apiKey,
+      tools: tools,
       systemInstruction: Content.system(systemPrompt),
       generationConfig:
           GenerationConfig(temperature: 0.4, maxOutputTokens: 1024),
@@ -84,24 +102,41 @@ class GeminiChatResponder implements ChatResponder {
             m.role == ChatRole.user ? 'user' : 'model', [TextPart(m.text)]))
         .toList();
 
-    final chat = model.startChat(history: sdkHistory);
+    // Build content list from existing history + new message
+    final contents = [
+      ...sdkHistory,
+      Content.text(prompt),
+    ];
 
+    String finalText = '';
     try {
-      final stream = chat.sendMessageStream(Content.text(prompt));
-      await for (final chunk in stream) {
-        final text = chunk.text;
-        if (text != null && text.isNotEmpty) yield text;
+      var response = await model.generateContent(contents);
+
+      // Tool call loop — runs until model returns text with no function calls
+      while (response.functionCalls.isNotEmpty) {
+        final functionResponses = <Content>[];
+        for (final call in response.functionCalls) {
+          debugPrint('[SPIKE] tool call: ${call.name} args: ${call.args}');
+          if (call.name == 'navigate_to') {
+            final route = call.args['route'] as String? ?? '/treatment';
+            onNavigate?.call(route);
+          }
+          functionResponses.add(
+            Content.functionResponse(call.name, {'ok': true, 'dispatched': call.name}),
+          );
+        }
+        // Append model response + function responses to content list
+        contents.add(response.candidates.first.content);
+        contents.addAll(functionResponses);
+        response = await model.generateContent(contents);
       }
+
+      finalText = response.text ?? '';
     } on GenerativeAIException catch (e) {
       final msg = e.message.toLowerCase();
-      if (msg.contains('api key') ||
-          msg.contains('permission') ||
-          msg.contains('401') ||
-          msg.contains('403')) {
+      if (msg.contains('api key') || msg.contains('401') || msg.contains('403')) {
         throw ChatError.invalidKey;
-      } else if (msg.contains('quota') ||
-          msg.contains('rate') ||
-          msg.contains('429')) {
+      } else if (msg.contains('quota') || msg.contains('429')) {
         throw ChatError.rateLimited;
       } else {
         throw ChatError.serverError;
@@ -109,5 +144,8 @@ class GeminiChatResponder implements ChatResponder {
     } catch (_) {
       throw ChatError.network;
     }
+
+    if (finalText.isEmpty) return;
+    yield finalText;
   }
 }

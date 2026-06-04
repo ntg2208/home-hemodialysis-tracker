@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'theme.dart';
+import 'providers.dart' show testModeProvider;
 import '../features/chat/chat_sheet.dart';
+import '../features/chat/_spike_dispatch.dart' show spikeNavigationProvider;
 
 /// Thin shell widget required by [StatefulShellRoute.indexedStack].
 ///
@@ -16,16 +18,31 @@ import '../features/chat/chat_sheet.dart';
 ///
 /// Branch-switch animation is handled by [BranchSwitcher] via
 /// `navigatorContainerBuilder` in the router, not here.
-class AppShell extends StatefulWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.navigationShell});
   final StatefulNavigationShell navigationShell;
 
   @override
-  State<AppShell> createState() => _AppShellState();
+  ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends ConsumerState<AppShell> {
   DateTime? _lastBackPress;
+
+  @override
+  void initState() {
+    super.initState();
+    // Spike: will be replaced by pendingNavigationProvider in Task 5
+    Future.microtask(() {
+      if (!mounted) return;
+      ref.listenManual(spikeNavigationProvider, (_, route) {
+        if (route != null && mounted) {
+          context.go(route);
+          ref.read(spikeNavigationProvider.notifier).setRoute(null);
+        }
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +86,7 @@ class _AppShellState extends State<AppShell> {
 /// Top-level drawer destinations pass [showDrawer] = true (hamburger). Pushed
 /// sub-screens (Pre/Active/Post) pass false (they get a back arrow) but still show
 /// the Chat FAB — the FAB is declared here exactly once so it's identical everywhere.
-class HdScaffold extends StatelessWidget {
+class HdScaffold extends ConsumerWidget {
   const HdScaffold({
     super.key,
     required this.title,
@@ -98,7 +115,8 @@ class HdScaffold extends StatelessWidget {
   final Widget? titleWidget;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final testMode = ref.watch(testModeProvider);
     return Scaffold(
       appBar: AppBar(
         title: titleWidget ?? Text(title),
@@ -115,10 +133,44 @@ class HdScaffold extends StatelessWidget {
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
-              child: body,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (testMode) const _TestModeBanner(),
+                  Expanded(child: body),
+                ],
+              ),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _TestModeBanner extends StatelessWidget {
+  const _TestModeBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFFFBBF24), // amber-400
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.science_outlined, size: 13, color: Color(0xFF78350F)),
+          SizedBox(width: 5),
+          Text(
+            'TEST MODE — synthetic data',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF78350F),
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
       ),
     );
   }

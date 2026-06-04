@@ -10,6 +10,7 @@ import '../blood_tests/providers.dart';
 import '../kb/kb_providers.dart';
 import '../treatment/providers.dart';
 import 'gemini_client.dart';
+import '_spike_dispatch.dart' show spikeNavigationProvider;
 import 'chat_conversation.dart';
 
 /// Chat state + a mock responder. The backend `/api/chat` does not exist yet
@@ -107,6 +108,7 @@ class MockChatResponder implements ChatResponder {
 
 final chatResponderProvider = Provider<ChatResponder>((ref) {
   final ai = ref.watch(aiSettingsControllerProvider);
+  ref.watch(testModeProvider); // rebuild when test mode toggles
   if (!ai.ready) return MockChatResponder();
   return GeminiChatResponder(
     apiKey: ai.apiKey!,
@@ -115,6 +117,9 @@ final chatResponderProvider = Provider<ChatResponder>((ref) {
     treatmentRepo: ref.read(treatmentRepoProvider),
     btStore: ref.read(btStoreProvider),
     cacheStore: ref.read(cacheStoreProvider),
+    onNavigate: (route) {
+      ref.read(spikeNavigationProvider.notifier).setRoute(route);
+    },
   );
 });
 
