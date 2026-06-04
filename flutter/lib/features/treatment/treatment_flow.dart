@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/shell.dart';
 import '../../app/theme.dart';
+import '../chat/command_dispatch.dart' show prefillPreCommandProvider;
+import '../chat/screen_context.dart'
+    show screenContextProvider, TreatmentState;
 import 'models.dart';
 import 'providers.dart';
 import 'screens/active.dart';
@@ -58,6 +61,18 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
   void initState() {
     super.initState();
     _bootstrap();
+
+    // Publish initial treatment state (idle until bootstrap completes).
+    _publishTreatmentState();
+
+    // React to AI prefill-pre command — transition to Pre if currently on Home.
+    ref.listenManual(prefillPreCommandProvider, (_, cmd) {
+      if (cmd != null && _screen is _Home && mounted) {
+        final ids = ref.read(treatmentStoreProvider).getCachedSessions()
+            ?.map((s) => s.sessionId).toList() ?? [];
+        _goPre(ids);
+      }
+    });
   }
 
   Future<void> _bootstrap() async {
@@ -68,7 +83,10 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
     } catch (e) {
       // currentUser may still be set from a previous session — Firestore may work.
       if (!auth.hasCurrentUser) {
-        if (mounted) setState(() => _screen = _ErrorScreen());
+        if (mounted) {
+          setState(() => _screen = _ErrorScreen());
+          _publishTreatmentState();
+        }
         return;
       }
     }
@@ -80,11 +98,13 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
     final active = ref.read(treatmentStoreProvider).getActiveState();
     if (active == null) {
       setState(() => _screen = _Home());
+      _publishTreatmentState();
       return;
     }
     switch (active.screen) {
       case 'pre':
         setState(() => _screen = _Pre(active.existingIds ?? []));
+        _publishTreatmentState();
       case 'active' when active.session != null:
         // Demote any in-flight reading to error ("interrupted") on restore.
         final readings = (active.readings ?? []).map((p) {
@@ -102,14 +122,17 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
               countdownStartedAt: active.countdownStartedAt,
               targetMin: active.targetMin,
             ));
+        _publishTreatmentState();
       case 'post' when active.session != null:
         setState(() => _screen = _Post(
             active.session!,
             active.consumed ??
                 const SessionConsumed(
                     needles: 2, onOffPacks: 1, heparinUsed: false)));
+        _publishTreatmentState();
       default:
         setState(() => _screen = _Home());
+        _publishTreatmentState();
     }
   }
 
@@ -117,6 +140,7 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
 
   void _goPre(List<String> ids) {
     setState(() => _screen = _Pre(ids));
+    _publishTreatmentState();
     _store.saveActiveState(ActiveState(
         screen: 'pre',
         existingIds: ids,
@@ -129,12 +153,14 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
     final s = _Active(session, [], heparinUsed, epoUsed);
     _lastActive = s;
     setState(() => _screen = s);
+    _publishTreatmentState();
     _persistActive(s);
   }
 
   void _goBackToActive() {
     if (_lastActive != null) {
       setState(() => _screen = _lastActive!);
+      _publishTreatmentState();
     }
   }
 
@@ -153,6 +179,7 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
 
   void _goPost(Session session, SessionConsumed consumed) {
     setState(() => _screen = _Post(session, consumed));
+    _publishTreatmentState();
     _store.saveActiveState(ActiveState(
       screen: 'post',
       session: session,
@@ -164,6 +191,25 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
   void _goHome() {
     _store.clearActiveState();
     setState(() => _screen = _Home());
+    _publishTreatmentState();
+  }
+
+  void _publishTreatmentState() {
+    final notifier = ref.read(screenContextProvider.notifier);
+    switch (_screen) {
+      case _Home() || _Loading() || _ErrorScreen():
+        notifier.setTreatmentState(TreatmentState.idle, clearSession: true);
+      case _Pre():
+        notifier.setTreatmentState(TreatmentState.preForm, clearSession: true);
+      case final _Active s:
+        notifier.setTreatmentState(
+          TreatmentState.active,
+          activeSession: s.session,
+          readings: s.readings.map((p) => p.reading).toList(),
+        );
+      case final _Post s:
+        notifier.setTreatmentState(TreatmentState.postForm, activeSession: s.session);
+    }
   }
 
   @override
