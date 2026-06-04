@@ -11,6 +11,8 @@ import '../models.dart';
 import '../providers.dart';
 import '../session_id.dart';
 import '../treatment_repo.dart';
+import '../../chat/command_dispatch.dart'
+    show prefillPreCommandProvider, PrefillPreTreatment;
 
 num _round2(num n) => (n * 100).round() / 100;
 
@@ -41,6 +43,7 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
   bool _epoUsed = false;
   num? _heparinStock;
   num? _epoStock;
+  final Set<String> _aiFilledFields = {};
 
   @override
   void initState() {
@@ -53,6 +56,23 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
           _epoStock = stock['epo'];
         });
       }
+    });
+
+    // Read current value first (may have been set before this widget mounted)
+    final pending = ref.read(prefillPreCommandProvider);
+    if (pending != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _applyAiPrefill(pending);
+        ref.read(prefillPreCommandProvider.notifier).set(null);
+      });
+    }
+
+    // Listen for future AI prefill commands
+    ref.listenManual(prefillPreCommandProvider, (_, cmd) {
+      if (cmd == null || !mounted) return;
+      _applyAiPrefill(cmd);
+      ref.read(prefillPreCommandProvider.notifier).set(null); // consume
     });
   }
 
@@ -107,6 +127,37 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
     }
   }
 
+  void _applyAiPrefill(PrefillPreTreatment cmd) {
+    setState(() {
+      if (cmd.weight != null) {
+        _preWeight = cmd.weight;
+        _aiFilledFields.add('weight');
+      }
+      if (cmd.bpSys != null) {
+        _bpSys = cmd.bpSys;
+        _aiFilledFields.add('bpSys');
+      }
+      if (cmd.bpDia != null) {
+        _bpDia = cmd.bpDia;
+        _aiFilledFields.add('bpDia');
+      }
+      if (cmd.pulse != null) {
+        _pulse = cmd.pulse;
+        _aiFilledFields.add('pulse');
+      }
+      if (cmd.ufGoal != null) {
+        _ufGoal = cmd.ufGoal;
+        _goalTouched = true;
+        _aiFilledFields.add('ufGoal');
+      }
+      if (cmd.ufRate != null) {
+        _ufRate = cmd.ufRate;
+        _rateTouched = true;
+        _aiFilledFields.add('ufRate');
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.hd;
@@ -142,7 +193,13 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
                 label: 'Weight (kg)',
                 value: _preWeight,
                 required: true,
-                onChanged: (v) => setState(() => _preWeight = v),
+                suffix: _aiFilledFields.contains('weight')
+                    ? const Icon(Icons.auto_awesome, size: 14, color: Color(0xFFF59E0B))
+                    : null,
+                onChanged: (v) => setState(() {
+                  _preWeight = v;
+                  _aiFilledFields.remove('weight');
+                }),
               ),
             ),
             const SizedBox(width: 12),
@@ -151,12 +208,15 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
                 label: 'UF goal (L)',
                 value: _effectiveGoal,
                 required: true,
-                suffix: !_goalTouched && _derivedGoal != null
-                    ? const AutoBadge()
-                    : null,
+                suffix: _aiFilledFields.contains('ufGoal')
+                    ? const Icon(Icons.auto_awesome, size: 14, color: Color(0xFFF59E0B))
+                    : !_goalTouched && _derivedGoal != null
+                        ? const AutoBadge()
+                        : null,
                 onChanged: (v) => setState(() {
                   _goalTouched = v != null;
                   _ufGoal = v;
+                  _aiFilledFields.remove('ufGoal');
                 }),
               ),
             ),
@@ -167,12 +227,15 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
             label: 'UF rate (mL/h)',
             value: _effectiveRate,
             integer: true,
-            suffix: !_rateTouched && _derivedRate != null
-                ? const AutoBadge()
-                : null,
+            suffix: _aiFilledFields.contains('ufRate')
+                ? const Icon(Icons.auto_awesome, size: 14, color: Color(0xFFF59E0B))
+                : !_rateTouched && _derivedRate != null
+                    ? const AutoBadge()
+                    : null,
             onChanged: (v) => setState(() {
               _rateTouched = v != null;
               _ufRate = v;
+              _aiFilledFields.remove('ufRate');
             }),
           ),
           const SizedBox(height: 12),
@@ -184,7 +247,13 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
                 value: _bpSys,
                 integer: true,
                 required: true,
-                onChanged: (v) => setState(() => _bpSys = v?.toInt()),
+                suffix: _aiFilledFields.contains('bpSys')
+                    ? const Icon(Icons.auto_awesome, size: 14, color: Color(0xFFF59E0B))
+                    : null,
+                onChanged: (v) => setState(() {
+                  _bpSys = v?.toInt();
+                  _aiFilledFields.remove('bpSys');
+                }),
               ),
             ),
             const SizedBox(width: 12),
@@ -194,7 +263,13 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
                 value: _bpDia,
                 integer: true,
                 required: true,
-                onChanged: (v) => setState(() => _bpDia = v?.toInt()),
+                suffix: _aiFilledFields.contains('bpDia')
+                    ? const Icon(Icons.auto_awesome, size: 14, color: Color(0xFFF59E0B))
+                    : null,
+                onChanged: (v) => setState(() {
+                  _bpDia = v?.toInt();
+                  _aiFilledFields.remove('bpDia');
+                }),
               ),
             ),
           ]),
@@ -205,7 +280,13 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
             value: _pulse,
             integer: true,
             textInputAction: TextInputAction.done,
-            onChanged: (v) => setState(() => _pulse = v?.toInt()),
+            suffix: _aiFilledFields.contains('pulse')
+                ? const Icon(Icons.auto_awesome, size: 14, color: Color(0xFFF59E0B))
+                : null,
+            onChanged: (v) => setState(() {
+              _pulse = v?.toInt();
+              _aiFilledFields.remove('pulse');
+            }),
           ),
           const SizedBox(height: 20),
           // EPO toggle
