@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/providers.dart' show testModeProvider;
 import '../../app/shell.dart';
 import '../../app/theme.dart';
 import 'logic.dart';
 import 'markers.dart';
 import 'models.dart';
 import 'providers.dart';
+import '../chat/command_dispatch.dart'
+    show btFilterCommandProvider, FilterBloodTests;
+import '../chat/screen_context.dart' show screenContextProvider;
 import 'widgets/filter_bar.dart' show FilterBar, FilterPill, FilterState;
 import 'widgets/results_table.dart';
 import 'widgets/scorecard.dart';
@@ -41,6 +45,21 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
     super.initState();
     _favorites = ref.read(btStoreProvider).readFavorites();
     _bootstrap();
+    // Re-bootstrap when test mode is toggled so synthetic data loads immediately.
+    ref.listenManual(testModeProvider, (_, __) {
+      setState(() => _status = _Status.loading);
+      _bootstrap();
+    });
+
+    // Publish current route for AI context
+    ref.read(screenContextProvider.notifier).setRoute('/blood-tests');
+
+    // React to AI blood test filter commands
+    ref.listenManual(btFilterCommandProvider, (_, cmd) {
+      if (cmd == null || !mounted) return;
+      _applyAiFilter(cmd);
+      ref.read(btFilterCommandProvider.notifier).set(null); // consume
+    });
   }
 
   @override
@@ -92,6 +111,23 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
 
   void _selectMarker(String marker) {
     setState(() => _filter = _filter.copyWith(marker: marker));
+  }
+
+  void _applyAiFilter(FilterBloodTests cmd) {
+    setState(() {
+      var f = _filter;
+      if (cmd.marker != null) f = f.copyWith(marker: cmd.marker);
+      if (cmd.phase != null) f = f.copyWith(phases: [cmd.phase!]);
+      if (cmd.months != null) {
+        f = f.copyWith(rangePreset: switch (cmd.months!) {
+          3 => '3m',
+          6 => '6m',
+          12 => '1y',
+          _ => 'all',
+        });
+      }
+      _filter = f;
+    });
   }
 
   Future<void> _revalidate(String fromFloor) async {
