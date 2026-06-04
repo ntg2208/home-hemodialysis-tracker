@@ -106,11 +106,9 @@ class AppScreenContext {
 
 ## Command Vocabulary
 
-Seven tools declared in `GenerativeModel`. Tool names are snake_case. All parameters optional unless marked required.
+Six tools declared in `GenerativeModel`. Tool names are snake_case. All parameters optional unless marked required.
 
-Two categories:
-- **UI control tools** (6) — execute in-process, call Riverpod/GoRouter directly, no network hop.
-- **Data tools** (1) — call Cloud Run API. Possible 2s cold start on first call of the day; acceptable for one-off data entry tasks. Handled directly in `GeminiChatResponder`, not via the AppCommand bus.
+All tools are **UI control tools** — execute in-process via Riverpod StateProviders and GoRouter. No Cloud Run calls in this spec. `insert_portal_paste` was removed (see Out of Scope).
 
 ### `navigate_to`
 Navigate to any main route.
@@ -202,39 +200,6 @@ Invalid when: `treatmentState != postForm`.
 
 ---
 
-### `insert_portal_paste`
-Parse a raw PKB portal paste and insert all blood test rows into Firestore.
-
-| Param | Type | Required | Notes |
-|---|---|---|---|
-| `paste` | string | ✓ | Full text copied from the PKB portal summary page |
-| `year` | int | | Year of the results. Defaults to current year if omitted |
-
-Execution: **Cloud Run call** — `GeminiChatResponder` calls `POST /api/blood-tests/parse-paste`, receives `{ ok, count }`, and returns the result to Gemini as the FunctionResponse. Gemini reports back to the user ("Parsed and inserted 25 rows. Your latest Hb is 112 g/L."). After a successful insert, Gemini optionally dispatches `filter_blood_tests` to show the newly added data.
-
-Does **not** go through the AppCommand bus — no Flutter widget state change needed.
-
-Cold start note: first call of the day may take ~2s. Acceptable for a monthly one-off task.
-
-**Backend: `POST /api/blood-tests/parse-paste`**
-
-New endpoint on the existing `bloodTests` Hono handler. Ports `_parse_portal_paste` from `scripts/pkb_backfill/parse_pkb.py` to TypeScript.
-
-Request body:
-```ts
-{ paste: string; year?: number }
-```
-
-Logic:
-1. Parse the paste text using a ported version of the Python block parser (`MARKER_MAP`, `SKIP_LINES`, `DATE_RE`).
-2. For each parsed row, look up the most recent `ref_low` / `ref_high` for that marker from the existing static data + Firestore (same merge logic as GET).
-3. Batch-insert all rows via Firestore `batch.set()` (same as existing `POST /`).
-4. Return `{ ok: true, count: N }`.
-
-Returns `400` if no rows could be parsed (format unrecognised).
-
----
-
 ## System Prompt Extension
 
 `ChatContextBuilder` gains a new `currentAppState` section appended after existing context:
@@ -320,17 +285,27 @@ final _tools = [
 
 ### Tool call loop
 
-Gemini may return a `FunctionCall` part before the final text response. The responder must handle this multi-turn loop:
+Verified against the official SDK sample (`generative-ai-dart/samples/dart/bin/function_calling.dart`).
+
+**Key facts:**
+- Use `model.generateContent(content)` directly with a manually maintained `content` list — **not** `ChatSession.sendMessage/sendMessageStream`. ChatSession does not expose the multi-turn tool loop cleanly.
+- Detect tool calls via `response.functionCalls.toList()` — not by inspecting parts manually.
+- Loop: while `functionCalls` is non-empty, dispatch each call, collect `FunctionResponse` objects, append both the model response content and all function responses to `content`, call `generateContent` again.
+- Streaming applies only to the **final text turn** (when `functionCalls` is empty). If no tools were called, `sendMessageStream` can be used for the whole response. If tools were involved, yield the final `response.text` as a single chunk.
 
 ```
-send message → model returns FunctionCall (NOT streamed — full response)
-    → dispatch AppCommand via onCommand callback
-    → send FunctionResponse back to model
-    → model returns final text response (CAN be streamed)
-    → yield text chunks to chat
+Build content list from history
+    ↓
+model.generateContent(content)  ← non-streaming, always
+    ↓
+response.functionCalls.toList() non-empty?
+    YES → dispatch via onCommand callback
+          validate against current TreatmentState (see CommandValidator)
+          collect FunctionResponse(call.name, result)
+          append model content + FunctionResponse to content list
+          loop back to generateContent
+    NO  → yield response.text as final reply
 ```
-
-**Streaming caveat:** The Gemini SDK's `sendMessageStream` does not stream tool call parts — the `FunctionCall` arrives as a complete `GenerateContentResponse`. Only the second call (after sending the `FunctionResponse`) streams. Implementation must handle this: use `sendMessage` (non-streaming) for the first turn if a tool call is returned, then switch to `sendMessageStream` for the follow-up. If no tool call is returned, the full response streams normally.
 
 `GeminiChatResponder` receives an `onCommand` callback: `void Function(AppCommand)`. This keeps the responder decoupled from Riverpod.
 
@@ -366,10 +341,14 @@ final responder = GeminiChatResponder(
 
 ---
 
-## CommandBus
+## Command Dispatch — Riverpod StateProviders (not a stream bus)
+
+The original design used a `StreamController.broadcast()`. **This was replaced** because broadcast streams drop events emitted before a listener has subscribed — a race that breaks every cross-screen flow (navigate then prefill). The destination screen only subscribes after it builds, so the prefill fires into the void.
+
+**Fix:** each command type has its own `StateProvider<T?>`. State persists in Riverpod until a screen reads and clears it, regardless of subscription timing.
 
 ```dart
-// lib/features/chat/command_bus.dart
+// lib/features/chat/command_dispatch.dart
 
 sealed class AppCommand {}
 
@@ -411,11 +390,60 @@ class PrefillPostTreatment extends AppCommand {
   PrefillPostTreatment({this.weight, this.bpSys, this.bpDia, this.pulse, this.totalUf});
 }
 
-// Provider — broadcast so multiple screens can listen simultaneously
-final commandBusProvider = Provider<StreamController<AppCommand>>(
-  (ref) => StreamController<AppCommand>.broadcast(),
-);
+// One provider per command type. Nullable — null means no pending command.
+// Screens read and immediately clear (consume) on react.
+final pendingNavigationProvider   = StateProvider<String?>((ref) => null);
+final btFilterCommandProvider     = StateProvider<FilterBloodTests?>((ref) => null);
+final fitnessFilterCommandProvider = StateProvider<FilterFitness?>((ref) => null);
+final prefillPreCommandProvider   = StateProvider<PrefillPreTreatment?>((ref) => null);
+final prefillReadingCommandProvider = StateProvider<PrefillReading?>((ref) => null);
+final prefillPostCommandProvider  = StateProvider<PrefillPostTreatment?>((ref) => null);
 ```
+
+**Dispatcher** — called by `GeminiChatResponder.onCommand` after `CommandValidator` clears the command:
+
+```dart
+void dispatchCommand(AppCommand cmd, WidgetRef ref) {
+  switch (cmd) {
+    case NavigateTo(:final route):
+      ref.read(pendingNavigationProvider.notifier).state = route;
+    case FilterBloodTests():
+      ref.read(btFilterCommandProvider.notifier).state = cmd as FilterBloodTests;
+    case FilterFitness():
+      ref.read(fitnessFilterCommandProvider.notifier).state = cmd as FilterFitness;
+    case PrefillPreTreatment():
+      ref.read(prefillPreCommandProvider.notifier).state = cmd as PrefillPreTreatment;
+    case PrefillReading():
+      ref.read(prefillReadingCommandProvider.notifier).state = cmd as PrefillReading;
+    case PrefillPostTreatment():
+      ref.read(prefillPostCommandProvider.notifier).state = cmd as PrefillPostTreatment;
+  }
+}
+```
+
+---
+
+## CommandValidator
+
+State-machine rules enforced in Dart, independently of what the LLM was told. Called in `GeminiChatResponder` before dispatching. Returns `null` if valid, an error string if blocked — the error string becomes the `FunctionResponse` sent back to Gemini, which then narrates it to the user.
+
+```dart
+// lib/features/chat/command_validator.dart
+
+String? validateCommand(AppCommand cmd, TreatmentState state) => switch (cmd) {
+  PrefillPreTreatment() when state != TreatmentState.idle =>
+      state == TreatmentState.active
+          ? 'A session is already in progress. Add a reading or end the session first.'
+          : 'Cannot start a new session while the current form is open.',
+  PrefillReading() when state != TreatmentState.active =>
+      'There is no active session. Start a session first.',
+  PrefillPostTreatment() when state != TreatmentState.postForm =>
+      'Cannot fill post-treatment — end the active session first.',
+  _ => null, // valid for all other commands in all states
+};
+```
+
+**Unit-tested independently of the model.** Test cases cover every invalid state transition — these tests pass with no Gemini API key and no running app.
 
 ---
 
@@ -468,7 +496,8 @@ When a prefill command is dispatched, the chat sheet animates to a collapsed min
 
 | File | Purpose |
 |---|---|
-| `flutter/lib/features/chat/command_bus.dart` | `AppCommand` sealed class + `commandBusProvider` |
+| `flutter/lib/features/chat/command_dispatch.dart` | `AppCommand` sealed class + all `StateProvider<T?>` dispatch providers |
+| `flutter/lib/features/chat/command_validator.dart` | `validateCommand()` — pure function, state-machine enforcement independent of LLM |
 | `flutter/lib/features/chat/screen_context.dart` | `AppScreenContext`, `TreatmentState`, `ScreenContextNotifier`, `screenContextProvider` |
 
 ### Modified Files
@@ -502,10 +531,11 @@ When a prefill command is dispatched, the chat sheet animates to a collapsed min
 
 ## Out of Scope
 
+- **`insert_portal_paste` / `POST /api/blood-tests/parse-paste`** — split to its own spec. The Python parser handles real edge cases (%, below-detection-limit, multiline comments, qualitative results, comma thousands) that a fresh TS port must be tested against the same fixtures. It's also a data-entry feature, not UI command control. Needs its own spec + implementation plan.
 - **Inventory commands** — inventory write operations have complex multi-step flows (order placement, delivery confirmation); add after the core 6 commands are proven
 - **KB commands** — searching/filtering KB via AI command; deferred to after KB screen is more mature
 - **Voice input** — natural speech → command; deferred
-- **Multi-step command sequences in one message** — e.g. "start session then show Hb"; Gemini can call multiple tools sequentially, but the UI handling of mid-flow navigation is complex. Initial version: one primary command per message; multi-step deferred
+- **Multi-step command sequences in one message** — e.g. "start session then show Hb"; Gemini can call multiple tools sequentially. Initial version: one primary command per message; multi-step deferred
 - **Undo for auto-executed commands** — navigation filters are trivially reversible by the user; no undo needed
 
 ---
@@ -552,4 +582,8 @@ Initial spec. Extends [[2026-06-03-chat-llm]] with Gemini function calling, AppC
 
 Brainstorm also explored MCP server options (Cloud Run, embedded in app). Decision: Phase 1 is in-app function calling only — all in-process, no Cloud Run, no cold start. Phase 2 (deferred) will embed an MCP server in the Flutter app using `flutter_mcp`/`dart_mcp` so external clients (Gemini CLI, Claude Code, future Gemini Spark) can connect on the same WiFi. Phase 2 adds no new tool logic — just a transport layer over the same `AppCommand` handlers.
 
-Added 7th tool `insert_portal_paste` — a data tool (not UI control) that calls `POST /api/blood-tests/parse-paste` on Cloud Run. Ports the Python PKB paste parser from `scripts/pkb_backfill/parse_pkb.py` to TypeScript. Cold start (~2s) acceptable for a monthly one-off task. Conversation history unaffected by Cloud Run scaling — history lives in Firestore/Flutter memory, Cloud Run is stateless.
+Opus advisor review raised four issues — all addressed:
+1. **Command bus race** — `StreamController.broadcast()` replaced entirely with per-command `StateProvider<T?>` providers. State persists until consumed, no subscription-timing race.
+2. **SDK verification** — confirmed against `generative-ai-dart` sample: use `model.generateContent()` (non-streaming) for tool-call loop, detect via `response.functionCalls.toList()`, stream only the final text-only turn.
+3. **State enforcement in Dart** — `CommandValidator.validateCommand()` added; pure function, unit-tested independently of the model. Called before dispatch; error string returned as `FunctionResponse` if blocked.
+4. **insert_portal_paste scope creep** — removed from this spec. Parser edge-case complexity + Cloud Run dependency warrant their own spec.
