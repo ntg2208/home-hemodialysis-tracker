@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:home_hd/features/chat/chat_context.dart';
+import 'package:home_hd/features/chat/screen_context.dart';
 import 'package:home_hd/features/kb/kb_store.dart';
 
 void main() {
@@ -22,6 +23,7 @@ void main() {
         bloodTestRows: [],
         fitnessSummary: null,
         inventory: null,
+        appState: const AppScreenContext(),
       ).build();
       expect(prompt, contains('(none yet)'));
       expect(prompt, contains('PATIENT KNOWLEDGE'));
@@ -37,6 +39,7 @@ void main() {
         bloodTestRows: [],
         fitnessSummary: null,
         inventory: null,
+        appState: const AppScreenContext(),
       ).build();
       expect(prompt, contains('Dry Weight: 59 kg'));
     });
@@ -57,6 +60,7 @@ void main() {
         bloodTestRows: [],
         fitnessSummary: null,
         inventory: null,
+        appState: const AppScreenContext(),
       ).build();
       expect(prompt, contains('…'));
       expect(prompt, isNot(contains('A' * 150)));
@@ -70,6 +74,7 @@ void main() {
         bloodTestRows: [],
         fitnessSummary: null,
         inventory: null,
+        appState: const AppScreenContext(),
       ).build();
       expect(prompt, contains('KB_UPDATE'));
     });

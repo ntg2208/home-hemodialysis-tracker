@@ -3,6 +3,7 @@ import '../blood_tests/models.dart';
 import '../inventory/inventory_models.dart';
 import '../kb/kb_store.dart';
 import '../treatment/models.dart';
+import 'screen_context.dart' show AppScreenContext;
 
 /// Pure class — takes pre-fetched data, returns the system prompt string.
 /// No async I/O: easy to unit test with fixture data.
@@ -14,6 +15,7 @@ class ChatContextBuilder {
     required this.bloodTestRows,
     required this.fitnessSummary,
     required this.inventory,
+    required this.appState,
   });
 
   final List<KbEntry> kbEntries;
@@ -22,6 +24,7 @@ class ChatContextBuilder {
   final List<BloodTestRow> bloodTestRows;
   final Map<String, dynamic>? fitnessSummary;
   final InventoryResponse? inventory;
+  final AppScreenContext appState;
 
   String build() {
     return '''
@@ -43,6 +46,8 @@ ${_inventoryLine()}
 - HRV values are relative to the patient's personal baseline — do not apply absolute population cutoffs.
 - If asked about something not in the current state, say so — don't guess.
 - Do not give medical advice. Summarise trends and flag patterns, but always defer to the clinical team.
+
+${appState.toPromptSection()}
 '''
         .trim();
   }

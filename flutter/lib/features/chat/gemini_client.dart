@@ -11,6 +11,7 @@ import '../../storage/cache_store.dart';
 import '../kb/kb_store.dart';
 import 'chat_context.dart';
 import 'chat_controller.dart';
+import 'screen_context.dart' show AppScreenContext;
 
 enum ChatError { network, invalidKey, rateLimited, serverError }
 
@@ -70,6 +71,7 @@ class GeminiChatResponder implements ChatResponder {
       bloodTestRows: btCache.rows,
       fitnessSummary: fitnessSummary,
       inventory: inventory,
+      appState: const AppScreenContext(),
     ).build();
 
     // 4. Call Gemini
