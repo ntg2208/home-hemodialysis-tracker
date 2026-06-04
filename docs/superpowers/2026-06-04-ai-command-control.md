@@ -6,10 +6,11 @@ Extends [[2026-06-03-chat-llm]] to give the in-app Gemini assistant the ability 
 
 ## Design Decisions
 
-- **Control model:** In-app Gemini chat controls the app. External API out of scope for now.
+- **Control model:** In-app Gemini chat (Dart SDK function calling) controls the app. Everything is in-process on the device — no Cloud Run, no cold start.
 - **Execution model:** Read-only and navigation commands execute automatically. Write commands (forms) pre-fill and wait for user to tap Submit.
 - **Architecture:** Command Bus — Gemini tool use → `AppCommand` sealed class → Riverpod stream bus → each screen reacts independently.
 - **Context model:** Current screen, treatment state machine, and open form state are sent to Gemini on every message via an extended system prompt section.
+- **MCP server:** Explicitly deferred to Phase 2. When built, it will be embedded in the Flutter app (no Cloud Run) using `flutter_mcp` or `dart_mcp`, sharing the same `AppCommand` tool handlers as in-app function calling. External clients (Gemini CLI, Claude Code) connect via the same WiFi network. See [[#future-phase-2-embedded-mcp-server]] below.
 
 ---
 
@@ -458,7 +459,6 @@ When a prefill command is dispatched, the chat sheet animates to a collapsed min
 
 ## Out of Scope
 
-- **External API / MCP server** — deferred; in-app chat control covers all stated use cases
 - **Inventory commands** — inventory write operations have complex multi-step flows (order placement, delivery confirmation); add after the core 6 commands are proven
 - **KB commands** — searching/filtering KB via AI command; deferred to after KB screen is more mature
 - **Voice input** — natural speech → command; deferred
@@ -467,7 +467,44 @@ When a prefill command is dispatched, the chat sheet animates to a collapsed min
 
 ---
 
+## Future: Phase 2 — Embedded MCP Server
+
+Researched during brainstorm on 2026-06-04. Capturing decisions here so Phase 2 starts from a clear baseline.
+
+**Why not Phase 1:** The in-app Gemini function calling already delivers full control. MCP adds external client access (Gemini CLI, Claude Code) but not new capabilities — build Phase 1 first, prove it works, then add Phase 2.
+
+**Why not Cloud Run for MCP:** Cold start (500ms–2s for Node.js) is unacceptable for mid-session commands. `min-instances=1` fixes it for ~£6/month but adds cost and deployment complexity. Embedding in the Flutter app is simpler, free, and zero cold start.
+
+**Gemini Spark note:** Announced at Google I/O 2026. A 24/7 agentic assistant that executes tasks in third-party apps. Currently US-only, Google AI Ultra ($100/month). UK expected Q3 2026. Likely supports MCP. When available, connect to the same embedded MCP server — no rework needed.
+
+**Architecture:**
+
+```
+Flutter app (Android)
+├── flutter_mcp embedded server (port 8080, SSE/HTTP transport)
+│     └── same AppCommand tool handlers as Phase 1 function calling
+│
+├── In-app Gemini chat (Phase 1 — unchanged)
+│
+└── Apps Script (treatment writes — unchanged)
+
+External clients (same WiFi, no tunnel needed at home):
+├── Gemini CLI  ──MCP──► app:8080
+└── Claude Code ──MCP──► app:8080
+```
+
+**Key packages (evaluated 2026-06-04):**
+- [`flutter_mcp`](https://pub.dev/packages/flutter_mcp) — MCP server + LLM client + background service + lifecycle + secure storage. Likely the right choice.
+- [`dart_mcp`](https://pub.dev/packages/dart_mcp) — official Dart Labs experimental package; both server and client; backed by Dart team. Lower-level, more control.
+- [`mcp_server`](https://pub.dev/packages/mcp_server) — focused MCP server implementation, supports SSE + Streamable HTTP transports.
+
+**Implementation note:** Tool handlers in Phase 1 call Riverpod providers directly (in-process). In Phase 2, the same handlers are exposed via the MCP server. No logic duplication — MCP is just an additional transport layer over the same `AppCommand` dispatchers.
+
+---
+
 ## Update Log
 
 ### 2026-06-04
 Initial spec. Extends [[2026-06-03-chat-llm]] with Gemini function calling, AppCommand command bus, AppScreenContext for state-aware prompting, and six tool declarations covering navigation, filtering, and form prefill.
+
+Brainstorm also explored MCP server options (Cloud Run, embedded in app). Decision: Phase 1 is in-app function calling only — all in-process, no Cloud Run, no cold start. Phase 2 (deferred) will embed an MCP server in the Flutter app using `flutter_mcp`/`dart_mcp` so external clients (Gemini CLI, Claude Code, future Gemini Spark) can connect on the same WiFi. Phase 2 adds no new tool logic — just a transport layer over the same `AppCommand` handlers.
