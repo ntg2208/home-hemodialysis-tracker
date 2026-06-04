@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../chat/command_dispatch.dart'
+    show prefillPostCommandProvider, PrefillPostTreatment;
+
 import '../../../api/inventory_api.dart';
 import '../../../app/shell.dart';
 import '../../../app/theme.dart';
@@ -39,6 +42,7 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
   double? _postWeight, _dialysateVolume, _totalUf, _bloodProcessed;
   int? _bpSys, _bpDia, _pulse, _durationMin;
   bool _totalUfTouched = false;
+  final Set<String> _aiFilledFields = {};
   bool _saving = false;
   String? _error;
   late bool _heparinUsed = widget.consumed.heparinUsed;
@@ -59,6 +63,23 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
         });
       }
     });
+
+    // Read current value first (may have been set before this widget mounted)
+    final pendingPost = ref.read(prefillPostCommandProvider);
+    if (pendingPost != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _applyAiPrefill(pendingPost);
+        ref.read(prefillPostCommandProvider.notifier).set(null);
+      });
+    }
+
+    // Listen for future AI prefill-post commands
+    ref.listenManual(prefillPostCommandProvider, (_, cmd) {
+      if (cmd == null || !mounted) return;
+      _applyAiPrefill(cmd);
+      ref.read(prefillPostCommandProvider.notifier).set(null);
+    });
   }
 
   double? get _derivedTotalUf =>
@@ -66,6 +87,32 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
           ? _round2(widget.session.preWeight! - _postWeight!).toDouble()
           : null;
   double? get _effectiveTotalUf => _totalUfTouched ? _totalUf : _derivedTotalUf;
+
+  void _applyAiPrefill(PrefillPostTreatment cmd) {
+    setState(() {
+      if (cmd.weight != null) {
+        _postWeight = cmd.weight;
+        _aiFilledFields.add('weight');
+      }
+      if (cmd.bpSys != null) {
+        _bpSys = cmd.bpSys;
+        _aiFilledFields.add('bpSys');
+      }
+      if (cmd.bpDia != null) {
+        _bpDia = cmd.bpDia;
+        _aiFilledFields.add('bpDia');
+      }
+      if (cmd.pulse != null) {
+        _pulse = cmd.pulse;
+        _aiFilledFields.add('pulse');
+      }
+      if (cmd.totalUf != null) {
+        _totalUf = cmd.totalUf;
+        _totalUfTouched = true;
+        _aiFilledFields.add('totalUf');
+      }
+    });
+  }
 
   bool get _ready => _postWeight != null && _bpSys != null && _bpDia != null;
 
@@ -150,23 +197,51 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
                   value: _bpSys,
                   integer: true,
                   required: true,
-                  onChanged: (v) => setState(() => _bpSys = v?.toInt())),
+                  suffix: _aiFilledFields.contains('bpSys')
+                      ? const Icon(Icons.auto_awesome,
+                          size: 14, color: Color(0xFFF59E0B))
+                      : null,
+                  onChanged: (v) => setState(() {
+                    _bpSys = v?.toInt();
+                    _aiFilledFields.remove('bpSys');
+                  })),
               NumberField(
                   label: 'BP dia',
                   value: _bpDia,
                   integer: true,
                   required: true,
-                  onChanged: (v) => setState(() => _bpDia = v?.toInt())),
+                  suffix: _aiFilledFields.contains('bpDia')
+                      ? const Icon(Icons.auto_awesome,
+                          size: 14, color: Color(0xFFF59E0B))
+                      : null,
+                  onChanged: (v) => setState(() {
+                    _bpDia = v?.toInt();
+                    _aiFilledFields.remove('bpDia');
+                  })),
               NumberField(
                   label: 'Pulse',
                   value: _pulse,
                   integer: true,
-                  onChanged: (v) => _pulse = v?.toInt()),
+                  suffix: _aiFilledFields.contains('pulse')
+                      ? const Icon(Icons.auto_awesome,
+                          size: 14, color: Color(0xFFF59E0B))
+                      : null,
+                  onChanged: (v) => setState(() {
+                    _pulse = v?.toInt();
+                    _aiFilledFields.remove('pulse');
+                  })),
               NumberField(
                   label: 'Weight (kg)',
                   value: _postWeight,
                   required: true,
-                  onChanged: (v) => setState(() => _postWeight = v?.toDouble())),
+                  suffix: _aiFilledFields.contains('weight')
+                      ? const Icon(Icons.auto_awesome,
+                          size: 14, color: Color(0xFFF59E0B))
+                      : null,
+                  onChanged: (v) => setState(() {
+                    _postWeight = v?.toDouble();
+                    _aiFilledFields.remove('weight');
+                  })),
               NumberField(
                   label: 'Duration (min)',
                   value: _durationMin,
@@ -179,9 +254,16 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
               NumberField(
                   label: 'Total UF (L)',
                   value: _effectiveTotalUf,
+                  suffix: _aiFilledFields.contains('totalUf')
+                      ? const Icon(Icons.auto_awesome,
+                          size: 14, color: Color(0xFFF59E0B))
+                      : !_totalUfTouched && _derivedTotalUf != null
+                          ? const AutoBadge()
+                          : null,
                   onChanged: (v) => setState(() {
                         _totalUfTouched = v != null;
                         _totalUf = v?.toDouble();
+                        _aiFilledFields.remove('totalUf');
                       })),
             ],
             ),
