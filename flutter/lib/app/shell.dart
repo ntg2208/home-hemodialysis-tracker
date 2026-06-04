@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import 'providers.dart' show testModeProvider;
 import '../features/chat/chat_sheet.dart';
-import '../features/chat/_spike_dispatch.dart' show spikeNavigationProvider;
+import '../features/chat/command_dispatch.dart' show pendingNavigationProvider;
 
 /// Thin shell widget required by [StatefulShellRoute.indexedStack].
 ///
@@ -32,15 +32,12 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   void initState() {
     super.initState();
-    // Spike: will be replaced by pendingNavigationProvider in Task 5
-    Future.microtask(() {
-      if (!mounted) return;
-      ref.listenManual(spikeNavigationProvider, (_, route) {
-        if (route != null && mounted) {
-          context.go(route);
-          ref.read(spikeNavigationProvider.notifier).setRoute(null);
-        }
-      });
+    // Listen for AI navigation commands dispatched by GeminiChatResponder.
+    ref.listenManual(pendingNavigationProvider, (_, route) {
+      if (route != null && mounted) {
+        context.go(route);
+        ref.read(pendingNavigationProvider.notifier).set(null);
+      }
     });
   }
 
