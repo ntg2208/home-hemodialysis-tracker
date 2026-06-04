@@ -7,6 +7,9 @@ import '../../app/shell.dart';
 import '../../app/theme.dart';
 import 'fitness_api.dart';
 import 'providers.dart';
+import '../chat/command_dispatch.dart'
+    show fitnessFilterCommandProvider, FilterFitness;
+import '../chat/screen_context.dart' show screenContextProvider;
 
 const _cacheKey = 'fitness_summary';
 const _cacheTtl = Duration(hours: 12);
@@ -65,6 +68,16 @@ class _FitnessScreenState extends ConsumerState<FitnessScreen> {
     if (_summary == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _load());
     }
+
+    // Publish current route for AI context
+    ref.read(screenContextProvider.notifier).setRoute('/fitness');
+
+    // React to AI fitness filter commands (stub — no filter UI yet)
+    ref.listenManual<FilterFitness?>(fitnessFilterCommandProvider, (_, cmd) {
+      if (cmd == null || !mounted) return;
+      debugPrint('[AI] FilterFitness: type=${cmd.type} days=${cmd.days}');
+      ref.read(fitnessFilterCommandProvider.notifier).set(null); // consume
+    });
   }
 
   Future<void> _load({bool background = false}) async {
@@ -243,9 +256,9 @@ class _FitnessScreenState extends ConsumerState<FitnessScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        RichText(
+                        Text.rich(
                           overflow: TextOverflow.ellipsis,
-                          text: TextSpan(
+                          TextSpan(
                             text: l.value,
                             style: TextStyle(
                                 color: t.textPrimary,
