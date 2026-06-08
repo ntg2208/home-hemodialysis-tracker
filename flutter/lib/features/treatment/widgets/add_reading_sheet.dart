@@ -54,7 +54,6 @@ class _AddReadingSheetState extends State<_AddReadingSheet> {
   late String _time = nowHHMM();
   int? _bpSys, _bpDia, _pulse, _vp, _ap;
   late int? _bloodFlow = widget.defaultBloodFlow;
-  String? _note;
   bool _saving = false;
   String? _error;
 
@@ -106,7 +105,6 @@ class _AddReadingSheetState extends State<_AddReadingSheet> {
       bloodFlow: _bloodFlow,
       venousPressure: _vp,
       arterialPressure: _ap,
-      note: (_note?.isEmpty ?? true) ? null : _note,
       createdAt: DateTime.now().toIso8601String(),
     );
     try {
@@ -258,14 +256,6 @@ class _AddReadingSheetState extends State<_AddReadingSheet> {
                       }),
                 ],
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Note (optional)',
-                  hintText: 'e.g. felt lightheaded, slowed UF',
-                ),
-                onChanged: (v) => _note = v,
               ),
               if (_error != null) ...[
                 const SizedBox(height: 8),
