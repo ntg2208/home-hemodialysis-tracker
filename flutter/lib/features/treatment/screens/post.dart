@@ -27,12 +27,14 @@ class PostTreatment extends ConsumerStatefulWidget {
     required this.consumed,
     required this.onSaved,
     required this.onCancel,
+    this.initialComment,
   });
 
   final Session session;
   final SessionConsumed consumed;
   final VoidCallback onSaved;
   final VoidCallback onCancel;
+  final String? initialComment;
 
   @override
   ConsumerState<PostTreatment> createState() => _PostTreatmentState();
@@ -45,6 +47,8 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
   final Set<String> _aiFilledFields = {};
   bool _saving = false;
   String? _error;
+  String? _comment;
+  late TextEditingController _commentController;
   late bool _heparinUsed = widget.consumed.heparinUsed;
   late bool _epoUsed = widget.consumed.epoUsed;
   num? _heparinStock;
@@ -53,6 +57,9 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
   @override
   void initState() {
     super.initState();
+    _comment = widget.initialComment;
+    _commentController =
+        TextEditingController(text: widget.initialComment ?? '');
     _durationMin = widget.consumed.durationMin ?? _defaultDurationMin;
     _dialysateVolume = _defaultDialysateVolume.toDouble();
     ref.read(inventoryApiProvider).fetchStock().then((stock) {
@@ -80,6 +87,12 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
       _applyAiPrefill(cmd);
       ref.read(prefillPostCommandProvider.notifier).set(null);
     });
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
   }
 
   double? get _derivedTotalUf =>
@@ -136,6 +149,7 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
               if (_dialysateVolume != null) 'dialysate_volume': _dialysateVolume,
               if (_effectiveTotalUf != null) 'total_uf': _effectiveTotalUf,
               if (_bloodProcessed != null) 'blood_processed': _bloodProcessed,
+              if (_comment != null && _comment!.isNotEmpty) 'comment': _comment,
             },
           )
           .timeout(const Duration(seconds: 6));
@@ -283,6 +297,18 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
             stock: _epoStock,
             used: _epoUsed,
             onChanged: (v) => setState(() => _epoUsed = v),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _commentController,
+            maxLines: 4,
+            minLines: 2,
+            decoration: const InputDecoration(
+              labelText: 'Session notes (optional)',
+              hintText: 'Any notes about this session…',
+              alignLabelWithHint: true,
+            ),
+            onChanged: (v) => _comment = v.isEmpty ? null : v,
           ),
           const SizedBox(height: 20),
           Row(children: [
