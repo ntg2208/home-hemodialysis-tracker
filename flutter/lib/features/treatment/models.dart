@@ -23,6 +23,7 @@ class Session {
     this.totalUf,
     this.bloodProcessed,
     this.createdAt,
+    this.comment,
   });
 
   final String sessionId;
@@ -42,6 +43,7 @@ class Session {
   final double? totalUf;
   final double? bloodProcessed;
   final String? createdAt;
+  final String? comment;
 
   /// Firestore document map. Drops nulls so we never overwrite a field with null.
   Map<String, dynamic> toMap() {
@@ -65,6 +67,7 @@ class Session {
     put('total_uf', totalUf);
     put('blood_processed', bloodProcessed);
     put('created_at', createdAt);
+    put('comment', comment);
     return m;
   }
 
@@ -86,6 +89,7 @@ class Session {
         totalUf: _d(m['total_uf']),
         bloodProcessed: _d(m['blood_processed']),
         createdAt: m['created_at'] as String?,
+        comment: m['comment'] as String?,
       );
 }
 
