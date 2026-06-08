@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive/hive.dart';
+import 'package:home_hd/app/providers.dart' show cacheBoxName;
 import 'package:home_hd/app/theme.dart';
 import 'package:home_hd/api/rest_client.dart';
 import 'package:home_hd/features/blood_tests/models.dart';
@@ -62,6 +66,11 @@ class _FakeInventoryApi extends InventoryApi {
 }
 
 void main() {
+  setUpAll(() async {
+    Hive.init(Directory.systemTemp.createTempSync('smoke_test').path);
+    await Hive.openBox(cacheBoxName);
+  });
+
   testWidgets('TrendChart renders with multiple points', (tester) async {
     await tester.pumpWidget(_app(TrendChart(
       marker: 'haemoglobin',
@@ -96,6 +105,7 @@ void main() {
         onCountdownChanged: (_, _) {},
         onHeparinChanged: (_) {},
         onEpoChanged: (_) {},
+        onCommentChanged: (_) {},
         onEnd: (_) {},
       )),
     ));

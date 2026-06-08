@@ -12,7 +12,7 @@ import '../providers.dart';
 import '../treatment_repo.dart';
 import '../widgets/add_reading_sheet.dart';
 import '../../chat/command_dispatch.dart'
-    show prefillReadingCommandProvider, PrefillReading;
+    show endSessionProvider, prefillReadingCommandProvider, PrefillReading;
 
 const _defaultTargetMin = 255; // 4h 15m
 const _notifyAtMins = [120, 60, 5];
@@ -26,6 +26,8 @@ class ActiveSession extends ConsumerStatefulWidget {
     required this.epoUsed,
     this.initialCountdownStartedAt,
     this.initialTargetMin,
+    this.initialComment,
+    required this.onCommentChanged,
     required this.onReadingsChanged,
     required this.onCountdownChanged,
     required this.onHeparinChanged,
@@ -39,6 +41,8 @@ class ActiveSession extends ConsumerStatefulWidget {
   final bool epoUsed;
   final int? initialCountdownStartedAt;
   final int? initialTargetMin;
+  final String? initialComment;
+  final void Function(String?) onCommentChanged;
   final void Function(List<PendingReading>) onReadingsChanged;
   final void Function(int? startedAt, int targetMin) onCountdownChanged;
   final void Function(bool) onHeparinChanged;
@@ -62,10 +66,14 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
   String? _inAppAlert;
   Timer? _ticker;
   final _notified = <int>{};
+  late String? _comment = widget.initialComment;
+  late TextEditingController _commentController;
 
   @override
   void initState() {
     super.initState();
+    _commentController =
+        TextEditingController(text: widget.initialComment ?? '');
     final start = _countdownStartedAt;
     if (start != null) {
       final remaining =
@@ -92,11 +100,23 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
       if (cmd == null || !mounted) return;
       _drainPrefillReading(cmd);
     });
+
+    // Listen for AI end-session command.
+    // Delay matches AppShell's navigation delay so the chat sheet closes first.
+    ref.listenManual(endSessionProvider, (_, triggered) {
+      if (triggered && mounted) {
+        ref.read(endSessionProvider.notifier).consume();
+        Future.delayed(const Duration(milliseconds: 350), () {
+          if (mounted) _end();
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _ticker?.cancel();
+    _commentController.dispose();
     super.dispose();
   }
 
@@ -272,7 +292,7 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
           if (_inAppAlert != null) _alertBanner(t),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
               children: [
                 _timerCard(t, started, remainingMs, timerColor),
                 const SizedBox(height: 12),
@@ -333,6 +353,8 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
                   )
                 else
                   ...sorted.map((r) => _readingRow(t, r)),
+                const SizedBox(height: 20),
+                _sessionNotesCard(t),
               ],
             ),
           ),
@@ -559,6 +581,41 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
             activeThumbColor: t.accent,
           ),
         ]),
+      );
+
+  Widget _sessionNotesCard(HdTokens t) => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: t.panel,
+          border: Border.all(color: t.border),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('SESSION NOTES',
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.2,
+                    color: t.textMuted)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _commentController,
+              maxLines: 4,
+              minLines: 2,
+              decoration: const InputDecoration(
+                hintText: 'Any notes about this session…',
+                border: InputBorder.none,
+                isDense: true,
+              ),
+              onChanged: (v) {
+                _comment = v.isEmpty ? null : v;
+                widget.onCommentChanged(_comment);
+              },
+            ),
+          ],
+        ),
       );
 
   Widget _readingRow(HdTokens t, PendingReading p) {
