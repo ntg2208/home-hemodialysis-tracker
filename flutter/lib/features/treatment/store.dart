@@ -3,7 +3,7 @@ import 'package:hive/hive.dart';
 import 'models.dart';
 
 /// Local persistence for Treatment. Mirrors frontend/src/routes/Treatment/storage.ts:
-/// dried weight, sessions cache, last session, and the active-session restore state
+/// dry weight, sessions cache, last session, and the active-session restore state
 /// (24h TTL). Backed by a single Hive box (IndexedDB on web, file on mobile).
 const _activeTtlMs = 24 * 60 * 60 * 1000;
 const driedWeightDefault = 59.0;
@@ -22,6 +22,7 @@ class ActiveState {
     this.consumed,
     this.countdownStartedAt,
     this.targetMin,
+    this.comment,
     required this.savedAt,
   });
 
@@ -34,6 +35,7 @@ class ActiveState {
   final SessionConsumed? consumed;
   final int? countdownStartedAt;
   final int? targetMin;
+  final String? comment;
   final int savedAt;
 
   Map<String, dynamic> toMap() => {
@@ -61,6 +63,7 @@ class ActiveState {
           },
         if (countdownStartedAt != null) 'countdownStartedAt': countdownStartedAt,
         if (targetMin != null) 'targetMin': targetMin,
+        if (comment != null) 'comment': comment,
         'savedAt': savedAt,
       };
 
@@ -98,6 +101,7 @@ class ActiveState {
             }(),
       countdownStartedAt: (m['countdownStartedAt'] as num?)?.toInt(),
       targetMin: (m['targetMin'] as num?)?.toInt(),
+      comment: m['comment'] as String?,
       savedAt: (m['savedAt'] as num).toInt(),
     );
   }
