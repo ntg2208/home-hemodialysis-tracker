@@ -46,6 +46,28 @@ class SessionListItem extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(bpLabel,
                     style: TextStyle(fontSize: 12, color: t.textMuted)),
+                if (session.comment != null &&
+                    session.comment!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    Icon(Icons.chat_bubble_outline,
+                        size: 11, color: t.textMuted),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        session.comment!.length > 50
+                            ? '${session.comment!.substring(0, 50)}…'
+                            : session.comment!,
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: t.textMuted,
+                            fontStyle: FontStyle.italic),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ]),
+                ],
               ],
             ),
           ),
