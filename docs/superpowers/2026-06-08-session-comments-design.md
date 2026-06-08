@@ -240,7 +240,7 @@ Widget _sessionNotesCard(HdTokens t) => Container(
               color: t.textMuted)),
       const SizedBox(height: 8),
       TextField(
-        controller: TextEditingController(text: _comment),
+        controller: _commentController,
         maxLines: 4,
         minLines: 2,
         decoration: const InputDecoration(
@@ -258,7 +258,7 @@ Widget _sessionNotesCard(HdTokens t) => Container(
 );
 ```
 
-Note: store the controller in state (`_commentController = TextEditingController(text: widget.initialComment ?? '')` in `initState`, disposed in `dispose`). Pass `_commentController` to the `TextField` — do not create `TextEditingController(text: _comment)` inside `build`, which resets the cursor on every rebuild.
+`_commentController` is a `late TextEditingController` declared in state, created in `initState` as `TextEditingController(text: widget.initialComment ?? '')`, and disposed in `dispose`. Never create `TextEditingController` inside `build`.
 
 ---
 
@@ -280,12 +280,20 @@ class PostTreatment extends ConsumerStatefulWidget {
 
 ```dart
 String? _comment;
+late TextEditingController _commentController;
 
 @override
 void initState() {
   super.initState();
   _comment = widget.initialComment;
+  _commentController = TextEditingController(text: widget.initialComment ?? '');
   // existing init...
+}
+
+@override
+void dispose() {
+  _commentController.dispose();
+  super.dispose();
 }
 ```
 
@@ -529,12 +537,19 @@ No backend, API, or Apps Script changes required.
 
 ---
 
+## Known Limitations
+
+- **Home indicator after Active/Post path:** After finishing a session (Post → Finish), the Home list is served from Hive cache. Post-treatment values (weight, BP, and comment) are in Firestore but not written back to the cache — they appear on Home after pull-to-refresh. This is consistent with the existing post-treatment behavior and is intentional. The cache update on the Session Detail path (criterion #5) is the only entry point that refreshes without a reload.
+- **Comment lost on session cancel:** If a user types a comment during Active and then cancels the session, the comment is discarded (never sent to Firestore). They can add it later via Session Detail.
+
+---
+
 ## Acceptance Criteria
 
 1. Add Reading modal has no note field.
 2. Active session screen has a SESSION NOTES card at the bottom; text persists through app-kill/restore.
 3. Post-treatment screen has a Session notes field pre-filled from Active; value is included in the Firestore patch on Finish.
 4. Tapping a past session opens Session Detail; SESSION NOTES card shows current comment and can be edited and saved.
-5. Saving a comment in Session Detail updates the Home list indicator immediately (no refresh needed).
+5. Saving a comment via Session Detail updates the Home list indicator immediately (Hive cache patched inline). Comments entered via Active/Post appear on Home after pull-to-refresh (consistent with all other post-treatment fields).
 6. `SessionListItem` shows a chat icon + truncated comment when `comment` is non-empty; nothing when absent.
 7. Existing `Reading.note` values (from old reading-level notes) still display in Session Detail under each reading row.
