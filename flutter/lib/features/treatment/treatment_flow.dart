@@ -29,19 +29,21 @@ class _Pre extends _FlowScreen {
 
 class _Active extends _FlowScreen {
   _Active(this.session, this.readings, this.heparinUsed, this.epoUsed,
-      {this.countdownStartedAt, this.targetMin});
+      {this.countdownStartedAt, this.targetMin, this.comment});
   final Session session;
   List<PendingReading> readings;
   bool heparinUsed;
   bool epoUsed;
   int? countdownStartedAt;
   int? targetMin;
+  String? comment;
 }
 
 class _Post extends _FlowScreen {
-  _Post(this.session, this.consumed);
+  _Post(this.session, this.consumed, {this.comment});
   final Session session;
   final SessionConsumed consumed;
+  final String? comment;
 }
 
 /// Treatment route: bootstraps Firebase auth (with the race fix + 20s timeout),
@@ -121,6 +123,7 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
               active.epoUsed ?? true,
               countdownStartedAt: active.countdownStartedAt,
               targetMin: active.targetMin,
+              comment: active.comment,
             ));
         _publishTreatmentState();
       case 'post' when active.session != null:
@@ -128,7 +131,9 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
             active.session!,
             active.consumed ??
                 const SessionConsumed(
-                    needles: 2, onOffPacks: 1, heparinUsed: false)));
+                    needles: 2, onOffPacks: 1, heparinUsed: false),
+            comment: active.comment,
+        ));
         _publishTreatmentState();
       default:
         setState(() => _screen = _Home());
@@ -173,17 +178,19 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
       epoUsed: s.epoUsed,
       countdownStartedAt: s.countdownStartedAt,
       targetMin: s.targetMin,
+      comment: s.comment,
       savedAt: DateTime.now().millisecondsSinceEpoch,
     ));
   }
 
-  void _goPost(Session session, SessionConsumed consumed) {
-    setState(() => _screen = _Post(session, consumed));
+  void _goPost(Session session, SessionConsumed consumed, String? comment) {
+    setState(() => _screen = _Post(session, consumed, comment: comment));
     _publishTreatmentState();
     _store.saveActiveState(ActiveState(
       screen: 'post',
       session: session,
       consumed: consumed,
+      comment: comment,
       savedAt: DateTime.now().millisecondsSinceEpoch,
     ));
   }
@@ -258,6 +265,7 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
               epoUsed: screen.epoUsed,
               initialCountdownStartedAt: screen.countdownStartedAt,
               initialTargetMin: screen.targetMin,
+              initialComment: screen.comment,
               onReadingsChanged: (rs) {
                 screen.readings = rs;
                 _persistActive(screen);
@@ -275,12 +283,18 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
                 screen.epoUsed = e;
                 _persistActive(screen);
               },
-              onEnd: (consumed) => _goPost(screen.session, consumed),
+              onCommentChanged: (c) {
+                screen.comment = c;
+                _persistActive(screen);
+              },
+              onEnd: (consumed) =>
+                  _goPost(screen.session, consumed, screen.comment),
             ),
           _Post() => PostTreatment(
               key: ValueKey('post'),
               session: screen.session,
               consumed: screen.consumed,
+              initialComment: screen.comment,
               onSaved: _goHome,
               onCancel: _goBackToActive,
             ),
