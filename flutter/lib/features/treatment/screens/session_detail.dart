@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme.dart';
 import '../models.dart';
 import '../providers.dart';
+import '../widgets/sheet_button.dart';
 
 /// Opens the session detail as a bottom-sheet popup. Resolves to `true` if the
 /// session was deleted (so Home can refresh), otherwise null.
@@ -30,6 +31,10 @@ class _SessionDetailSheetState extends ConsumerState<SessionDetailSheet> {
   List<Reading>? _readings;
   bool _error = false;
   bool _deleting = false;
+  late String? _comment = widget.session.comment;
+  bool _editingComment = false;
+  bool _savingComment = false;
+  final _commentController = TextEditingController();
 
   Session get _s => widget.session;
 
@@ -37,6 +42,13 @@ class _SessionDetailSheetState extends ConsumerState<SessionDetailSheet> {
   void initState() {
     super.initState();
     _loadReadings();
+    _commentController.text = widget.session.comment ?? '';
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadReadings() async {
@@ -83,6 +95,107 @@ class _SessionDetailSheetState extends ConsumerState<SessionDetailSheet> {
       }
     }
   }
+
+  Future<void> _saveComment() async {
+    setState(() => _savingComment = true);
+    final value = _commentController.text.trim().isEmpty
+        ? null
+        : _commentController.text.trim();
+    try {
+      await ref.read(treatmentRepoProvider).updateSession(
+        _s.sessionId,
+        {'comment': value},
+      );
+      final store = ref.read(treatmentStoreProvider);
+      final cached = store.getCachedSessions();
+      if (cached != null) {
+        final updated = cached.map((s) {
+          if (s.sessionId != _s.sessionId) return s;
+          return Session.fromMap({...s.toMap(), 'comment': value});
+        }).toList();
+        store.saveCachedSessions(updated);
+      }
+      if (mounted) {
+        setState(() {
+          _comment = value;
+          _editingComment = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Save failed — try again.')));
+      }
+    } finally {
+      if (mounted) setState(() => _savingComment = false);
+    }
+  }
+
+  Widget _commentCard(HdTokens t) => _card(t, 'SESSION NOTES', [
+        if (_editingComment)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                controller: _commentController,
+                maxLines: 5,
+                minLines: 2,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Any notes about this session…',
+                  border: InputBorder.none,
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(
+                  child: SheetButton(
+                    label: 'Cancel',
+                    accent: false,
+                    onPressed: _savingComment
+                        ? null
+                        : () => setState(() {
+                              _commentController.text = _comment ?? '';
+                              _editingComment = false;
+                            }),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SheetButton(
+                    label: 'Save',
+                    icon: Icons.check,
+                    accent: true,
+                    loading: _savingComment,
+                    onPressed: _savingComment ? null : _saveComment,
+                  ),
+                ),
+              ]),
+            ],
+          )
+        else
+          GestureDetector(
+            onTap: () => setState(() {
+              _commentController.text = _comment ?? '';
+              _editingComment = true;
+            }),
+            child: Row(children: [
+              Expanded(
+                child: _comment != null && _comment!.isNotEmpty
+                    ? Text(_comment!,
+                        style:
+                            TextStyle(color: t.textSecondary, fontSize: 13))
+                    : Text('No notes — tap to add.',
+                        style: TextStyle(
+                            color: t.textMuted,
+                            fontSize: 13,
+                            fontStyle: FontStyle.italic)),
+              ),
+              Icon(Icons.edit_outlined, size: 14, color: t.textMuted),
+            ]),
+          ),
+      ]);
 
   @override
   Widget build(BuildContext context) {
@@ -149,6 +262,8 @@ class _SessionDetailSheetState extends ConsumerState<SessionDetailSheet> {
                     _kv(t, 'Total UF', _u(_s.totalUf, 'L')),
                     _kv(t, 'Blood processed', _u(_s.bloodProcessed, 'L')),
                   ]),
+                  const SizedBox(height: 12),
+                  _commentCard(t),
                   const SizedBox(height: 20),
                   OutlinedButton.icon(
                     onPressed: _deleting ? null : _delete,
