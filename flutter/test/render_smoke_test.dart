@@ -96,6 +96,7 @@ void main() {
         onCountdownChanged: (_, _) {},
         onHeparinChanged: (_) {},
         onEpoChanged: (_) {},
+        onCommentChanged: (_) {},
         onEnd: (_) {},
       )),
     ));
