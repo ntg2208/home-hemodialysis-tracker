@@ -45,9 +45,17 @@ class _EntrySheetState extends ConsumerState<_EntrySheet> {
         .toList();
   }
 
+  final _valueFocus  = FocusNode();
+
   void _selectFirstMatch() {
     final matches = _filtered;
-    if (matches.isNotEmpty) _selectMarker(matches.first);
+    if (matches.isNotEmpty) {
+      _selectMarker(matches.first);
+    } else if (_searchCtrl.text.trim().isNotEmpty) {
+      // No match — treat typed text as a custom marker, move to value field.
+      setState(() => _marker = null); // clear search results
+      _valueFocus.requestFocus();
+    }
   }
 
   void _selectMarker(MarkerDefinition m) {
@@ -60,6 +68,7 @@ class _EntrySheetState extends ConsumerState<_EntrySheet> {
       if (_refHighCtrl.text.isEmpty && m.refHigh != null)
         _refHighCtrl.text = m.refHigh!.toString();
     });
+    _valueFocus.requestFocus();
   }
 
   Future<void> _save({bool addAnother = false}) async {
@@ -120,6 +129,7 @@ class _EntrySheetState extends ConsumerState<_EntrySheet> {
     _refLowCtrl.dispose();
     _refHighCtrl.dispose();
     _noteCtrl.dispose();
+    _valueFocus.dispose();
     super.dispose();
   }
 
@@ -188,8 +198,11 @@ class _EntrySheetState extends ConsumerState<_EntrySheet> {
                 flex: 2,
                 child: TextField(
                   controller: _valueCtrl,
+                  focusNode: _valueFocus,
+                  textInputAction: TextInputAction.done,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(labelText: 'Value'),
+                  onSubmitted: (_) => _save(),
                 ),
               ),
               const SizedBox(width: 8),
