@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/shell.dart';
 import '../../app/theme.dart';
+import '../../flavor.dart';
 import '../chat/command_dispatch.dart' show prefillPreCommandProvider;
 import '../chat/screen_context.dart'
     show screenContextProvider, TreatmentState;
@@ -79,6 +80,10 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
 
   Future<void> _bootstrap() async {
     setState(() => _screen = _Loading());
+    if (kCommunity) {
+      _restoreOrHome();
+      return;
+    }
     final auth = ref.read(treatmentAuthProvider);
     try {
       await auth.ensure();
