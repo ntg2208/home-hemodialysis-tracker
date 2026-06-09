@@ -11,9 +11,8 @@ Future<void> showEntrySheet(BuildContext context) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
-    builder: (ctx) => ProviderScope(
-      parent: ProviderScope.containerOf(ctx),
-      child: const _EntrySheet(),
+    builder: (ctx) => const ProviderScope(
+      child: _EntrySheet(),
     ),
   );
 }
