@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/theme.dart';
+import '../../../flavor.dart';
 
 const _phaseOptions = [
   ('', 'All phases'),
@@ -81,20 +82,22 @@ class FilterBar extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // --- Phase pills ---
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final (value, label) in _phaseOptions)
-                FilterPill(
-                  label: label,
-                  active: value == activePhase,
-                  onTap: () => onChange(filter.copyWith(
-                      phases: value.isEmpty ? const [] : [value])),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
+          if (!kCommunity) ...[
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final (value, label) in _phaseOptions)
+                  FilterPill(
+                    label: label,
+                    active: value == activePhase,
+                    onTap: () => onChange(filter.copyWith(
+                        phases: value.isEmpty ? const [] : [value])),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
           // --- Timeframe pills with calendar icon ---
           Row(
             children: [
