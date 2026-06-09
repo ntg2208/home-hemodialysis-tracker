@@ -15,6 +15,7 @@ class BtCache {
 class BtStore {
   BtStore(this._box);
   final Box _box;
+  Box get box => _box;
 
   static const _rowsKey = 'bt_rows';
   static const _coveredKey = 'bt_covered_from';
