@@ -45,6 +45,11 @@ class _EntrySheetState extends ConsumerState<_EntrySheet> {
         .toList();
   }
 
+  void _selectFirstMatch() {
+    final matches = _filtered;
+    if (matches.isNotEmpty) _selectMarker(matches.first);
+  }
+
   void _selectMarker(MarkerDefinition m) {
     setState(() {
       _marker = m;
@@ -155,12 +160,14 @@ class _EntrySheetState extends ConsumerState<_EntrySheet> {
             // Marker search
             TextField(
               controller: _searchCtrl,
+              textInputAction: TextInputAction.done,
               decoration: const InputDecoration(
                 labelText: 'Marker',
                 hintText: 'Search or type custom marker',
                 prefixIcon: Icon(Icons.search, size: 18),
               ),
               onChanged: (_) => setState(() { _marker = null; }),
+              onSubmitted: (_) => _selectFirstMatch(),
             ),
             if (_searchCtrl.text.isNotEmpty && _marker == null)
               ConstrainedBox(
