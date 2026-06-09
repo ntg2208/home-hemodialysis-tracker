@@ -26,9 +26,13 @@ class HiveTreatmentRepo extends TreatmentRepo {
 
   @override
   Future<List<Reading>> getReadings(String sessionId) async {
-    return _readings.values
-        .map((v) => Reading.fromMap(Map<String, dynamic>.from(v as Map)))
-        .where((r) => r.sessionId == sessionId)
+    // Eagerly collect all values first — lazy Hive iteration on web can be flaky.
+    final all = _readings.values
+        .map((v) => Map<String, dynamic>.from(v as Map))
+        .toList();
+    return all
+        .where((m) => m['session_id'] == sessionId)
+        .map(Reading.fromMap)
         .toList()
       ..sort((a, b) => a.seq.compareTo(b.seq));
   }

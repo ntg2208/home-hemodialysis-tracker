@@ -51,10 +51,10 @@ Future<Uint8List> buildSessionPdf(
         pw.SizedBox(height: 12),
 
         // Readings table
-        if (readings.isNotEmpty) ...[
-          _sectionHeader('Readings'),
+        _sectionHeader('During Session'),
+        if (readings.isNotEmpty)
           pw.TableHelper.fromTextArray(
-            headers: ['Time', 'BP', 'Pulse', 'BF (mL/min)', 'VP', 'AP', 'Note'],
+            headers: ['Time', 'BP', 'Pulse', 'BF', 'VP', 'AP', 'Note'],
             data: readings.map((r) => [
               r.time,
               r.bpSys != null ? '${r.bpSys}/${r.bpDia}' : '-',
@@ -68,9 +68,11 @@ Future<Uint8List> buildSessionPdf(
             headerStyle: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
             border: pw.TableBorder.all(color: PdfColors.grey300),
             cellPadding: const pw.EdgeInsets.all(4),
-          ),
-          pw.SizedBox(height: 12),
-        ],
+          )
+        else
+          pw.Text('No readings recorded during this session.',
+              style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey500)),
+        pw.SizedBox(height: 12),
 
         // Post-treatment
         _sectionHeader('Post-treatment'),
