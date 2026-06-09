@@ -11,6 +11,8 @@ import '../models.dart';
 import '../providers.dart';
 import '../session_id.dart';
 import '../treatment_repo.dart';
+import '../../../app/providers.dart' show testModeProvider;
+import '../../../flavor.dart';
 import '../../chat/command_dispatch.dart'
     show prefillPreCommandProvider, PrefillPreTreatment;
 
@@ -39,7 +41,7 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
   bool _saving = false;
   String? _error;
   late double _driedWeight;
-  bool _heparinUsed = true;
+  bool _heparinUsed = false;
   bool _epoUsed = false;
   num? _heparinStock;
   num? _epoStock;
@@ -49,6 +51,14 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
   void initState() {
     super.initState();
     _driedWeight = ref.read(treatmentStoreProvider).getDriedWeight();
+
+    if (ref.read(testModeProvider)) {
+      _preWeight = 61.5;
+      _bpSys = 138;
+      _bpDia = 88;
+      _pulse = 96;
+    }
+
     ref.read(inventoryApiProvider).fetchStock().then((stock) {
       if (mounted) {
         setState(() {
@@ -180,7 +190,7 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
             ),
             child: Text(
               'Enter pre-treatment vitals. UF goal and rate auto-calculate '
-              'from your dried weight (${_driedWeight.toStringAsFixed(0)} kg) '
+              'from your dry weight (${_driedWeight.toStringAsFixed(0)} kg) '
               '— edit any field to override.',
               style: TextStyle(fontSize: 13, color: t.textSecondary),
             ),
@@ -307,13 +317,24 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
             onChanged: (v) => setState(() => _heparinUsed = v),
           ),
           const SizedBox(height: 20),
+          // Dry weight guard for community
+          if (kCommunity && _driedWeight <= 0) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'Set your dry weight in Settings before starting a session.',
+                style: TextStyle(fontSize: 12, color: context.hd.warning),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
           SaveButton(
             saving: _saving,
-            enabled: _ready,
+            enabled: _ready && !(kCommunity && _driedWeight <= 0),
             error: _error,
             icon: Icons.play_arrow_outlined,
             label: 'Start session',
-            onPressed: _submit,
+            onPressed: () => _submit(),
           ),
           const SizedBox(height: 24),
         ],

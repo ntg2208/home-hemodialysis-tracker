@@ -7,6 +7,7 @@ import 'shell.dart';
 import '../features/blood_tests/blood_tests_screen.dart';
 import '../features/fitness/fitness_screen.dart';
 import '../features/inventory/inventory_screen.dart';
+import '../features/settings/community_settings_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/setup/setup_screen.dart';
 import '../features/treatment/treatment_flow.dart';
@@ -34,7 +35,9 @@ GoRouter buildRouter(AuthController auth) {
 
       // Settings is outside the shell so context.push('/settings') puts it on
       // the back-stack and back-button returns to the previous shell branch.
-      GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
+      GoRoute(path: '/settings', builder: (_, _) => kCommunity
+          ? const CommunitySettingsScreen()
+          : const SettingsScreen()),
 
       StatefulShellRoute(
         navigatorContainerBuilder: (context, navigationShell, children) =>

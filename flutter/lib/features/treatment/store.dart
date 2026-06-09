@@ -1,5 +1,6 @@
 import 'package:hive/hive.dart';
 
+import '../../flavor.dart';
 import 'models.dart';
 
 /// Local persistence for Treatment. Mirrors frontend/src/routes/Treatment/storage.ts:
@@ -118,10 +119,13 @@ class TreatmentStore {
 
   double getDriedWeight() {
     final v = _box.get(_driedKey);
-    return (v is num && v.isFinite) ? v.toDouble() : driedWeightDefault;
+    if (v is num && v.isFinite) return v.toDouble();
+    return kCommunity ? 0.0 : driedWeightDefault;
   }
 
   Future<void> saveDriedWeight(double kg) => _box.put(_driedKey, kg);
+
+  Future<void> setDriedWeight(double kg) => _box.put(_driedKey, kg);
 
   List<Session>? getCachedSessions() {
     final raw = _box.get(_sessionsKey);
