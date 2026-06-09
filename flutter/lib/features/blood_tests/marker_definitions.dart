@@ -1,0 +1,68 @@
+class MarkerDefinition {
+  const MarkerDefinition({
+    required this.name,
+    required this.displayName,
+    required this.defaultUnit,
+    this.refLow,
+    this.refHigh,
+  });
+  final String name;
+  final String displayName;
+  final String defaultUnit;
+  final double? refLow;
+  final double? refHigh;
+}
+
+const markerDefinitions = [
+  MarkerDefinition(name: 'albumin',             displayName: 'Albumin',                    defaultUnit: 'g/L',      refLow: 35,    refHigh: 50),
+  MarkerDefinition(name: 'alkaline_phosphatase',displayName: 'Alkaline Phosphatase',        defaultUnit: 'U/L',      refLow: 30,    refHigh: 130),
+  MarkerDefinition(name: 'alt',                 displayName: 'ALT',                         defaultUnit: 'U/L',      refLow: 7,     refHigh: 56),
+  MarkerDefinition(name: 'ast',                 displayName: 'AST',                         defaultUnit: 'U/L',      refLow: 10,    refHigh: 40),
+  MarkerDefinition(name: 'bicarbonate',         displayName: 'Bicarbonate',                 defaultUnit: 'mmol/L',   refLow: 22,    refHigh: 29),
+  MarkerDefinition(name: 'bilirubin',           displayName: 'Bilirubin (Total)',            defaultUnit: 'umol/L',   refLow: 3,     refHigh: 21),
+  MarkerDefinition(name: 'bone_alk_phosphatase',displayName: 'Bone Alkaline Phosphatase',   defaultUnit: 'ug/L',     refLow: null,  refHigh: 22),
+  MarkerDefinition(name: 'calcium',             displayName: 'Calcium',                     defaultUnit: 'mmol/L',   refLow: 2.1,   refHigh: 2.6),
+  MarkerDefinition(name: 'chloride',            displayName: 'Chloride',                    defaultUnit: 'mmol/L',   refLow: 98,    refHigh: 107),
+  MarkerDefinition(name: 'cholesterol',         displayName: 'Cholesterol (Total)',          defaultUnit: 'mmol/L',   refLow: null,  refHigh: 5.0),
+  MarkerDefinition(name: 'ck',                  displayName: 'CK',                          defaultUnit: 'U/L',      refLow: 38,    refHigh: 204),
+  MarkerDefinition(name: 'creatinine',          displayName: 'Creatinine',                  defaultUnit: 'umol/L',   refLow: 64,    refHigh: 104),
+  MarkerDefinition(name: 'crp',                 displayName: 'CRP',                         defaultUnit: 'mg/L',     refLow: null,  refHigh: 5),
+  MarkerDefinition(name: 'egfr',                displayName: 'eGFR',                        defaultUnit: 'mL/min',   refLow: 60,    refHigh: null),
+  MarkerDefinition(name: 'epo',                 displayName: 'Erythropoietin',              defaultUnit: 'mU/mL',    refLow: 2.6,   refHigh: 18.5),
+  MarkerDefinition(name: 'ferritin',            displayName: 'Ferritin',                    defaultUnit: 'ug/L',     refLow: 20,    refHigh: 300),
+  MarkerDefinition(name: 'folate',              displayName: 'Folate',                      defaultUnit: 'nmol/L',   refLow: 7,     refHigh: null),
+  MarkerDefinition(name: 'fsh',                 displayName: 'FSH',                         defaultUnit: 'U/L',      refLow: null,  refHigh: null),
+  MarkerDefinition(name: 'ggt',                 displayName: 'GGT',                         defaultUnit: 'U/L',      refLow: 10,    refHigh: 71),
+  MarkerDefinition(name: 'glucose',             displayName: 'Glucose',                     defaultUnit: 'mmol/L',   refLow: 3.9,   refHigh: 5.6),
+  MarkerDefinition(name: 'haematocrit',         displayName: 'Haematocrit',                 defaultUnit: 'L/L',      refLow: 0.36,  refHigh: 0.46),
+  MarkerDefinition(name: 'haemoglobin',         displayName: 'Haemoglobin',                 defaultUnit: 'g/L',      refLow: 110,   refHigh: 130),
+  MarkerDefinition(name: 'hdl',                 displayName: 'HDL Cholesterol',             defaultUnit: 'mmol/L',   refLow: 1.0,   refHigh: null),
+  MarkerDefinition(name: 'intact_pth',          displayName: 'Intact PTH',                  defaultUnit: 'pmol/L',   refLow: null,  refHigh: null),
+  MarkerDefinition(name: 'iron',                displayName: 'Iron',                        defaultUnit: 'umol/L',   refLow: 11,    refHigh: 30),
+  MarkerDefinition(name: 'kt_v',               displayName: 'Kt/V',                        defaultUnit: '',         refLow: 1.2,   refHigh: null),
+  MarkerDefinition(name: 'lactate',             displayName: 'Lactate',                     defaultUnit: 'mmol/L',   refLow: 0.5,   refHigh: 2.2),
+  MarkerDefinition(name: 'ldh',                 displayName: 'LDH',                         defaultUnit: 'U/L',      refLow: 135,   refHigh: 225),
+  MarkerDefinition(name: 'ldl',                 displayName: 'LDL Cholesterol',             defaultUnit: 'mmol/L',   refLow: null,  refHigh: 3.0),
+  MarkerDefinition(name: 'lymphocytes',         displayName: 'Lymphocytes',                 defaultUnit: 'x10^9/L',  refLow: 1.0,   refHigh: 4.0),
+  MarkerDefinition(name: 'magnesium',           displayName: 'Magnesium',                   defaultUnit: 'mmol/L',   refLow: 0.7,   refHigh: 1.0),
+  MarkerDefinition(name: 'mch',                 displayName: 'MCH',                         defaultUnit: 'pg',       refLow: 27,    refHigh: 32),
+  MarkerDefinition(name: 'mcv',                 displayName: 'MCV',                         defaultUnit: 'fL',       refLow: 80,    refHigh: 100),
+  MarkerDefinition(name: 'neutrophils',         displayName: 'Neutrophils',                 defaultUnit: 'x10^9/L',  refLow: 1.8,   refHigh: 7.5),
+  MarkerDefinition(name: 'parathyroid_hormone', displayName: 'Parathyroid Hormone',         defaultUnit: 'pmol/L',   refLow: 1.1,   refHigh: 6.8),
+  MarkerDefinition(name: 'phosphate',           displayName: 'Phosphate',                   defaultUnit: 'mmol/L',   refLow: 0.8,   refHigh: 1.5),
+  MarkerDefinition(name: 'platelets',           displayName: 'Platelets',                   defaultUnit: 'x10^9/L',  refLow: 150,   refHigh: 400),
+  MarkerDefinition(name: 'potassium',           displayName: 'Potassium',                   defaultUnit: 'mmol/L',   refLow: 3.5,   refHigh: 5.1),
+  MarkerDefinition(name: 'prealbumin',          displayName: 'Prealbumin',                  defaultUnit: 'g/L',      refLow: 0.2,   refHigh: 0.4),
+  MarkerDefinition(name: 'protein_total',       displayName: 'Protein (Total)',              defaultUnit: 'g/L',      refLow: 60,    refHigh: 80),
+  MarkerDefinition(name: 'rbc',                 displayName: 'RBC',                         defaultUnit: 'x10^12/L', refLow: 3.8,   refHigh: 5.8),
+  MarkerDefinition(name: 'reticulocytes',       displayName: 'Reticulocytes',               defaultUnit: '%',        refLow: 0.5,   refHigh: 2.5),
+  MarkerDefinition(name: 'sodium',              displayName: 'Sodium',                      defaultUnit: 'mmol/L',   refLow: 133,   refHigh: 146),
+  MarkerDefinition(name: 'tibc',                displayName: 'TIBC',                        defaultUnit: 'umol/L',   refLow: 45,    refHigh: 72),
+  MarkerDefinition(name: 'transferrin_sat',     displayName: 'Transferrin Saturation',      defaultUnit: '%',        refLow: 20,    refHigh: 50),
+  MarkerDefinition(name: 'triglycerides',       displayName: 'Triglycerides',               defaultUnit: 'mmol/L',   refLow: null,  refHigh: 1.7),
+  MarkerDefinition(name: 'tsh',                 displayName: 'TSH',                         defaultUnit: 'mU/L',     refLow: 0.4,   refHigh: 4.0),
+  MarkerDefinition(name: 'urea',                displayName: 'Urea',                        defaultUnit: 'mmol/L',   refLow: 2.5,   refHigh: 7.8),
+  MarkerDefinition(name: 'uric_acid',           displayName: 'Uric Acid',                   defaultUnit: 'umol/L',   refLow: 202,   refHigh: 416),
+  MarkerDefinition(name: 'vitamin_b12',         displayName: 'Vitamin B12',                 defaultUnit: 'pmol/L',   refLow: 145,   refHigh: 637),
+  MarkerDefinition(name: 'wbc',                 displayName: 'WBC',                         defaultUnit: 'x10^9/L',  refLow: 4.0,   refHigh: 11.0),
+];
