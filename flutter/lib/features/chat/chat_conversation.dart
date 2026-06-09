@@ -61,9 +61,46 @@ class ChatConversation {
       updatedAt: (m['updated_at'] as Timestamp).toDate(),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'messages': messages
+            .where((m) => !m.thinking)
+            .map((m) => {
+                  'role': m.role == ChatRole.user ? 'user' : 'assistant',
+                  'text': m.text,
+                })
+            .toList(),
+        'created_at': createdAt.toUtc().toIso8601String(),
+        'updated_at': updatedAt.toUtc().toIso8601String(),
+      };
+
+  factory ChatConversation.fromJson(Map<String, dynamic> m) {
+    final rawMsgs = m['messages'] as List? ?? [];
+    return ChatConversation(
+      id: m['id'] as String,
+      title: m['title'] as String? ?? '',
+      messages: rawMsgs.map((e) {
+        final map = e as Map;
+        final role =
+            map['role'] == 'user' ? ChatRole.user : ChatRole.assistant;
+        return ChatMessage(role, map['text'] as String? ?? '');
+      }).toList(),
+      createdAt: DateTime.parse(m['created_at'] as String),
+      updatedAt: DateTime.parse(m['updated_at'] as String),
+    );
+  }
 }
 
-class ConversationStore {
+abstract class ConversationRepository {
+  Future<List<ChatConversation>> getRecent({int limit = 50});
+  Future<void> save(ChatConversation conv);
+  Future<void> delete(String id);
+  Future<void> deleteAll();
+}
+
+class ConversationStore implements ConversationRepository {
   ConversationStore(this._auth);
   final TreatmentAuth _auth;
 
