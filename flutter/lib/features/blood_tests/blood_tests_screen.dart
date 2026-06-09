@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart' show testModeProvider;
 import '../../app/shell.dart';
 import '../../app/theme.dart';
+import '../../flavor.dart';
+import 'csv_import_sheet.dart';
+import 'entry_sheet.dart';
 import 'logic.dart';
 import 'markers.dart';
 import 'models.dart';
@@ -51,8 +55,9 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
       _bootstrap();
     });
 
-    // Publish current route for AI context
-    ref.read(screenContextProvider.notifier).setRoute('/blood-tests');
+    // Publish current route for AI context (deferred past build — Riverpod
+    // disallows provider mutation during widget tree construction).
+    Future(() => ref.read(screenContextProvider.notifier).setRoute('/blood-tests'));
 
     // React to AI blood test filter commands
     ref.listenManual(btFilterCommandProvider, (_, cmd) {
@@ -227,6 +232,29 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
     ref.read(btStoreProvider).writeFavorites(_favorites);
   }
 
+  Future<void> _exportCsv() async {
+    final rows = _rows;
+    if (rows.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No data to export')));
+      }
+      return;
+    }
+    final buf = StringBuffer();
+    buf.writeln('date,marker,value,unit,ref_low,ref_high,timing,note');
+    for (final r in rows) {
+      buf.writeln(
+          '${r.datetime.substring(0, 10)},${r.marker},${r.value},${r.unit},'
+          '${r.refLow ?? ''},${r.refHigh ?? ''},${r.timing},${r.note}');
+    }
+    await Clipboard.setData(ClipboardData(text: buf.toString()));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('CSV copied to clipboard')));
+    }
+  }
+
   String _syncLabel() {
     if (_refreshing) return 'Syncing…';
     if (_refreshError) return 'Offline — showing cached';
@@ -237,6 +265,80 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
     final hrs = (mins / 60).round();
     if (hrs < 24) return 'Synced ${hrs}h ago';
     return 'Synced ${(hrs / 24).round()}d ago';
+  }
+
+  /// "Jun 2023" from the cache floor "2023-06".
+  String _coveredFromLabel() {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final parts = _coveredFrom.split('-');
+    if (parts.length != 2) return _coveredFrom;
+    final y = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (y == null || m == null || m < 1 || m > 12) return _coveredFrom;
+    return '${months[m - 1]} $y';
+  }
+
+  /// Empty-state shown when [scoped] has no rows.
+  /// While downloading: spinner. Otherwise: coverage + one-tap full-history download.
+  Widget _emptyState(HdTokens t) {
+    if (_refreshing) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          const SizedBox(height: 80),
+          Center(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text('Downloading…',
+                  style: TextStyle(fontSize: 14, color: t.textMuted)),
+            ]),
+          ),
+        ],
+      );
+    }
+
+    final coverageText = _coveredFrom.isNotEmpty
+        ? 'Cache covers ${_coveredFromLabel()} – present'
+        : 'Cache is empty';
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        const SizedBox(height: 80),
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.cloud_download_outlined, size: 44, color: t.textMuted),
+              const SizedBox(height: 16),
+              Text('No results for these filters',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: t.textPrimary)),
+              const SizedBox(height: 8),
+              Text(coverageText,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: t.textMuted)),
+              const SizedBox(height: 20),
+              OutlinedButton.icon(
+                onPressed: () {
+                  // Fetch full history and switch to "all" so the data is visible.
+                  setState(() => _filter = _filter.copyWith(rangePreset: 'all'));
+                  _ensureRange('2020-01');
+                },
+                icon: const Icon(Icons.download, size: 18),
+                label: const Text('Download full history'),
+              ),
+            ]),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -275,12 +377,14 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
               onRefresh: () => _revalidate(_effectiveFrom()),
               child: inTrend
                   ? _trendView(scoped)
-                  : Scorecard(
-                      rows: scoped,
-                      favorites: _favorites,
-                      onSelectMarker: _selectMarker,
-                      onToggleFavorite: _toggleFavorite,
-                    ),
+                  : scoped.isEmpty
+                      ? _emptyState(t)
+                      : Scorecard(
+                          rows: scoped,
+                          favorites: _favorites,
+                          onSelectMarker: _selectMarker,
+                          onToggleFavorite: _toggleFavorite,
+                        ),
             ),
           ),
         ],
@@ -299,7 +403,29 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
           context.findAncestorWidgetOfExactType<StatefulNavigationShell>()?.goBranch(0);
         }
       },
-      child: HdScaffold(title: 'Blood Tests', body: body),
+      child: HdScaffold(
+        title: 'Blood Tests',
+        actions: kCommunity
+            ? [
+                IconButton(
+                  icon: const Icon(Icons.download_outlined),
+                  tooltip: 'Export CSV',
+                  onPressed: _exportCsv,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.upload_file_outlined),
+                  tooltip: 'Import CSV',
+                  onPressed: () => showCsvImportSheet(context).then((_) => _bootstrap()),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  tooltip: 'Add result',
+                  onPressed: () => showEntrySheet(context).then((_) => _bootstrap()),
+                ),
+              ]
+            : null,
+        body: body,
+      ),
     );
   }
 
@@ -427,10 +553,19 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
               decoration:
                   BoxDecoration(color: t.good, shape: BoxShape.circle),
             ),
-          Text(_syncLabel(),
-              style: TextStyle(
-                  fontSize: 12,
-                  color: _refreshError ? t.warning : t.textMuted)),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_syncLabel(),
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: _refreshError ? t.warning : t.textMuted)),
+              if (_coveredFrom.isNotEmpty)
+                Text('from ${_coveredFromLabel()}',
+                    style: TextStyle(fontSize: 11, color: t.textMuted)),
+            ],
+          ),
           const Spacer(),
           SizedBox(
             height: 30,
