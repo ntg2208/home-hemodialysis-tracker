@@ -7,7 +7,7 @@ MarkerSummary summarize(String marker, List<BloodTestRow> rows) {
     ..sort((a, b) => a.datetime.compareTo(b.datetime));
 
   final latest = numeric.isNotEmpty ? numeric.last : null;
-  final previous = numeric.length >= 2 ? numeric[numeric.length - 2] : null;
+  final previous = _findPrevious(numeric, latest);
 
   double? delta;
   if (latest != null && previous != null) {
@@ -27,6 +27,23 @@ MarkerSummary summarize(String marker, List<BloodTestRow> rows) {
       previous: previous,
       delta: delta,
       status: status);
+}
+
+/// Finds the comparison row for scorecard delta.
+/// When [latest] has a timing (`pre`/`post`), returns the most recent earlier
+/// row with the same timing — avoids comparing a post-draw value against a
+/// pre-draw value for the 6 dialysis-cleared markers.
+/// Falls back to second-to-last when [latest] has no timing.
+BloodTestRow? _findPrevious(List<BloodTestRow> sorted, BloodTestRow? latest) {
+  if (latest == null) return null;
+  final timing = latest.timing;
+  if (timing.isEmpty) {
+    return sorted.length >= 2 ? sorted[sorted.length - 2] : null;
+  }
+  for (var i = sorted.length - 2; i >= 0; i--) {
+    if (sorted[i].timing == timing) return sorted[i];
+  }
+  return null;
 }
 
 // --- query filter ---

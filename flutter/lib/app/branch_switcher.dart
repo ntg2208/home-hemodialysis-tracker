@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../features/chat/command_dispatch.dart' show aiNavigationActiveProvider;
 
 /// Replaces go_router's default [IndexedStack] with a crossfade transition
 /// between shell branches — new branch fades in while the old branch fades out.
@@ -7,7 +10,7 @@ import 'package:flutter/material.dart';
 /// is preserved across switches.
 ///
 /// Used via [StatefulShellRoute.indexedStack]'s `navigatorContainerBuilder`.
-class BranchSwitcher extends StatefulWidget {
+class BranchSwitcher extends ConsumerStatefulWidget {
   const BranchSwitcher({
     super.key,
     required this.currentIndex,
@@ -18,10 +21,10 @@ class BranchSwitcher extends StatefulWidget {
   final List<Widget> children;
 
   @override
-  State<BranchSwitcher> createState() => _BranchSwitcherState();
+  ConsumerState<BranchSwitcher> createState() => _BranchSwitcherState();
 }
 
-class _BranchSwitcherState extends State<BranchSwitcher>
+class _BranchSwitcherState extends ConsumerState<BranchSwitcher>
     with TickerProviderStateMixin {
   int _prevIndex = 0;
   late final AnimationController _ctrl;
@@ -61,7 +64,10 @@ class _BranchSwitcherState extends State<BranchSwitcher>
       setState(() {
         _prevIndex = widget.currentIndex;
         _ctrl.reset();
+        _ctrl.duration = const Duration(milliseconds: 300); // restore default
       });
+      // Clear the AI navigation flag now that the animated transition is done.
+      ref.read(aiNavigationActiveProvider.notifier).setActive(false);
     }
   }
 
@@ -69,6 +75,11 @@ class _BranchSwitcherState extends State<BranchSwitcher>
   void didUpdateWidget(BranchSwitcher oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.currentIndex != widget.currentIndex) {
+      // Use a slower crossfade for AI-triggered navigation so the user can
+      // see the app is acting on their behalf, not just responding to a tap.
+      _ctrl.duration = ref.read(aiNavigationActiveProvider)
+          ? const Duration(milliseconds: 900)
+          : const Duration(milliseconds: 300);
       _ctrl.forward();
     }
   }

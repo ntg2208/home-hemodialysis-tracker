@@ -1,0 +1,157 @@
+<h2>AI Command Control — Full Design</h2>
+<p class="subtitle">Gemini tool use → AppCommand bus → screens react. Read-only auto, writes fill-and-preview.</p>
+
+<div class="section">
+  <h3>How it works end-to-end</h3>
+  <div style="background:#0f172a;border-radius:10px;padding:16px;font-size:12px;font-family:monospace;">
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      <div style="background:#1e3a5f;border-radius:6px;padding:8px;color:#93c5fd;">
+        <span style="color:#64748b;">1.</span> You: "show my Hb for the last 3 months"
+      </div>
+      <div style="text-align:center;color:#475569;font-size:10px;">chat sends prompt + tool declarations to Gemini</div>
+      <div style="background:#1e3a5f;border-radius:6px;padding:8px;color:#93c5fd;">
+        <span style="color:#64748b;">2.</span> Gemini responds with tool call: <span style="color:#fde047;">filter_blood_tests(marker:"haemoglobin", months:3)</span>
+      </div>
+      <div style="text-align:center;color:#475569;font-size:10px;">GeminiChatResponder dispatches AppCommand via callback</div>
+      <div style="background:#14532d;border-radius:6px;padding:8px;color:#86efac;">
+        <span style="color:#64748b;">3.</span> CommandBus receives: <span style="color:#fde047;">FilterBloodTests(marker:"haemoglobin", months:3)</span>
+      </div>
+      <div style="text-align:center;color:#475569;font-size:10px;">NavigateTo + BloodTests screen listens to bus</div>
+      <div style="background:#3b1f63;border-radius:6px;padding:8px;color:#c4b5fd;">
+        <span style="color:#64748b;">4.</span> Router goes to /blood-tests • filter auto-applies • chart shows Hb/3mo
+      </div>
+      <div style="text-align:center;color:#475569;font-size:10px;">Gemini gets tool result → generates reply text</div>
+      <div style="background:#1e293b;border-radius:6px;padding:8px;color:#e2e8f0;">
+        <span style="color:#64748b;">5.</span> Chat reply: "Here's your Hb trend for the last 3 months. Latest: 112 g/L (↑ from 108)."
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Command vocabulary (all tools Gemini can call)</h3>
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead>
+        <tr style="border-bottom:1px solid #334155;color:#64748b;text-align:left;">
+          <th style="padding:6px 10px;">Tool name</th>
+          <th style="padding:6px 10px;">Parameters</th>
+          <th style="padding:6px 10px;">Execution</th>
+          <th style="padding:6px 10px;">Example prompt</th>
+        </tr>
+      </thead>
+      <tbody style="color:#e2e8f0;">
+        <tr style="border-bottom:1px solid #1e293b;">
+          <td style="padding:6px 10px;color:#38bdf8;font-family:monospace;font-size:11px;">navigate_to</td>
+          <td style="padding:6px 10px;color:#94a3b8;">route: string</td>
+          <td style="padding:6px 10px;"><span style="background:#14532d;color:#86efac;padding:2px 6px;border-radius:4px;font-size:10px;">auto</span></td>
+          <td style="padding:6px 10px;color:#94a3b8;">"go to inventory"</td>
+        </tr>
+        <tr style="border-bottom:1px solid #1e293b;">
+          <td style="padding:6px 10px;color:#38bdf8;font-family:monospace;font-size:11px;">filter_blood_tests</td>
+          <td style="padding:6px 10px;color:#94a3b8;">marker?, phase?, months?, tab?</td>
+          <td style="padding:6px 10px;"><span style="background:#14532d;color:#86efac;padding:2px 6px;border-radius:4px;font-size:10px;">auto</span></td>
+          <td style="padding:6px 10px;color:#94a3b8;">"show Hb last 3 months"</td>
+        </tr>
+        <tr style="border-bottom:1px solid #1e293b;">
+          <td style="padding:6px 10px;color:#38bdf8;font-family:monospace;font-size:11px;">filter_fitness</td>
+          <td style="padding:6px 10px;color:#94a3b8;">type?, days?</td>
+          <td style="padding:6px 10px;"><span style="background:#14532d;color:#86efac;padding:2px 6px;border-radius:4px;font-size:10px;">auto</span></td>
+          <td style="padding:6px 10px;color:#94a3b8;">"show my steps this week"</td>
+        </tr>
+        <tr style="border-bottom:1px solid #1e293b;">
+          <td style="padding:6px 10px;color:#38bdf8;font-family:monospace;font-size:11px;">prefill_pre_treatment</td>
+          <td style="padding:6px 10px;color:#94a3b8;">weight?, bp_sys?, bp_dia?, pulse?, uf_goal?, uf_rate?</td>
+          <td style="padding:6px 10px;"><span style="background:#713f12;color:#fcd34d;padding:2px 6px;border-radius:4px;font-size:10px;">fill + wait</span></td>
+          <td style="padding:6px 10px;color:#94a3b8;">"start session, weight 72.4, BP 140/85"</td>
+        </tr>
+        <tr style="border-bottom:1px solid #1e293b;">
+          <td style="padding:6px 10px;color:#38bdf8;font-family:monospace;font-size:11px;">prefill_reading</td>
+          <td style="padding:6px 10px;color:#94a3b8;">bp_sys?, bp_dia?, pulse?, blood_flow?, vp?, ap?</td>
+          <td style="padding:6px 10px;"><span style="background:#713f12;color:#fcd34d;padding:2px 6px;border-radius:4px;font-size:10px;">fill + wait</span></td>
+          <td style="padding:6px 10px;color:#94a3b8;">"add reading, BP 130/80, flow 350"</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 10px;color:#38bdf8;font-family:monospace;font-size:11px;">prefill_post_treatment</td>
+          <td style="padding:6px 10px;color:#94a3b8;">weight?, bp_sys?, bp_dia?, pulse?, total_uf?</td>
+          <td style="padding:6px 10px;"><span style="background:#713f12;color:#fcd34d;padding:2px 6px;border-radius:4px;font-size:10px;">fill + wait</span></td>
+          <td style="padding:6px 10px;color:#94a3b8;">"end session, weight 70.1, BP 122/76"</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Key implementation pieces</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px;">
+    <div style="background:#0f172a;border-radius:8px;padding:12px;border:1px solid #1e293b;">
+      <div style="color:#38bdf8;margin-bottom:6px;font-weight:600;">1. AppCommand (Dart sealed class)</div>
+      <div style="color:#94a3b8;font-family:monospace;font-size:11px;line-height:1.6;">
+        sealed class AppCommand {}<br>
+        class NavigateTo extends AppCommand { String route; }<br>
+        class FilterBloodTests extends AppCommand { ... }<br>
+        class PrefillPreTreatment extends AppCommand { ... }<br>
+        // etc.
+      </div>
+    </div>
+    <div style="background:#0f172a;border-radius:8px;padding:12px;border:1px solid #1e293b;">
+      <div style="color:#38bdf8;margin-bottom:6px;font-weight:600;">2. CommandBus (Riverpod)</div>
+      <div style="color:#94a3b8;font-family:monospace;font-size:11px;line-height:1.6;">
+        final commandBusProvider =<br>
+        &nbsp;&nbsp;Provider&lt;StreamController&lt;AppCommand&gt;&gt;(<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;(ref) =&gt; StreamController.broadcast()<br>
+        &nbsp;&nbsp;);<br><br>
+        // Each screen: ref.listen(commandBusProvider, ...)
+      </div>
+    </div>
+    <div style="background:#0f172a;border-radius:8px;padding:12px;border:1px solid #1e293b;">
+      <div style="color:#38bdf8;margin-bottom:6px;font-weight:600;">3. Gemini tool declarations</div>
+      <div style="color:#94a3b8;font-family:monospace;font-size:11px;line-height:1.6;">
+        GenerativeModel(<br>
+        &nbsp;&nbsp;tools: [Tool(functionDeclarations: [<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;FunctionDeclaration('filter_blood_tests', ...),<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;FunctionDeclaration('prefill_pre_treatment', ...),<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;// ...<br>
+        &nbsp;&nbsp;])]<br>
+        )
+      </div>
+    </div>
+    <div style="background:#0f172a;border-radius:8px;padding:12px;border:1px solid #1e293b;">
+      <div style="color:#38bdf8;margin-bottom:6px;font-weight:600;">4. Form prefill UX</div>
+      <div style="color:#94a3b8;font-size:11px;line-height:1.6;">
+        <span style="color:#fcd34d;">•</span> AI-filled fields show a highlight colour<br>
+        <span style="color:#fcd34d;">•</span> Chat sheet collapses (not closed) so the form is visible<br>
+        <span style="color:#fcd34d;">•</span> User reviews + taps Submit<br>
+        <span style="color:#fcd34d;">•</span> Unfilled required fields left empty (not guessed)
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>What stays the same</h3>
+  <div style="color:#64748b;font-size:12px;line-height:1.8;">
+    • Treatment writes still go direct to Apps Script (cold-start safety — no change)<br>
+    • Existing Gemini chat Q&amp;A still works exactly as before<br>
+    • Auth model unchanged<br>
+    • No new backend needed — this is pure Flutter/client-side
+  </div>
+</div>
+
+<div class="options" style="margin-top:16px;">
+  <div class="option" data-choice="approve" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>Looks good — write the spec</h3>
+      <p>Proceed to writing the design document</p>
+    </div>
+  </div>
+  <div class="option" data-choice="revise" onclick="toggleSelect(this)">
+    <div class="letter">↺</div>
+    <div class="content">
+      <h3>I want to change something</h3>
+      <p>Let me know what to adjust</p>
+    </div>
+  </div>
+</div>

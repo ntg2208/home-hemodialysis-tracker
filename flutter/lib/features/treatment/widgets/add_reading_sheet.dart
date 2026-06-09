@@ -16,6 +16,8 @@ Future<void> showAddReadingSheet(
   int? defaultBloodFlow,
   required Future<void> Function(Reading) onSave,
   PrefillReading? prefill,
+  String? initialComment,
+  void Function(String?)? onCommentChanged,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -27,6 +29,8 @@ Future<void> showAddReadingSheet(
       defaultBloodFlow: defaultBloodFlow,
       onSave: onSave,
       prefill: prefill,
+      initialComment: initialComment,
+      onCommentChanged: onCommentChanged,
     ),
   );
 }
@@ -38,12 +42,16 @@ class _AddReadingSheet extends StatefulWidget {
     required this.defaultBloodFlow,
     required this.onSave,
     this.prefill,
+    this.initialComment,
+    this.onCommentChanged,
   });
   final String sessionId;
   final int seq;
   final int? defaultBloodFlow;
   final Future<void> Function(Reading) onSave;
   final PrefillReading? prefill;
+  final String? initialComment;
+  final void Function(String?)? onCommentChanged;
 
   @override
   State<_AddReadingSheet> createState() => _AddReadingSheetState();
@@ -56,6 +64,8 @@ class _AddReadingSheetState extends State<_AddReadingSheet> {
   late int? _bloodFlow = widget.defaultBloodFlow;
   bool _saving = false;
   String? _error;
+  late final TextEditingController _commentController =
+      TextEditingController(text: widget.initialComment ?? '');
 
   @override
   void initState() {
@@ -87,6 +97,12 @@ class _AddReadingSheetState extends State<_AddReadingSheet> {
         _aiFilledFields.add('ap');
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
   }
 
   Future<void> _submit() async {
@@ -161,7 +177,7 @@ class _AddReadingSheetState extends State<_AddReadingSheet> {
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
                       color: t.textPrimary)),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               InkWell(
                 onTap: _pickTime,
                 child: InputDecorator(
@@ -171,16 +187,18 @@ class _AddReadingSheetState extends State<_AddReadingSheet> {
                           fontSize: 18, color: t.textPrimary)),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               FocusTraversalGroup(
                 policy: OrderedTraversalPolicy(),
-                child: GridView.count(
-                crossAxisCount: 2,
+                child: GridView(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 12,
-                childAspectRatio: 2.2,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 12,
+                  mainAxisExtent: 76,
+                ),
                 children: [
                   NumberField(
                       label: 'BP sys',
@@ -257,12 +275,21 @@ class _AddReadingSheetState extends State<_AddReadingSheet> {
                 ],
                 ),
               ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _commentController,
+                decoration: const InputDecoration(
+                  labelText: 'Session notes (optional)',
+                  hintText: 'Any notes about this session…',
+                ),
+                onChanged: (v) => widget.onCommentChanged?.call(v.isEmpty ? null : v),
+              ),
               if (_error != null) ...[
                 const SizedBox(height: 8),
                 Text(_error!,
                     style: TextStyle(color: t.danger, fontSize: 13)),
               ],
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Row(children: [
                 Expanded(
                   child: SheetButton(

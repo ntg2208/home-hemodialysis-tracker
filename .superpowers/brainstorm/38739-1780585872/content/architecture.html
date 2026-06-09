@@ -1,0 +1,82 @@
+<h2>How should the command layer be wired?</h2>
+<p class="subtitle">Three ways to connect Gemini's tool calls to Flutter app state</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:14px;font-size:11px;font-family:monospace;">
+      <div style="color:#64748b;margin-bottom:8px;">Data flow</div>
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <div style="background:#1e3a5f;border-radius:5px;padding:6px 10px;color:#93c5fd;">💬 Chat sends prompt to Gemini</div>
+        <div style="text-align:center;color:#475569;">↓</div>
+        <div style="background:#1e3a5f;border-radius:5px;padding:6px 10px;color:#93c5fd;">Gemini calls a tool: navigate_to, set_filter, prefill_form…</div>
+        <div style="text-align:center;color:#475569;">↓</div>
+        <div style="background:#14532d;border-radius:5px;padding:6px 10px;color:#86efac;">CommandBus (Riverpod stream) receives AppCommand</div>
+        <div style="text-align:center;color:#475569;">↓ ↓ ↓</div>
+        <div style="display:flex;gap:4px;">
+          <div style="background:#3b1f63;border-radius:5px;padding:4px 6px;color:#c4b5fd;flex:1;text-align:center;">Router</div>
+          <div style="background:#3b1f63;border-radius:5px;padding:4px 6px;color:#c4b5fd;flex:1;text-align:center;">BloodTests filter</div>
+          <div style="background:#3b1f63;border-radius:5px;padding:4px 6px;color:#c4b5fd;flex:1;text-align:center;">Treatment form</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Command Bus <span style="color:#4ade80;font-size:12px;">(recommended)</span></h3>
+      <p>Gemini tool use → typed <code>AppCommand</code> sealed class → Riverpod stream bus → each screen reacts independently. Chat and UI are fully decoupled. Clean, testable, easy to extend.</p>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>Pros</h4><ul><li>Screens don't know about chat</li><li>Add new commands without touching ChatController</li><li>Testable in isolation</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Slightly more boilerplate upfront</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:14px;font-size:11px;font-family:monospace;">
+      <div style="color:#64748b;margin-bottom:8px;">Data flow</div>
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <div style="background:#1e3a5f;border-radius:5px;padding:6px 10px;color:#93c5fd;">💬 Chat sends prompt to Gemini</div>
+        <div style="text-align:center;color:#475569;">↓</div>
+        <div style="background:#1e3a5f;border-radius:5px;padding:6px 10px;color:#93c5fd;">Gemini tool call returned</div>
+        <div style="text-align:center;color:#475569;">↓</div>
+        <div style="background:#7c2d12;border-radius:5px;padding:6px 10px;color:#fed7aa;">ChatController calls router, providers directly</div>
+        <div style="display:flex;gap:4px;margin-top:4px;">
+          <div style="background:#3b1f63;border-radius:5px;padding:4px 6px;color:#c4b5fd;flex:1;text-align:center;">Router.go()</div>
+          <div style="background:#3b1f63;border-radius:5px;padding:4px 6px;color:#c4b5fd;flex:1;text-align:center;">ref.read(btProvider)</div>
+          <div style="background:#3b1f63;border-radius:5px;padding:4px 6px;color:#c4b5fd;flex:1;text-align:center;">ref.read(treatmentProvider)</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Direct state calls</h3>
+      <p>ChatController directly calls GoRouter and feature Riverpod providers. Simpler to get started, less code initially — but ChatController ends up knowing about every feature in the app.</p>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>Pros</h4><ul><li>Less boilerplate, faster to build</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>ChatController coupled to all features</li><li>Hard to test</li><li>Gets messy as commands grow</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:14px;font-size:11px;font-family:monospace;">
+      <div style="color:#64748b;margin-bottom:8px;">Data flow</div>
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <div style="background:#1e3a5f;border-radius:5px;padding:6px 10px;color:#93c5fd;">💬 Chat — Gemini returns JSON in response text</div>
+        <div style="text-align:center;color:#475569;">↓</div>
+        <div style="background:#713f12;border-radius:5px;padding:6px 10px;color:#fef08a;">ChatController regex-parses JSON action from text</div>
+        <div style="text-align:center;color:#475569;">↓</div>
+        <div style="background:#1e293b;border-radius:5px;padding:6px 10px;color:#94a3b8;">Router.go('/blood-tests?marker=Hb&amp;months=3')</div>
+        <div style="text-align:center;color:#475569;">↓</div>
+        <div style="background:#1e293b;border-radius:5px;padding:6px 10px;color:#94a3b8;">Screens read query params on build</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — JSON in response + deep links</h3>
+      <p>Gemini embeds JSON action tags in its response text (like the existing KB update pattern). ChatController parses them and fires deep link navigation with query params. No tool use, no formal type system.</p>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>Pros</h4><ul><li>Reuses the existing KB-update pattern</li><li>No Gemini tool use setup</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Fragile (string parsing)</li><li>Complex state (form prefill) doesn't map to URL params cleanly</li><li>Gemini may not reliably emit the JSON format</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+</div>

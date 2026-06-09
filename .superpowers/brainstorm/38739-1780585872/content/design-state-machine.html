@@ -1,0 +1,126 @@
+<h2>App state machine — AI respects the flow</h2>
+<p class="subtitle">The AI knows which commands are valid right now, and guides you through the correct sequence</p>
+
+<div class="section">
+  <h3>Treatment state machine</h3>
+  <div style="background:#0f172a;border-radius:10px;padding:16px;font-size:12px;">
+    <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+
+      <div style="flex:1;min-width:140px;background:#1e293b;border-radius:8px;padding:12px;border:2px solid #334155;">
+        <div style="color:#64748b;font-size:10px;margin-bottom:6px;text-transform:uppercase;">State: IDLE</div>
+        <div style="color:#4ade80;font-size:11px;margin-bottom:4px;">✓ Start session</div>
+        <div style="color:#4ade80;font-size:11px;margin-bottom:4px;">✓ View history</div>
+        <div style="color:#ef4444;font-size:11px;margin-bottom:4px;">✗ Add reading</div>
+        <div style="color:#ef4444;font-size:11px;">✗ End session</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding-top:20px;">
+        <div style="color:#64748b;font-size:10px;">start session</div>
+        <div style="color:#4ade80;font-size:18px;">→</div>
+      </div>
+
+      <div style="flex:1;min-width:140px;background:#1e293b;border-radius:8px;padding:12px;border:2px solid #1d4ed8;">
+        <div style="color:#93c5fd;font-size:10px;margin-bottom:6px;text-transform:uppercase;">State: PRE-TREATMENT</div>
+        <div style="color:#4ade80;font-size:11px;margin-bottom:4px;">✓ Fill form fields</div>
+        <div style="color:#4ade80;font-size:11px;margin-bottom:4px;">✓ Confirm (you tap)</div>
+        <div style="color:#ef4444;font-size:11px;margin-bottom:4px;">✗ Add reading</div>
+        <div style="color:#ef4444;font-size:11px;">✗ End session</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding-top:20px;">
+        <div style="color:#64748b;font-size:10px;">tap Start</div>
+        <div style="color:#4ade80;font-size:18px;">→</div>
+      </div>
+
+      <div style="flex:1;min-width:140px;background:#1e293b;border-radius:8px;padding:12px;border:2px solid #15803d;">
+        <div style="color:#4ade80;font-size:10px;margin-bottom:6px;text-transform:uppercase;">State: ACTIVE SESSION</div>
+        <div style="color:#4ade80;font-size:11px;margin-bottom:4px;">✓ Add reading</div>
+        <div style="color:#4ade80;font-size:11px;margin-bottom:4px;">✓ End session</div>
+        <div style="color:#ef4444;font-size:11px;margin-bottom:4px;">✗ Start session</div>
+        <div style="color:#ef4444;font-size:11px;">✗ Pre-treatment form</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding-top:20px;">
+        <div style="color:#64748b;font-size:10px;">end session</div>
+        <div style="color:#4ade80;font-size:18px;">→</div>
+      </div>
+
+      <div style="flex:1;min-width:140px;background:#1e293b;border-radius:8px;padding:12px;border:2px solid #b45309;">
+        <div style="color:#fcd34d;font-size:10px;margin-bottom:6px;text-transform:uppercase;">State: POST-TREATMENT</div>
+        <div style="color:#4ade80;font-size:11px;margin-bottom:4px;">✓ Fill post form</div>
+        <div style="color:#4ade80;font-size:11px;margin-bottom:4px;">✓ Finish (you tap)</div>
+        <div style="color:#ef4444;font-size:11px;margin-bottom:4px;">✗ Add reading</div>
+        <div style="color:#ef4444;font-size:11px;">✗ Start session</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>What the AI does with this knowledge</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px;">
+
+    <div style="background:#0f172a;border-radius:8px;padding:12px;border:1px solid #1e293b;">
+      <div style="color:#f87171;margin-bottom:6px;font-weight:600;">You (state: IDLE): "add reading, BP 132/84"</div>
+      <div style="color:#94a3b8;font-size:11px;margin-bottom:4px;">AI sees: no active session</div>
+      <div style="color:#38bdf8;font-size:11px;">→ "There's no active session right now. Do you want to start one first? I can open the pre-treatment form for you."</div>
+    </div>
+
+    <div style="background:#0f172a;border-radius:8px;padding:12px;border:1px solid #1e293b;">
+      <div style="color:#4ade80;margin-bottom:6px;font-weight:600;">You (state: ACTIVE): "add reading, BP 132/84"</div>
+      <div style="color:#94a3b8;font-size:11px;margin-bottom:4px;">AI sees: active session, valid state for this command</div>
+      <div style="color:#38bdf8;font-size:11px;">→ prefill_reading(bp_sys:132, bp_dia:84) — opens form, waits for you to confirm</div>
+    </div>
+
+    <div style="background:#0f172a;border-radius:8px;padding:12px;border:1px solid #1e293b;">
+      <div style="color:#f87171;margin-bottom:6px;font-weight:600;">You (state: ACTIVE): "start a session"</div>
+      <div style="color:#94a3b8;font-size:11px;margin-bottom:4px;">AI sees: session already in progress</div>
+      <div style="color:#38bdf8;font-size:11px;">→ "You already have an active session (started today at 19:00). Did you want to add a reading or end the session?"</div>
+    </div>
+
+    <div style="background:#0f172a;border-radius:8px;padding:12px;border:1px solid #1e293b;">
+      <div style="color:#fcd34d;margin-bottom:6px;font-weight:600;">You (state: IDLE): "start session, weight 72.4, BP 140/85"</div>
+      <div style="color:#94a3b8;font-size:11px;margin-bottom:4px;">AI sees: valid, IDLE → PRE-TREATMENT</div>
+      <div style="color:#38bdf8;font-size:11px;">→ navigate_to('/treatment') + prefill_pre_treatment(...) — form opens filled, you tap Start</div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <h3>How the state is passed to Gemini</h3>
+  <div style="background:#0f172a;border-radius:8px;padding:12px;font-size:11px;font-family:monospace;line-height:1.7;">
+    <div style="color:#64748b;margin-bottom:6px;">// Added to AppScreenContext</div>
+    <div style="color:#e2e8f0;">enum TreatmentState { idle, preForm, active, postForm }</div>
+    <div style="color:#e2e8f0;margin-top:6px;">class AppScreenContext {</div>
+    <div style="color:#e2e8f0;">&nbsp;&nbsp;final String currentRoute;</div>
+    <div style="color:#4ade80;">&nbsp;&nbsp;final TreatmentState treatmentState; <span style="color:#475569;">// ← new</span></div>
+    <div style="color:#4ade80;">&nbsp;&nbsp;final List&lt;String&gt; validCommands;   <span style="color:#475569;">// ← what AI can do right now</span></div>
+    <div style="color:#e2e8f0;">&nbsp;&nbsp;final Session? activeSession;</div>
+    <div style="color:#e2e8f0;">&nbsp;&nbsp;final List&lt;Reading&gt; sessionReadings;</div>
+    <div style="color:#e2e8f0;">&nbsp;&nbsp;final Map&lt;String, dynamic&gt;? openForm;</div>
+    <div style="color:#e2e8f0;">}</div>
+    <div style="margin-top:8px;color:#64748b;">// System prompt includes:</div>
+    <div style="color:#94a3b8;">// "Treatment state: ACTIVE SESSION"</div>
+    <div style="color:#94a3b8;">// "Valid commands: add_reading, end_session, navigate_to"</div>
+    <div style="color:#94a3b8;">// "Invalid right now: start_session, prefill_pre_treatment"</div>
+  </div>
+</div>
+
+<div class="options" style="margin-top:16px;">
+  <div class="option" data-choice="approve" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>Yes, that covers it — write the spec</h3>
+      <p>Proceed to the full design document</p>
+    </div>
+  </div>
+  <div class="option" data-choice="more" onclick="toggleSelect(this)">
+    <div class="letter">?</div>
+    <div class="content">
+      <h3>One more thing</h3>
+      <p>Still something to clarify</p>
+    </div>
+  </div>
+</div>

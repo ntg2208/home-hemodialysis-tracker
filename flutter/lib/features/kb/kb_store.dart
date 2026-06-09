@@ -5,6 +5,12 @@ import 'package:uuid/uuid.dart';
 import '../../features/treatment/treatment_auth.dart';
 import '../../firebase/firebase_init.dart';
 
+abstract class KbRepository {
+  Future<List<KbEntry>> getAll();
+  Future<void> save(KbEntry e);
+  Future<void> delete(String id);
+}
+
 class KbEntry {
   const KbEntry({
     required this.id,
@@ -41,9 +47,27 @@ class KbEntry {
         createdAt: (m['created_at'] as Timestamp).toDate(),
         updatedAt: (m['updated_at'] as Timestamp).toDate(),
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'content': content,
+        'source': source,
+        'created_at': createdAt.toUtc().toIso8601String(),
+        'updated_at': updatedAt.toUtc().toIso8601String(),
+      };
+
+  factory KbEntry.fromJson(Map<String, dynamic> m) => KbEntry(
+        id: m['id'] as String,
+        title: m['title'] as String,
+        content: m['content'] as String,
+        source: m['source'] as String? ?? 'user',
+        createdAt: DateTime.parse(m['created_at'] as String),
+        updatedAt: DateTime.parse(m['updated_at'] as String),
+      );
 }
 
-class KbStore {
+class KbStore implements KbRepository {
   KbStore(this._auth);
   final TreatmentAuth _auth;
 

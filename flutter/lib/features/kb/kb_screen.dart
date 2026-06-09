@@ -135,11 +135,13 @@ class _KbScreenState extends ConsumerState<KbScreen> {
     return HdScaffold(
       title: 'Knowledge Base',
       body: body,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _addOrEdit(),
-        tooltip: 'Add entry',
-        child: const Icon(Icons.add),
-      ),
+      actions: [
+        IconButton(
+          onPressed: () => _addOrEdit(),
+          tooltip: 'Add entry',
+          icon: const Icon(Icons.add_outlined),
+        ),
+      ],
     );
   }
 }

@@ -1,0 +1,101 @@
+<h2>Yes — the AI knows exactly where you are</h2>
+<p class="subtitle">Screen context + current form state are sent to Gemini on every message</p>
+
+<div class="section">
+  <h3>What the AI sees when you're mid-session</h3>
+  <div style="background:#0f172a;border-radius:10px;padding:14px;font-family:monospace;font-size:11px;line-height:1.7;">
+    <div style="color:#64748b;margin-bottom:8px;">[System prompt — sent with every message]</div>
+    <div style="color:#94a3b8;">...existing context (blood tests, KB, fitness)...</div>
+    <div style="margin-top:8px;border-top:1px solid #1e293b;padding-top:8px;">
+      <div style="color:#4ade80;margin-bottom:4px;">## Current screen: /treatment/active</div>
+      <div style="color:#e2e8f0;">Active session: 2026-06-04-1</div>
+      <div style="color:#e2e8f0;">Pre: weight=72.4, BP=140/85, pulse=74, UF goal=2.4</div>
+      <div style="color:#e2e8f0;">Readings so far: 2</div>
+      <div style="color:#94a3b8;">&nbsp;&nbsp;19:15 — BP 130/80, BF 350, VP 150, AP -120</div>
+      <div style="color:#94a3b8;">&nbsp;&nbsp;20:00 — BP 128/78, BF 350, VP 148, AP -118</div>
+      <div style="color:#e2e8f0;margin-top:6px;">Add Reading form — open</div>
+      <div style="color:#4ade80;">&nbsp;&nbsp;time: 20:45 ✓</div>
+      <div style="color:#f87171;">&nbsp;&nbsp;bp_sys: — (empty)</div>
+      <div style="color:#f87171;">&nbsp;&nbsp;bp_dia: — (empty)</div>
+      <div style="color:#f87171;">&nbsp;&nbsp;pulse: — (empty)</div>
+      <div style="color:#4ade80;">&nbsp;&nbsp;blood_flow: 350 (default from last reading)</div>
+      <div style="color:#f87171;">&nbsp;&nbsp;vp, ap: — (empty)</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>What this enables</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px;">
+
+    <div style="background:#0f172a;border-radius:8px;padding:12px;border:1px solid #1e293b;">
+      <div style="color:#4ade80;margin-bottom:8px;font-weight:600;">Context-smart tool calls</div>
+      <div style="color:#e2e8f0;margin-bottom:4px;">You: "BP 132/84, pulse 72"</div>
+      <div style="color:#64748b;font-size:10px;margin-bottom:4px;">AI knows you're in Add Reading, not Pre-treatment</div>
+      <div style="color:#38bdf8;font-family:monospace;font-size:10px;">→ prefill_reading(bp_sys:132, bp_dia:84, pulse:72)</div>
+      <div style="color:#64748b;font-size:10px;">blood_flow carries over from last reading automatically</div>
+    </div>
+
+    <div style="background:#0f172a;border-radius:8px;padding:12px;border:1px solid #1e293b;">
+      <div style="color:#4ade80;margin-bottom:8px;font-weight:600;">Knows what's missing</div>
+      <div style="color:#e2e8f0;margin-bottom:4px;">You: "add reading"</div>
+      <div style="color:#64748b;font-size:10px;margin-bottom:4px;">AI sees bp_sys/dia/pulse are empty</div>
+      <div style="color:#38bdf8;font-size:11px;">→ "What's the BP and pulse for this reading?"</div>
+      <div style="color:#64748b;font-size:10px;">Doesn't guess, doesn't leave required fields blank</div>
+    </div>
+
+    <div style="background:#0f172a;border-radius:8px;padding:12px;border:1px solid #1e293b;">
+      <div style="color:#4ade80;margin-bottom:8px;font-weight:600;">Navigates intelligently</div>
+      <div style="color:#e2e8f0;margin-bottom:4px;">You (on blood test screen): "I need to add a reading"</div>
+      <div style="color:#64748b;font-size:10px;margin-bottom:4px;">AI knows you're not on the treatment screen</div>
+      <div style="color:#38bdf8;font-size:11px;">→ navigate_to('/treatment') + opens Add Reading form</div>
+    </div>
+
+    <div style="background:#0f172a;border-radius:8px;padding:12px;border:1px solid #1e293b;">
+      <div style="color:#4ade80;margin-bottom:8px;font-weight:600;">Cross-screen commands</div>
+      <div style="color:#e2e8f0;margin-bottom:4px;">You: "start session then show last Hb"</div>
+      <div style="color:#38bdf8;font-size:11px;">→ prefill_pre_treatment(...) [you confirm]<br>→ then navigate + filter_blood_tests</div>
+      <div style="color:#64748b;font-size:10px;">Sequences multiple tool calls in one message</div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <h3>How it's implemented</h3>
+  <div style="background:#0f172a;border-radius:8px;padding:12px;font-size:11px;font-family:monospace;line-height:1.7;">
+    <div style="color:#64748b;margin-bottom:6px;">// New: AppScreenContext — fed into ChatContextBuilder</div>
+    <div style="color:#e2e8f0;">class AppScreenContext {</div>
+    <div style="color:#e2e8f0;">&nbsp;&nbsp;final String currentRoute;         <span style="color:#475569;">// e.g. '/treatment/active'</span></div>
+    <div style="color:#e2e8f0;">&nbsp;&nbsp;final Session? activeSession;       <span style="color:#475569;">// if mid-session</span></div>
+    <div style="color:#e2e8f0;">&nbsp;&nbsp;final List&lt;Reading&gt; sessionReadings; <span style="color:#475569;">// readings so far</span></div>
+    <div style="color:#e2e8f0;">&nbsp;&nbsp;final Map&lt;String, dynamic&gt;? openForm; <span style="color:#475569;">// current form state</span></div>
+    <div style="color:#e2e8f0;">}</div>
+    <div style="margin-top:8px;color:#64748b;">// screenContextProvider — screens update it when form state changes</div>
+    <div style="color:#94a3b8;">// ChatController reads it and passes to GeminiChatResponder</div>
+    <div style="color:#94a3b8;">// ChatContextBuilder includes it in the system prompt</div>
+  </div>
+</div>
+
+<div class="section">
+  <div style="background:#14532d;border-radius:8px;padding:12px;border:1px solid #166534;color:#86efac;font-size:12px;">
+    <strong>Answer to your question:</strong> Yes — the AI will always know what screen you're on, what fields are already filled, and what's still missing. It will ask for what it needs, not guess, and use screen context to pick the right tool automatically.
+  </div>
+</div>
+
+<div class="options" style="margin-top:16px;">
+  <div class="option" data-choice="approve" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>This is what I wanted — write the spec</h3>
+      <p>Proceed to the design document</p>
+    </div>
+  </div>
+  <div class="option" data-choice="more" onclick="toggleSelect(this)">
+    <div class="letter">?</div>
+    <div class="content">
+      <h3>More questions first</h3>
+      <p>Something else to clarify</p>
+    </div>
+  </div>
+</div>

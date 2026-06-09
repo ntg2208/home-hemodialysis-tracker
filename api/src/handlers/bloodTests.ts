@@ -81,4 +81,13 @@ export const bloodTests = new Hono()
     await batch.commit();
 
     return c.json({ ok: true, count: parsed.data.rows.length });
+  })
+  .delete('/:labId/:marker', async (c) => {
+    const labId = c.req.param('labId');
+    const marker = c.req.param('marker');
+    const ref = getDb().collection('blood_tests').doc(`${labId}_${marker}`);
+    const snap = await ref.get();
+    if (!snap.exists) return c.json({ error: 'not_found' }, 404);
+    await ref.delete();
+    return c.json({ ok: true });
   });

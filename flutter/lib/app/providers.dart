@@ -3,16 +3,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive/hive.dart';
 
 import '../api/rest_client.dart';
+import '../flavor.dart';
 import '../storage/cache_store.dart';
 import '../storage/secure_store.dart';
+import '../test_mode/synthetic_repos.dart';
 
 /// On-device credential store.
 final secureStoreProvider = Provider<SecureStore>((_) => SecureStore());
 
 /// Shared stale-while-revalidate cache box (fitness, blood tests). Opened in main.
 const cacheBoxName = 'hd_cache';
-final cacheStoreProvider =
-    Provider<CacheStore>((_) => CacheStore(Hive.box(cacheBoxName)));
+final cacheStoreProvider = Provider<CacheStore>((ref) {
+  final box = Hive.box(cacheBoxName);
+  if (ref.watch(testModeProvider)) {
+    return SyntheticCacheStore(box);
+  }
+  return CacheStore(box);
+});
 
 /// Holds the current [AuthSettings] in memory and drives the router's Setup gate.
 /// Doubles as a [Listenable] for go_router's `refreshListenable`.
@@ -97,6 +104,24 @@ class ThemeModeController extends Notifier<ThemeMode> {
   void set(ThemeMode mode) {
     state = mode;
     Hive.box(cacheBoxName).put(_key, mode.name);
+  }
+}
+
+/// Test mode — synthetic data replaces all repos/stores/APIs for LLM testing.
+/// Persisted in the Hive cache box (not sensitive).
+final testModeProvider =
+    NotifierProvider<TestModeController, bool>(TestModeController.new);
+
+class TestModeController extends Notifier<bool> {
+  static const _key = 'test_mode';
+
+  @override
+  bool build() => kCommunity ? false : (Hive.box(cacheBoxName).get(_key) as bool? ?? true);
+
+  void toggle() {
+    final next = !state;
+    state = next;
+    Hive.box(cacheBoxName).put(_key, next);
   }
 }
 

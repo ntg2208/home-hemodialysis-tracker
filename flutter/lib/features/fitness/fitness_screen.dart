@@ -69,8 +69,9 @@ class _FitnessScreenState extends ConsumerState<FitnessScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _load());
     }
 
-    // Publish current route for AI context
-    ref.read(screenContextProvider.notifier).setRoute('/fitness');
+    // Publish current route for AI context (deferred past build — Riverpod
+    // disallows provider mutation during widget tree construction).
+    Future(() => ref.read(screenContextProvider.notifier).setRoute('/fitness'));
 
     // React to AI fitness filter commands (stub — no filter UI yet)
     ref.listenManual<FilterFitness?>(fitnessFilterCommandProvider, (_, cmd) {

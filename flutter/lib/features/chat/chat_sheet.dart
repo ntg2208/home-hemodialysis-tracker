@@ -8,6 +8,7 @@ import '../../app/theme.dart';
 import '../kb/kb_providers.dart';
 import '../kb/kb_store.dart';
 import 'chat_controller.dart';
+import 'command_dispatch.dart' show chatSheetCloseSignalProvider;
 
 const _suggestions = [
   'Summarise my last session',
@@ -36,6 +37,24 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   final _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    // Close the sheet when an AI navigation command fires.
+    ref.listenManual(chatSheetCloseSignalProvider, (_, shouldClose) {
+      if (shouldClose && mounted) {
+        ref.read(chatSheetCloseSignalProvider.notifier).reset();
+        Navigator.of(context).pop();
+      }
+    });
+    // Clear any stale signal left over from before this sheet opened.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && ref.read(chatSheetCloseSignalProvider)) {
+        ref.read(chatSheetCloseSignalProvider.notifier).reset();
+      }
+    });
+  }
 
   @override
   void dispose() {

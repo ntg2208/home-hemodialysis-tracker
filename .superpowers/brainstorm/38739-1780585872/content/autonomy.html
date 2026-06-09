@@ -1,0 +1,72 @@
+<h2>How much should the AI execute on its own?</h2>
+<p class="subtitle">When you say "start a session with pre-weight 72.4" — what happens?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:16px;font-family:monospace;font-size:12px;">
+      <div style="color:#64748b;margin-bottom:8px;">Example: "start session, weight 72.4, BP 140/85"</div>
+      <div style="background:#1e293b;border-radius:8px;padding:10px;border:1px solid #334155;">
+        <div style="color:#94a3b8;font-size:11px;margin-bottom:6px;">PRE-TREATMENT</div>
+        <div style="display:flex;gap:8px;margin-bottom:4px;">
+          <div style="background:#0f172a;border-radius:4px;padding:4px 8px;color:#38bdf8;font-size:11px;flex:1;">Weight: 72.4 ✦</div>
+          <div style="background:#0f172a;border-radius:4px;padding:4px 8px;color:#38bdf8;font-size:11px;flex:1;">BP: 140/85 ✦</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <div style="background:#0f172a;border-radius:4px;padding:4px 8px;color:#94a3b8;font-size:11px;flex:1;">UF goal: 2.4 (auto)</div>
+          <div style="background:#0f172a;border-radius:4px;padding:4px 8px;color:#94a3b8;font-size:11px;flex:1;">Pulse: — (empty)</div>
+        </div>
+        <div style="background:#1d4ed8;border-radius:6px;padding:6px;text-align:center;color:#bfdbfe;font-size:12px;">▶ Start Session — tap to confirm</div>
+      </div>
+      <div style="color:#4ade80;margin-top:6px;font-size:11px;">AI filled the form, you tap Start.</div>
+    </div>
+    <div class="card-body">
+      <h3>A — Fill &amp; preview, you confirm</h3>
+      <p>AI navigates to the right screen and fills in the fields. You review and tap the action button yourself. Good for treatment forms where a mistaken tap is hard to undo.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:16px;font-family:monospace;font-size:12px;">
+      <div style="color:#64748b;margin-bottom:8px;">Example: "start session, weight 72.4, BP 140/85"</div>
+      <div style="background:#1e293b;border-radius:8px;padding:10px;border:1px solid #334155;">
+        <div style="color:#94a3b8;font-size:11px;margin-bottom:6px;">PRE-TREATMENT</div>
+        <div style="display:flex;gap:8px;margin-bottom:4px;">
+          <div style="background:#0f172a;border-radius:4px;padding:4px 8px;color:#38bdf8;font-size:11px;flex:1;">Weight: 72.4 ✦</div>
+          <div style="background:#0f172a;border-radius:4px;padding:4px 8px;color:#38bdf8;font-size:11px;flex:1;">BP: 140/85 ✦</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <div style="background:#0f172a;border-radius:4px;padding:4px 8px;color:#94a3b8;font-size:11px;flex:1;">UF goal: 2.4 (auto)</div>
+          <div style="background:#0f172a;border-radius:4px;padding:4px 8px;color:#94a3b8;font-size:11px;flex:1;">Pulse: — (empty)</div>
+        </div>
+        <div style="border:1px solid #f59e0b;border-radius:6px;padding:6px;text-align:center;color:#fcd34d;font-size:12px;">⚡ Session started — confirm? [Yes] [No]</div>
+      </div>
+      <div style="color:#4ade80;margin-top:6px;font-size:11px;">AI executed, shows undo/confirm banner.</div>
+    </div>
+    <div class="card-body">
+      <h3>B — Execute, then confirm</h3>
+      <p>AI executes immediately and shows a confirmation/undo banner for a few seconds. Fast, but you need to catch mistakes quickly. Like swipe-to-delete with undo.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:16px;font-family:monospace;font-size:12px;">
+      <div style="color:#64748b;margin-bottom:8px;">Read-only (navigate + filter) → auto<br>Write (forms, saves) → fill &amp; preview</div>
+      <div style="background:#1e293b;border-radius:8px;padding:10px;border:1px solid #334155;">
+        <div style="color:#4ade80;margin-bottom:4px;font-size:11px;">✓ "show Hb last 3 months" → instant</div>
+        <div style="color:#4ade80;margin-bottom:4px;font-size:11px;">✓ "go to inventory" → instant</div>
+        <div style="color:#4ade80;margin-bottom:8px;font-size:11px;">✓ "filter fitness to this week" → instant</div>
+        <div style="border-top:1px solid #334155;padding-top:8px;">
+          <div style="color:#fbbf24;margin-bottom:4px;font-size:11px;">⚡ "start session weight 72.4" → fill + wait</div>
+          <div style="color:#fbbf24;margin-bottom:4px;font-size:11px;">⚡ "add reading BP 130/80" → fill + wait</div>
+          <div style="color:#fbbf24;font-size:11px;">⚡ "confirm delivery" → fill + wait</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Auto for reads, preview for writes</h3>
+      <p>Navigation and filters execute immediately. Anything that writes data (session start, readings, inventory changes) pre-fills the form and waits for you to tap. Safest model.</p>
+    </div>
+  </div>
+
+</div>

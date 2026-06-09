@@ -1,0 +1,78 @@
+<h2>How should AI control work?</h2>
+<p class="subtitle">The app already has Gemini chat for Q&amp;A. Which direction do you want to take AI control?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:16px;font-family:monospace;font-size:13px;">
+      <div style="background:#1e293b;border-radius:8px;padding:12px;border:1px solid #334155;">
+        <div style="color:#64748b;font-size:11px;margin-bottom:8px;">💬 Chat</div>
+        <div style="color:#e2e8f0;margin-bottom:6px;">You: start a session, pre-weight 72.4, BP 140/85</div>
+        <div style="color:#38bdf8;margin-bottom:6px;">AI: Opening pre-treatment form… ✓</div>
+        <div style="color:#38bdf8;margin-bottom:6px;">AI: Filled weight=72.4, BP=140/85 ✓</div>
+        <div style="color:#e2e8f0;margin-bottom:6px;">You: now show Hb for last 3 months</div>
+        <div style="color:#38bdf8;">AI: Navigating to Blood Tests → Hb, 3-month view ✓</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Chat drives the app</h3>
+      <p>Extend the existing Gemini chat with "tool use": the AI can navigate screens, pre-fill forms, and apply filters — all via conversation inside the app. You talk to it, it acts.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:16px;">
+      <div style="background:#1e293b;border-radius:8px;padding:12px;border:1px solid #334155;">
+        <div style="color:#64748b;font-size:11px;margin-bottom:8px;">⌨️ Command palette  <span style="float:right">⌘K</span></div>
+        <div style="background:#0f172a;border-radius:6px;padding:8px;border:1px solid #334155;margin-bottom:6px;">
+          <div style="color:#94a3b8;font-size:12px;">› start session pre-weight 72.4…</div>
+        </div>
+        <div style="background:#1e293b;border-radius:6px;padding:6px 8px;border:1px solid #38bdf8;margin-bottom:4px;color:#e2e8f0;font-size:12px;">▸ Start session — Pre-treatment form</div>
+        <div style="background:#1e293b;border-radius:6px;padding:6px 8px;margin-bottom:4px;color:#94a3b8;font-size:12px;">  Show blood tests — Hb, 3 months</div>
+        <div style="background:#1e293b;border-radius:6px;padding:6px 8px;color:#94a3b8;font-size:12px;">  Check inventory stock</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Command palette</h3>
+      <p>A global search/command overlay (tap or swipe to open). Type a command, AI resolves it to an action. Faster than chat — no back-and-forth, just instant execution.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:16px;font-family:monospace;font-size:12px;">
+      <div style="color:#64748b;margin-bottom:6px;">External AI (Claude Code, MCP, automation)</div>
+      <div style="color:#94a3b8;margin-bottom:4px;">→ <span style="color:#4ade80">POST</span> /api/app-command</div>
+      <div style="color:#e2e8f0;background:#1e293b;border-radius:6px;padding:8px;margin-bottom:6px;">
+        {<br>
+        &nbsp;&nbsp;"command": "navigate",<br>
+        &nbsp;&nbsp;"screen": "blood-tests",<br>
+        &nbsp;&nbsp;"params": {"marker":"Hb","months":3}<br>
+        }
+      </div>
+      <div style="color:#4ade80;">← 200 OK — app updated</div>
+    </div>
+    <div class="card-body">
+      <h3>C — External AI control API</h3>
+      <p>The app exposes a command API (or MCP server). Claude Code, automated workflows, or any external AI agent can send commands to drive the app. No in-app chat needed.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="d" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:16px;display:flex;flex-direction:column;gap:8px;">
+      <div style="background:#1e293b;border-radius:6px;padding:8px;border:1px solid #334155;font-size:12px;">
+        <div style="color:#38bdf8;margin-bottom:4px;">💬 Chat → drives app (in-app)</div>
+        <div style="color:#94a3b8;font-size:11px;">+ tool use for navigation &amp; forms</div>
+      </div>
+      <div style="color:#475569;text-align:center;font-size:11px;">AND</div>
+      <div style="background:#1e293b;border-radius:6px;padding:8px;border:1px solid #334155;font-size:12px;">
+        <div style="color:#4ade80;margin-bottom:4px;">🔌 External command API</div>
+        <div style="color:#94a3b8;font-size:11px;">MCP server or /api/command endpoint</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>D — Both</h3>
+      <p>In-app chat with tool use for day-to-day use, plus an external API for automation and Claude Code integration. Same underlying command layer powering both.</p>
+    </div>
+  </div>
+
+</div>

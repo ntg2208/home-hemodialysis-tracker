@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../app/providers.dart' show authControllerProvider, aiSettingsControllerProvider, AiSettings, themeModeProvider;
+import '../../app/providers.dart' show authControllerProvider, aiSettingsControllerProvider, AiSettings, themeModeProvider, testModeProvider;
 import '../../app/shell.dart';
 import '../../app/theme.dart';
 import '../../firebase/firebase_init.dart';
@@ -47,13 +47,18 @@ class SettingsScreen extends ConsumerWidget {
               style: TextStyle(
                   fontSize: 12, letterSpacing: 1, color: t.textMuted)),
           const SizedBox(height: 8),
-          Text('Dried-weight default and notification preferences — coming soon.',
+          Text('Dry-weight default and notification preferences — coming soon.',
               style: TextStyle(color: t.textMuted, fontSize: 13)),
           const SizedBox(height: 28),
           Text('AI ASSISTANT',
               style: TextStyle(fontSize: 12, letterSpacing: 1, color: t.textMuted)),
           const SizedBox(height: 8),
           const _AiSection(),
+          const SizedBox(height: 28),
+          Text('DEVELOPER',
+              style: TextStyle(fontSize: 12, letterSpacing: 1, color: t.textMuted)),
+          const SizedBox(height: 8),
+          const _TestModeSection(),
         ],
       ),
     );
@@ -232,6 +237,7 @@ class _AiSectionState extends ConsumerState<_AiSection> {
   }
 
   Future<void> _confirmClearKey(BuildContext context) async {
+
     final t = context.hd;
     final ok = await showDialog<bool>(
       context: context,
@@ -254,5 +260,82 @@ class _AiSectionState extends ConsumerState<_AiSection> {
     if (ok != true) return;
     _keyCtrl.clear();
     await ref.read(aiSettingsControllerProvider.notifier).clearKey();
+  }
+}
+
+// ── Test Mode ──────────────────────────────────────────────────────────────────
+
+class _TestModeSection extends ConsumerWidget {
+  const _TestModeSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = context.hd;
+    final testMode = ref.watch(testModeProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: testMode ? t.warning.withValues(alpha: 0.12) : t.panel,
+            border: Border.all(
+                color: testMode ? t.warning : t.border),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Icon(Icons.science_outlined,
+                        size: 16,
+                        color: testMode ? t.warning : t.textSecondary),
+                    const SizedBox(width: 6),
+                    Text('Test mode',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color:
+                                testMode ? t.warning : t.textPrimary)),
+                    if (testMode) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: t.warning,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text('ON',
+                            style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: t.bg)),
+                      ),
+                    ],
+                  ]),
+                  const SizedBox(height: 2),
+                  Text(
+                    testMode
+                        ? 'Using synthetic data — your real data is unchanged.'
+                        : 'Replaces all data with 20 sessions, synthetic blood tests, fitness and inventory for AI testing.',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: testMode ? t.warning : t.textMuted),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: testMode,
+              onChanged: (_) =>
+                  ref.read(testModeProvider.notifier).toggle(),
+              activeThumbColor: t.warning,
+            ),
+          ]),
+        ),
+      ],
+    );
   }
 }

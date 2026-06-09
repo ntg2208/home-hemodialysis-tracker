@@ -64,6 +64,13 @@ class PrefillPostTreatment extends AppCommand {
   final double? totalUf;
 }
 
+class EndSession extends AppCommand {
+  EndSession({this.weight, this.bpSys, this.bpDia, this.pulse, this.totalUf});
+  final double? weight;
+  final int? bpSys, bpDia, pulse;
+  final double? totalUf;
+}
+
 // ---------------------------------------------------------------------------
 // Riverpod 3.x Notifier + NotifierProvider per command type
 // ---------------------------------------------------------------------------
@@ -78,6 +85,19 @@ class PendingNavigationNotifier extends Notifier<String?> {
 final pendingNavigationProvider =
     NotifierProvider<PendingNavigationNotifier, String?>(
   PendingNavigationNotifier.new,
+);
+
+// Flag set just before an AI navigation dispatch so BranchSwitcher can use
+// a slower crossfade to signal automated (vs. user-triggered) navigation.
+class AiNavigationActiveNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+  void setActive(bool v) => state = v;
+}
+
+final aiNavigationActiveProvider =
+    NotifierProvider<AiNavigationActiveNotifier, bool>(
+  AiNavigationActiveNotifier.new,
 );
 
 // Blood test filter command
@@ -140,6 +160,33 @@ final prefillPostCommandProvider =
   PrefillPostCommandNotifier.new,
 );
 
+// End session command — bool flag, true = triggered, false = idle
+class EndSessionNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+  void trigger() => state = true;
+  void consume() => state = false;
+}
+
+final endSessionProvider = NotifierProvider<EndSessionNotifier, bool>(
+  EndSessionNotifier.new,
+);
+
+// Signal for the chat sheet to close itself before navigation fires.
+// Set by dispatchCommand for any command that triggers navigation or a
+// screen transition; consumed (reset) by the sheet when it pops.
+class ChatSheetCloseNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+  void close() => state = true;
+  void reset() => state = false;
+}
+
+final chatSheetCloseSignalProvider =
+    NotifierProvider<ChatSheetCloseNotifier, bool>(
+  ChatSheetCloseNotifier.new,
+);
+
 // ---------------------------------------------------------------------------
 // dispatchCommand — routes an AppCommand to the correct provider
 // ---------------------------------------------------------------------------
@@ -150,18 +197,36 @@ final prefillPostCommandProvider =
 void dispatchCommand(AppCommand cmd, Ref ref) {
   switch (cmd) {
     case NavigateTo(:final route):
+      ref.read(chatSheetCloseSignalProvider.notifier).close();
+      ref.read(aiNavigationActiveProvider.notifier).setActive(true);
       ref.read(pendingNavigationProvider.notifier).set(route);
     case FilterBloodTests():
+      ref.read(chatSheetCloseSignalProvider.notifier).close();
+      ref.read(aiNavigationActiveProvider.notifier).setActive(true);
+      ref.read(pendingNavigationProvider.notifier).set('/blood-tests');
       ref.read(btFilterCommandProvider.notifier).set(cmd);
     case FilterFitness():
+      ref.read(chatSheetCloseSignalProvider.notifier).close();
+      ref.read(aiNavigationActiveProvider.notifier).setActive(true);
+      ref.read(pendingNavigationProvider.notifier).set('/fitness');
       ref.read(fitnessFilterCommandProvider.notifier).set(cmd);
     case PrefillPreTreatment():
-      // Also navigate to /treatment so the form is visible.
+      ref.read(chatSheetCloseSignalProvider.notifier).close();
+      ref.read(aiNavigationActiveProvider.notifier).setActive(true);
       ref.read(pendingNavigationProvider.notifier).set('/treatment');
       ref.read(prefillPreCommandProvider.notifier).set(cmd);
     case PrefillReading():
       ref.read(prefillReadingCommandProvider.notifier).set(cmd);
     case PrefillPostTreatment():
       ref.read(prefillPostCommandProvider.notifier).set(cmd);
+    case EndSession(:final weight, :final bpSys, :final bpDia, :final pulse, :final totalUf):
+      ref.read(chatSheetCloseSignalProvider.notifier).close();
+      ref.read(endSessionProvider.notifier).trigger();
+      // Pre-fill the post-treatment form with any fields supplied in the command.
+      if (weight != null || bpSys != null || bpDia != null || pulse != null || totalUf != null) {
+        ref.read(prefillPostCommandProvider.notifier).set(PrefillPostTreatment(
+          weight: weight, bpSys: bpSys, bpDia: bpDia, pulse: pulse, totalUf: totalUf,
+        ));
+      }
   }
 }

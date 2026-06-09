@@ -73,8 +73,8 @@ class _NumberFieldState extends State<NumberField> {
       children: [
         Padding(
           padding: const EdgeInsets.only(bottom: 4),
-          child: RichText(
-            text: TextSpan(
+          child: Text.rich(
+            TextSpan(
               text: widget.label,
               style: TextStyle(fontSize: 13, color: t.textSecondary),
               children: widget.required

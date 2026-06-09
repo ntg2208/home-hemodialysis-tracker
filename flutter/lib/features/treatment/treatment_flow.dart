@@ -64,8 +64,8 @@ class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
     super.initState();
     _bootstrap();
 
-    // Publish initial treatment state (idle until bootstrap completes).
-    _publishTreatmentState();
+    // Publish initial treatment state after build completes (idle until bootstrap).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _publishTreatmentState());
 
     // React to AI prefill-pre command — transition to Pre if currently on Home.
     ref.listenManual(prefillPreCommandProvider, (_, cmd) {

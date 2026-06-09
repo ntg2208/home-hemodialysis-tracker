@@ -41,7 +41,7 @@ class AppScreenContext {
         'filter_blood_tests',
         'filter_fitness',
         if (treatmentState == TreatmentState.idle) 'prefill_pre_treatment',
-        if (treatmentState == TreatmentState.active) 'prefill_reading',
+        if (treatmentState == TreatmentState.active) ...['prefill_reading', 'end_session'],
         if (treatmentState == TreatmentState.postForm)
           'prefill_post_treatment',
       ];

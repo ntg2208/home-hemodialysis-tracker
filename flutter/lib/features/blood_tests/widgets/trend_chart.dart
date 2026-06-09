@@ -25,6 +25,7 @@ class TrendChart extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.hd;
     final series = toSeries(rows);
+    final multiPhase = rows.map((r) => r.phase).toSet().length > 1;
 
     if (series.isEmpty) {
       return Padding(
@@ -148,14 +149,15 @@ class TrendChart extends StatelessWidget {
                         dashArray: [4, 3]),
                 ],
                 verticalLines: [
-                  for (final b in _phaseBoundaries)
-                    if (_inRange(b, minX, maxX))
-                      VerticalLine(
-                        x: DateTime.parse(b).millisecondsSinceEpoch.toDouble(),
-                        color: t.textMuted,
-                        strokeWidth: 1,
-                        dashArray: [4, 4],
-                      ),
+                  if (multiPhase)
+                    for (final b in _phaseBoundaries)
+                      if (_inRange(b, minX, maxX))
+                        VerticalLine(
+                          x: DateTime.parse(b).millisecondsSinceEpoch.toDouble(),
+                          color: t.textMuted,
+                          strokeWidth: 1,
+                          dashArray: [4, 4],
+                        ),
                 ],
               ),
               lineTouchData: LineTouchData(
@@ -240,4 +242,11 @@ class TrendChart extends StatelessWidget {
       );
 }
 
-String _n(num v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();
+// Format a chart value cleanly. toStringAsPrecision(4) eliminates IEEE 754
+// noise (e.g. 2.50000000000004 → '2.500' → 2.5) before we render.
+String _n(num v) {
+  final rounded = double.parse(v.toDouble().toStringAsPrecision(4));
+  return rounded == rounded.roundToDouble()
+      ? rounded.toInt().toString()
+      : rounded.toString();
+}

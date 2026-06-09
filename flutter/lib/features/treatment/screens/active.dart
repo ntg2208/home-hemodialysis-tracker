@@ -164,6 +164,12 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
       defaultBloodFlow: lastBF,
       onSave: _persist,
       prefill: cmd,
+      initialComment: _comment,
+      onCommentChanged: (v) {
+        _comment = v;
+        _commentController.text = v ?? '';
+        widget.onCommentChanged(v);
+      },
     );
     ref.read(prefillReadingCommandProvider.notifier).set(null); // consume
   }
@@ -306,6 +312,12 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
                         seq: _nextSeq,
                         defaultBloodFlow: _lastBloodFlow,
                         onSave: _persist,
+                        initialComment: _comment,
+                        onCommentChanged: (v) {
+                          _comment = v;
+                          _commentController.text = v ?? '';
+                          widget.onCommentChanged(v);
+                        },
                       ),
                       icon: const Icon(Icons.add),
                       label: const Text('Add reading'),
@@ -442,7 +454,7 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
   Widget _preValuesGrid(HdTokens t) {
     final s = widget.session;
     Widget refCard(IconData icon, Color iconColor, String label, String value,
-            String unit) =>
+            String unit, {String? subtitle}) =>
         Container(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
           decoration: BoxDecoration(
@@ -481,6 +493,11 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
                   ],
                 ],
               ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(subtitle,
+                    style: TextStyle(fontSize: 12, color: t.textMuted)),
+              ],
             ],
           ),
         );
@@ -498,9 +515,10 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
         refCard(Icons.water_drop_outlined, t.accent, 'UF GOAL',
             '${s.ufGoal ?? '–'}', 'L'),
         refCard(Icons.favorite_border, t.vital, 'PRE BP',
-            s.preBpSys != null ? '${s.preBpSys}/${s.preBpDia}' : '–', ''),
-        refCard(Icons.monitor_heart_outlined, t.good, 'PULSE',
-            '${s.prePulse ?? '–'}', 'bpm'),
+            s.preBpSys != null ? '${s.preBpSys}/${s.preBpDia}' : '–', '',
+            subtitle: s.prePulse != null ? '${s.prePulse} bpm' : null),
+        refCard(Icons.speed_outlined, t.good, 'UFR',
+            '${s.ufRate?.toInt() ?? '–'}', 'mL/h'),
       ],
     );
   }

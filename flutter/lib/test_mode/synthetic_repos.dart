@@ -9,6 +9,7 @@ import '../features/blood_tests/bt_store.dart';
 import '../features/blood_tests/models.dart';
 import '../features/fitness/fitness_api.dart';
 import '../features/inventory/inventory_models.dart';
+import '../features/kb/kb_store.dart';
 import '../features/treatment/models.dart';
 import '../features/treatment/treatment_repo.dart';
 import '../storage/cache_store.dart';
@@ -17,25 +18,51 @@ import 'synthetic_data.dart';
 // ── TreatmentRepo ─────────────────────────────────────────────────────────────
 
 class SyntheticTreatmentRepo extends TreatmentRepo {
-  @override
-  Future<void> saveSession(Session s) async {}
+  // In-memory copies so new sessions/readings created during a demo are visible.
+  final List<Session> _sessions = [...syntheticSessions];
+  final List<Reading> _readings = [...syntheticReadings];
 
   @override
-  Future<void> saveReading(Reading r) async {}
+  Future<void> saveSession(Session s) async {
+    final idx = _sessions.indexWhere((x) => x.sessionId == s.sessionId);
+    if (idx >= 0) {
+      _sessions[idx] = s;
+    } else {
+      _sessions.add(s);
+    }
+  }
 
   @override
-  Future<void> updateSession(String sessionId, Map<String, dynamic> patch) async {}
+  Future<void> saveReading(Reading r) async {
+    final idx = _readings.indexWhere((x) => x.readingId == r.readingId);
+    if (idx >= 0) {
+      _readings[idx] = r;
+    } else {
+      _readings.add(r);
+    }
+  }
 
   @override
-  Future<void> deleteSession(String sessionId) async {}
+  Future<void> updateSession(String sessionId, Map<String, dynamic> patch) async {
+    final idx = _sessions.indexWhere((s) => s.sessionId == sessionId);
+    if (idx >= 0) {
+      _sessions[idx] = Session.fromMap({..._sessions[idx].toMap(), ...patch});
+    }
+  }
+
+  @override
+  Future<void> deleteSession(String sessionId) async {
+    _sessions.removeWhere((s) => s.sessionId == sessionId);
+    _readings.removeWhere((r) => r.sessionId == sessionId);
+  }
 
   @override
   Future<List<Reading>> getReadings(String sessionId) async =>
-      syntheticReadings.where((r) => r.sessionId == sessionId).toList();
+      _readings.where((r) => r.sessionId == sessionId).toList();
 
   @override
   Future<({List<Session> sessions, List<Reading> readings})> getAll() async =>
-      (sessions: syntheticSessions, readings: syntheticReadings);
+      (sessions: List<Session>.unmodifiable(_sessions), readings: List<Reading>.unmodifiable(_readings));
 }
 
 // ── InventoryApi ──────────────────────────────────────────────────────────────
@@ -150,4 +177,36 @@ class SyntheticCacheStore extends CacheStore {
     if (key == _fitnessKey || key == _inventoryKey) return;
     return super.write(key, data);
   }
+}
+
+// ── KbStore ───────────────────────────────────────────────────────────────────
+
+final _syntheticKbEntries = [
+  KbEntry(
+    id: 'kb-1',
+    title: 'Dry Weight',
+    content: '59 kg — target post-dialysis weight.',
+    source: 'user',
+    createdAt: DateTime(2026, 5, 1),
+    updatedAt: DateTime(2026, 5, 1),
+  ),
+  KbEntry(
+    id: 'kb-2',
+    title: 'Session Duration',
+    content: '4 hours 15 minutes standard session.',
+    source: 'user',
+    createdAt: DateTime(2026, 5, 1),
+    updatedAt: DateTime(2026, 5, 1),
+  ),
+];
+
+class SyntheticKbStore implements KbRepository {
+  @override
+  Future<List<KbEntry>> getAll() async => List.unmodifiable(_syntheticKbEntries);
+
+  @override
+  Future<void> save(KbEntry e) async {}
+
+  @override
+  Future<void> delete(String id) async {}
 }
