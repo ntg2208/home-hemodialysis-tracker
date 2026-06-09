@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive/hive.dart';
 
+import '../../api/hive_inventory_api.dart';
 import '../../api/inventory_api.dart';
 import '../../app/providers.dart';
 import '../../flavor.dart';
@@ -28,6 +29,7 @@ final treatmentAuthProvider = Provider<TreatmentAuth>((ref) => TreatmentAuth(
     ));
 
 final inventoryApiProvider = Provider<InventoryApi>((ref) {
+  if (kCommunity) return HiveInventoryApi();
   if (ref.watch(testModeProvider)) return SyntheticInventoryApi();
   return InventoryApi(ref.read(restClientProvider));
 });
