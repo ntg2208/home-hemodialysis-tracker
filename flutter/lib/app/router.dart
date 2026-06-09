@@ -60,10 +60,12 @@ GoRouter buildRouter(AuthController auth) {
                 path: '/inventory',
                 builder: (_, _) => const InventoryScreen()),
           ]),
-          StatefulShellBranch(routes: [
-            GoRoute(
-                path: '/fitness', builder: (_, _) => const FitnessScreen()),
-          ]),
+          if (!kCommunity)
+            StatefulShellBranch(routes: [
+              GoRoute(
+                  path: '/fitness',
+                  builder: (_, _) => const FitnessScreen()),
+            ]),
           StatefulShellBranch(routes: [
             GoRoute(
                 path: '/kb',

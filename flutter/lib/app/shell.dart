@@ -3,9 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'providers.dart' show testModeProvider;
+import '../flavor.dart';
+import 'providers.dart' show aiSettingsControllerProvider, testModeProvider;
 import '../features/chat/chat_sheet.dart';
-import '../features/chat/command_dispatch.dart' show pendingNavigationProvider;
+import '../features/chat/command_dispatch.dart'
+    show chatSheetCloseSignalProvider, pendingNavigationProvider;
 
 /// Thin shell widget required by [StatefulShellRoute.indexedStack].
 ///
@@ -33,12 +35,43 @@ class _AppShellState extends ConsumerState<AppShell> {
   void initState() {
     super.initState();
     // Listen for AI navigation commands dispatched by GeminiChatResponder.
+    // Delay by 500ms so the chat sheet close animation (~250ms) completes first
+    // and the modal route is fully removed before we switch shell branches.
     ref.listenManual(pendingNavigationProvider, (_, route) {
       if (route != null && mounted) {
-        context.go(route);
-        ref.read(pendingNavigationProvider.notifier).set(null);
+        final index = _branchIndex(route);
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (!mounted) return;
+          // Use goBranch on the shell directly rather than context.go(route).
+          // context.go can interact poorly with StatefulShellRoute when called
+          // from within the shell builder while a modal sheet is animating out.
+          widget.navigationShell.goBranch(index);
+          ref.read(pendingNavigationProvider.notifier).set(null);
+          // Clear any stale close signal if the sheet wasn't open to consume it.
+          ref.read(chatSheetCloseSignalProvider.notifier).reset();
+        });
       }
     });
+  }
+
+  static int _branchIndex(String route) {
+    if (kCommunity) {
+      return switch (route) {
+        '/treatment'   => 0,
+        '/blood-tests' => 1,
+        '/inventory'   => 2,
+        '/kb'          => 3,
+        _              => 0,
+      };
+    }
+    return switch (route) {
+      '/treatment'   => 0,
+      '/blood-tests' => 1,
+      '/inventory'   => 2,
+      '/fitness'     => 3,
+      '/kb'          => 4,
+      _              => 0,
+    };
   }
 
   @override
@@ -111,6 +144,12 @@ class HdScaffold extends ConsumerWidget {
   /// Optional rich title (e.g. monospace session id). Falls back to [title].
   final Widget? titleWidget;
 
+  bool _shouldShowChatFab(WidgetRef ref) {
+    if (!kCommunity) return true;
+    final ai = ref.watch(aiSettingsControllerProvider);
+    return ai.ready;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final testMode = ref.watch(testModeProvider);
@@ -122,8 +161,8 @@ class HdScaffold extends ConsumerWidget {
         automaticallyImplyLeading: showDrawer,
       ),
       drawer: showDrawer ? const _HdDrawer() : null,
-      floatingActionButton:
-          floatingActionButton ?? (showChatFab ? const ChatFab() : null),
+      floatingActionButton: floatingActionButton ??
+          (showChatFab && _shouldShowChatFab(ref) ? const ChatFab() : null),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: RepaintBoundary(
         child: SafeArea(
@@ -175,17 +214,14 @@ class _TestModeBanner extends StatelessWidget {
 
 // ── Drawer destinations ──────────────────────────────────────────────────────
 
-const _destPaths = [
-  '/treatment',
-  '/blood-tests',
-  '/inventory',
-  '/fitness',
-  '/kb',
-];
+List<String> get _destPaths => kCommunity
+    ? ['/treatment', '/blood-tests', '/inventory', '/kb']
+    : ['/treatment', '/blood-tests', '/inventory', '/fitness', '/kb'];
 
 int _drawerIndex(String location) {
-  for (var i = 0; i < _destPaths.length; i++) {
-    if (location.startsWith(_destPaths[i])) return i;
+  final paths = _destPaths;
+  for (var i = 0; i < paths.length; i++) {
+    if (location.startsWith(paths[i])) return i;
   }
   return -1; // Settings or unknown -- no highlight
 }
@@ -203,9 +239,10 @@ class _HdDrawer extends StatelessWidget {
       selectedIndex: selectedIndex,
       onDestinationSelected: (index) {
         Navigator.of(context).pop(); // close drawer
-        if (index < _destPaths.length) {
-          context.go(_destPaths[index]);
-        } else if (index == 5) {
+        final paths = _destPaths;
+        if (index < paths.length) {
+          context.go(paths[index]);
+        } else if (index == paths.length) {
           // Settings -- pushed so back-button returns to previous branch
           context.push('/settings');
         }
@@ -235,10 +272,11 @@ class _HdDrawer extends StatelessWidget {
           icon: Icon(Icons.inventory_2_outlined),
           label: Text('Inventory'),
         ),
-        NavigationDrawerDestination(
-          icon: Icon(Icons.fitness_center_outlined),
-          label: Text('Fitness'),
-        ),
+        if (!kCommunity)
+          const NavigationDrawerDestination(
+            icon: Icon(Icons.fitness_center_outlined),
+            label: Text('Fitness'),
+          ),
         NavigationDrawerDestination(
           icon: Icon(Icons.menu_book_outlined),
           label: Text('Knowledge Base'),
