@@ -8,27 +8,43 @@ import 'app/router.dart';
 import 'app/theme.dart';
 import 'features/treatment/providers.dart';
 import 'firebase/firebase_init.dart';
+import 'flavor.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
-    await initFirebase()
-        .timeout(const Duration(seconds: 15), onTimeout: () {
-      throw Exception(
-          'Firebase initialisation timed out. Check your internet connection and restart the app.');
-    });
+    if (!kCommunity) {
+      await initFirebase().timeout(const Duration(seconds: 15), onTimeout: () {
+        throw Exception(
+            'Firebase initialisation timed out. Check your internet connection and restart the app.');
+      });
+    }
+
     await Hive.initFlutter();
     await Hive.openBox(treatmentBoxName);
     await Hive.openBox(cacheBoxName);
 
-    final container = ProviderContainer();
-    final auth = container.read(authControllerProvider);
-    await auth.load().timeout(const Duration(seconds: 10), onTimeout: () {
-      throw Exception(
-          'Credential store timed out. Try restarting the app.');
-    });
+    if (kCommunity) {
+      await Future.wait([
+        Hive.openBox(communitySessionsBox),
+        Hive.openBox(communityReadingsBox),
+        Hive.openBox(communityBtBox),
+        Hive.openBox(communityInventoryBox),
+        Hive.openBox(communityEventsBox),
+        Hive.openBox(communityKbBox),
+        Hive.openBox(communityChatBox),
+      ]);
+    }
 
-    // Load AI settings (non-fatal — chat just stays in disabled state on failure)
+    final container = ProviderContainer();
+
+    if (!kCommunity) {
+      final auth = container.read(authControllerProvider);
+      await auth.load().timeout(const Duration(seconds: 10), onTimeout: () {
+        throw Exception('Credential store timed out. Try restarting the app.');
+      });
+    }
+
     try {
       await container.read(aiSettingsControllerProvider.notifier).load()
           .timeout(const Duration(seconds: 5), onTimeout: () {});
@@ -37,7 +53,7 @@ Future<void> main() async {
     runApp(
       UncontrolledProviderScope(
         container: container,
-        child: HomeHdApp(router: buildRouter(auth)),
+        child: HomeHdApp(router: buildRouter(container.read(authControllerProvider))),
       ),
     );
   } catch (e) {

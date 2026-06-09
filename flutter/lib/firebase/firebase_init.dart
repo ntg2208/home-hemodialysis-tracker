@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../firebase_options.dart';
+import '../flavor.dart';
 
 /// Initialises Firebase once for web + mobile. Call from `main()` before runApp.
 ///
@@ -12,6 +13,7 @@ import '../firebase_options.dart';
 /// cause [core/duplicate-app]. On **web** there is no native auto-init, so we
 /// supply the web FirebaseOptions explicitly.
 Future<void> initFirebase() async {
+  if (kCommunity) return;
   if (Firebase.apps.isNotEmpty) return;
   if (kIsWeb) {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.web);

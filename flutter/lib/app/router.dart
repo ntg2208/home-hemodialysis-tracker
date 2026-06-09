@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 
+import '../flavor.dart';
 import 'branch_switcher.dart';
 import 'providers.dart';
 import 'shell.dart';
@@ -22,6 +23,7 @@ GoRouter buildRouter(AuthController auth) {
     refreshListenable: auth,
     initialLocation: '/treatment',
     redirect: (context, state) {
+      if (kCommunity) return null;
       final atSetup = state.matchedLocation == '/setup';
       if (!auth.isAuthed) return atSetup ? null : '/setup';
       if (atSetup) return '/treatment';
