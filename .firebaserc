@@ -1,5 +1,13 @@
 {
   "projects": {
     "default": "homehd-personal"
+  },
+  "targets": {
+    "homehd-personal": {
+      "hosting": {
+        "personal": ["homehd-personal"],
+        "community": ["homehd-community"]
+      }
+    }
   }
 }
