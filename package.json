@@ -7,7 +7,8 @@
   ],
   "scripts": {
     "build-data": "tsx scripts/build-data.ts",
-    "deploy:web": "cd flutter && flutter build web --release && cd .. && firebase deploy --only hosting --project homehd-personal",
+    "deploy:web": "cd flutter && flutter build web --release && cd .. && firebase deploy --only hosting:personal --project homehd-personal",
+    "deploy:web:community": "cd flutter && flutter build web --release --dart-define=FLAVOR=community --output=build/community_web && cd .. && firebase deploy --only hosting:community --project homehd-personal",
     "deploy:api": "cd api && gcloud run deploy homehd-api --source . --region=europe-west2 --allow-unauthenticated --project=homehd-personal"
   },
   "devDependencies": {
