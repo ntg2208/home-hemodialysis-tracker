@@ -1,67 +1,57 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive/hive.dart';
 
-import '../../app/providers.dart' show authControllerProvider, aiSettingsControllerProvider, AiSettings, themeModeProvider, testModeProvider;
+import '../../app/providers.dart'
+    show authControllerProvider, aiSettingsControllerProvider, AiSettings, themeModeProvider, testModeProvider, cacheBoxName;
 import '../../app/shell.dart';
 import '../../app/theme.dart';
 import '../../firebase/firebase_init.dart';
+import '../treatment/providers.dart' show treatmentStoreProvider;
 
-class SettingsScreen extends ConsumerWidget {
+const _patientNameKey = 'patient_name';
+
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = context.hd;
-    final mode = ref.watch(themeModeProvider);
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
 
-    return HdScaffold(
-      title: 'Settings',
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text('APPEARANCE',
-              style: TextStyle(
-                  fontSize: 12, letterSpacing: 1, color: t.textMuted)),
-          const SizedBox(height: 8),
-          _ThemeToggle(
-            mode: mode,
-            onChanged: (m) => ref.read(themeModeProvider.notifier).set(m),
-          ),
-          const SizedBox(height: 28),
-          Text('CREDENTIALS',
-              style: TextStyle(
-                  fontSize: 12, letterSpacing: 1, color: t.textMuted)),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () => _confirmClear(context, ref),
-            icon: const Icon(Icons.logout),
-            label: const Text('Clear credentials'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: t.danger,
-              side: BorderSide(color: t.danger),
-            ),
-          ),
-          const SizedBox(height: 28),
-          Text('MORE',
-              style: TextStyle(
-                  fontSize: 12, letterSpacing: 1, color: t.textMuted)),
-          const SizedBox(height: 8),
-          Text('Dry-weight default and notification preferences — coming soon.',
-              style: TextStyle(color: t.textMuted, fontSize: 13)),
-          const SizedBox(height: 28),
-          Text('AI ASSISTANT',
-              style: TextStyle(fontSize: 12, letterSpacing: 1, color: t.textMuted)),
-          const SizedBox(height: 8),
-          const _AiSection(),
-          const SizedBox(height: 28),
-          Text('DEVELOPER',
-              style: TextStyle(fontSize: 12, letterSpacing: 1, color: t.textMuted)),
-          const SizedBox(height: 8),
-          const _TestModeSection(),
-        ],
-      ),
-    );
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  final _nameCtrl  = TextEditingController();
+  final _dryCtrl   = TextEditingController();
+  bool _nameSaved  = false;
+  bool _drySaved   = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final box = Hive.box(cacheBoxName);
+    _nameCtrl.text = box.get(_patientNameKey) as String? ?? '';
+    final store = ref.read(treatmentStoreProvider);
+    final dw = store.getDriedWeight();
+    if (dw > 0) _dryCtrl.text = dw.toString();
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _dryCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveName() async {
+    await Hive.box(cacheBoxName).put(_patientNameKey, _nameCtrl.text.trim());
+    setState(() => _nameSaved = true);
+  }
+
+  Future<void> _saveDryWeight() async {
+    final v = double.tryParse(_dryCtrl.text.trim());
+    if (v == null || v <= 0) return;
+    await ref.read(treatmentStoreProvider).setDriedWeight(v);
+    setState(() => _drySaved = true);
   }
 
   Future<void> _confirmClear(BuildContext context, WidgetRef ref) async {
@@ -88,8 +78,84 @@ class SettingsScreen extends ConsumerWidget {
     try {
       await firebaseAuth.signOut();
     } catch (_) {/* ignore */}
-    await ref.read(authControllerProvider).signOut(); // router redirects to Setup
+    await ref.read(authControllerProvider).signOut();
   }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.hd;
+    final mode = ref.watch(themeModeProvider);
+
+    return HdScaffold(
+      title: 'Settings',
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _section(t, 'PATIENT'),
+          TextField(
+            controller: _nameCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Your name',
+              hintText: 'Used in PDF export headers',
+            ),
+            onChanged: (_) => setState(() => _nameSaved = false),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+              onPressed: _saveName,
+              child: Text(_nameSaved ? 'Saved ✓' : 'Save name')),
+          const SizedBox(height: 20),
+          _section(t, 'DRY WEIGHT'),
+          TextField(
+            controller: _dryCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Dry weight (kg)',
+              hintText: 'e.g. 68.5',
+            ),
+            onChanged: (_) => setState(() => _drySaved = false),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+              onPressed: _saveDryWeight,
+              child: Text(_drySaved ? 'Saved ✓' : 'Save dry weight')),
+          const SizedBox(height: 28),
+          _section(t, 'APPEARANCE'),
+          const SizedBox(height: 8),
+          _ThemeToggle(
+            mode: mode,
+            onChanged: (m) => ref.read(themeModeProvider.notifier).set(m),
+          ),
+          const SizedBox(height: 28),
+          _section(t, 'CREDENTIALS'),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => _confirmClear(context, ref),
+            icon: const Icon(Icons.logout),
+            label: const Text('Clear credentials'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: t.danger,
+              side: BorderSide(color: t.danger),
+            ),
+          ),
+          const SizedBox(height: 28),
+          _section(t, 'AI ASSISTANT'),
+          const SizedBox(height: 8),
+          const _AiSection(),
+          const SizedBox(height: 28),
+          _section(t, 'DEVELOPER'),
+          const SizedBox(height: 8),
+          const _TestModeSection(),
+        ],
+      ),
+    );
+  }
+
+  Widget _section(HdTokens t, String label) => Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Text(label,
+            style: TextStyle(fontSize: 12, letterSpacing: 1, color: t.textMuted)),
+      );
 }
 
 class _ThemeToggle extends StatelessWidget {
@@ -117,6 +183,8 @@ class _ThemeToggle extends StatelessWidget {
   }
 }
 
+// ── AI Assistant ──────────────────────────────────────────────────────────────
+
 class _AiSection extends ConsumerStatefulWidget {
   const _AiSection();
   @override
@@ -126,6 +194,7 @@ class _AiSection extends ConsumerStatefulWidget {
 class _AiSectionState extends ConsumerState<_AiSection> {
   final _keyCtrl = TextEditingController();
   final bool _obscure = true;
+  bool _keySaved = false;
 
   @override
   void initState() {
@@ -169,19 +238,14 @@ class _AiSectionState extends ConsumerState<_AiSection> {
               onPressed: ai.enabled ? _pasteKey : null,
             ),
           ),
-          onChanged: (_) => setState(() {}),
+          onChanged: (_) => setState(() => _keySaved = false),
           onSubmitted: (v) => _saveKey(v),
         ),
-        if (_keyCtrl.text.trim().isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Row(children: [
-            OutlinedButton.icon(
-              onPressed: () => _saveKey(_keyCtrl.text),
-              icon: const Icon(Icons.check, size: 16),
-              label: const Text('Save key'),
-            ),
-          ]),
-        ],
+        const SizedBox(height: 8),
+        OutlinedButton(
+          onPressed: ai.enabled ? () => _saveKey(_keyCtrl.text) : null,
+          child: Text(_keySaved ? 'Saved ✓' : 'Save key'),
+        ),
         const SizedBox(height: 4),
         Text(
           'Get a free key at aistudio.google.com',
@@ -195,8 +259,7 @@ class _AiSectionState extends ConsumerState<_AiSection> {
             onPressed: () => _confirmClearKey(context),
             icon: const Icon(Icons.delete_outline, size: 16),
             label: const Text('Clear API key'),
-            style:
-                TextButton.styleFrom(foregroundColor: t.danger, padding: EdgeInsets.zero),
+            style: TextButton.styleFrom(foregroundColor: t.danger, padding: EdgeInsets.zero),
           ),
         ],
       ],
@@ -232,12 +295,19 @@ class _AiSectionState extends ConsumerState<_AiSection> {
 
   Future<void> _saveKey(String key) async {
     final trimmed = key.trim();
-    if (trimmed.isEmpty) return;
-    await ref.read(aiSettingsControllerProvider.notifier).setKey(trimmed);
+    if (trimmed.isEmpty) {
+      await ref.read(aiSettingsControllerProvider.notifier).clearKey();
+    } else {
+      await ref.read(aiSettingsControllerProvider.notifier).setKey(trimmed);
+    }
+    setState(() => _keySaved = true);
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('AI key saved')));
+    }
   }
 
   Future<void> _confirmClearKey(BuildContext context) async {
-
     final t = context.hd;
     final ok = await showDialog<bool>(
       context: context,
@@ -259,6 +329,7 @@ class _AiSectionState extends ConsumerState<_AiSection> {
     );
     if (ok != true) return;
     _keyCtrl.clear();
+    setState(() => _keySaved = false);
     await ref.read(aiSettingsControllerProvider.notifier).clearKey();
   }
 }
