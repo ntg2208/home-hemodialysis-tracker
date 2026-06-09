@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:printing/printing.dart';
 
 import '../../../app/shell.dart';
 import '../../../app/theme.dart';
+import '../../../flavor.dart';
+import '../../../pdf_export/session_pdf.dart';
 import '../../../widgets/pressable_scale.dart';
 import '../models.dart';
 import '../providers.dart';
@@ -10,7 +13,7 @@ import '../treatment_repo.dart';
 import '../widgets/session_list_item.dart';
 import 'session_detail.dart';
 
-/// Treatment Home — drawer destination. Cache-first session list + dried-weight
+/// Treatment Home — drawer destination. Cache-first session list + dry-weight
 /// editor + Start session. Port of frontend Home.tsx.
 class TreatmentHome extends ConsumerStatefulWidget {
   const TreatmentHome({super.key, required this.onStartSession});
@@ -34,10 +37,8 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
     final store = ref.read(treatmentStoreProvider);
     _driedWeight = store.getDriedWeight();
     _sessions = store.getCachedSessions();
-    // Auto-load once if never synced before (no cache). Subsequent opens use cache.
-    if (_sessions == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _load());
-    }
+    // Always refresh in the background; cache shown immediately while loading.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
   @override
@@ -111,6 +112,37 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
     }
   }
 
+  Future<void> _exportSessionPdf(Session session) async {
+    try {
+      final repo = ref.read(treatmentRepoProvider);
+      final readings = await repo.getReadings(session.sessionId);
+      final bytes = await buildSessionPdf(session, readings);
+      await Printing.sharePdf(
+          bytes: bytes,
+          filename: 'session_${session.sessionId.substring(0, 8)}.pdf');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('PDF export failed: $e')));
+      }
+    }
+  }
+
+  Future<void> _exportSummary() async {
+    try {
+      final result = await ref.read(treatmentRepoProvider).getAll();
+      final to = DateTime.now();
+      final from = to.subtract(const Duration(days: 30));
+      final bytes = await buildSummaryPdf(result.sessions, from, to);
+      await Printing.sharePdf(bytes: bytes, filename: 'hd_summary.pdf');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Summary export failed: $e')));
+      }
+    }
+  }
+
   void _commitDried() {
     final n = num.tryParse(_driedController.text);
     if (n != null && n > 0) {
@@ -128,6 +160,15 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
 
     return HdScaffold(
       title: 'Treatment',
+      actions: kCommunity
+          ? [
+              IconButton(
+                icon: const Icon(Icons.picture_as_pdf_outlined),
+                tooltip: 'Export monthly summary PDF',
+                onPressed: _exportSummary,
+              ),
+            ]
+          : null,
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -198,7 +239,10 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () => _openDetail(s),
-                    child: SessionListItem(session: s),
+                    child: SessionListItem(
+                      session: s,
+                      onExportPdf: kCommunity ? () => _exportSessionPdf(s) : null,
+                    ),
                   ),
                 )),
         ],
@@ -217,7 +261,7 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
       ),
       child: Row(
         children: [
-          Text('Dried weight',
+          Text('Dry weight',
               style: TextStyle(fontSize: 14, color: t.textSecondary)),
           const Spacer(),
           if (_editingDried)
