@@ -118,8 +118,53 @@ class RetrieverTools {
     return {'sessions': sessionMaps, 'count': sessionMaps.length};
   }
 
-  Map<String, dynamic> getOutOfRangeMarkers() =>
-      {'draw_date': null, 'out_of_range': <dynamic>[], 'total_markers_checked': 0};
+  Map<String, dynamic> getOutOfRangeMarkers() {
+    if (bloodTestRows.isEmpty) {
+      return {'draw_date': null, 'out_of_range': <dynamic>[], 'total_markers_checked': 0};
+    }
+
+    final latestDate = bloodTestRows
+        .map((r) => r.datetime.substring(0, 10))
+        .reduce((a, b) => a.compareTo(b) >= 0 ? a : b);
+
+    // For each marker on the latest date, prefer 'pre' > 'post' > ''
+    const timingPriority = {'pre': 2, 'post': 1, '': 0};
+    final byMarker = <String, BloodTestRow>{};
+    for (final row in bloodTestRows.where((r) => r.datetime.startsWith(latestDate))) {
+      final existing = byMarker[row.marker];
+      if (existing == null) {
+        byMarker[row.marker] = row;
+      } else {
+        final newP = timingPriority[row.timing] ?? 0;
+        final existP = timingPriority[existing.timing] ?? 0;
+        if (newP > existP) byMarker[row.marker] = row;
+      }
+    }
+
+    // Only markers with at least one bound defined
+    final checkable = byMarker.values
+        .where((r) => r.refLow != null || r.refHigh != null)
+        .toList();
+
+    final outOfRange = checkable
+        .where((r) => !_inRange(r.value, r.refLow, r.refHigh))
+        .map((r) => {
+              'marker': r.marker,
+              'value': r.value,
+              'unit': r.unit,
+              'ref_low': r.refLow,
+              'ref_high': r.refHigh,
+              'direction':
+                  (r.refHigh != null && r.value > r.refHigh!) ? 'high' : 'low',
+            })
+        .toList();
+
+    return {
+      'draw_date': latestDate,
+      'out_of_range': outOfRange,
+      'total_markers_checked': checkable.length,
+    };
+  }
 
   bool _inRange(double value, double? refLow, double? refHigh) {
     if (refLow != null && value < refLow) return false;

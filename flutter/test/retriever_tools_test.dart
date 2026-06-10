@@ -220,4 +220,80 @@ void main() {
       expect((session['readings'] as List).isEmpty, true);
     });
   });
+
+  group('getOutOfRangeMarkers', () {
+    test('returns empty result when no rows', () {
+      final retriever = RetrieverTools(sessions: [], readings: [], bloodTestRows: [], now: fixedNow);
+      final result = retriever.getOutOfRangeMarkers();
+      expect(result['draw_date'], isNull);
+      expect((result['out_of_range'] as List).isEmpty, true);
+      expect(result['total_markers_checked'], 0);
+    });
+
+    test('identifies the most recent draw date', () {
+      final rows = [
+        _btRow(marker: 'phosphate', datetime: '2026-05-18T14:00:00', value: 1.9, refLow: 0.8, refHigh: 1.5),
+        _btRow(marker: 'potassium', datetime: '2026-04-15T14:00:00', value: 4.2, refLow: 3.5, refHigh: 5.0),
+      ];
+      final result = RetrieverTools(sessions: [], readings: [], bloodTestRows: rows, now: fixedNow)
+          .getOutOfRangeMarkers();
+      expect(result['draw_date'], '2026-05-18');
+    });
+
+    test('flags marker with value above refHigh as high', () {
+      final rows = [
+        _btRow(marker: 'phosphate', datetime: '2026-05-18T14:00:00', value: 1.9, refLow: 0.8, refHigh: 1.5),
+      ];
+      final result = RetrieverTools(sessions: [], readings: [], bloodTestRows: rows, now: fixedNow)
+          .getOutOfRangeMarkers();
+      final flagged = (result['out_of_range'] as List)[0] as Map;
+      expect(flagged['marker'], 'phosphate');
+      expect(flagged['direction'], 'high');
+    });
+
+    test('flags marker with value below refLow as low', () {
+      final rows = [
+        _btRow(marker: 'potassium', datetime: '2026-05-18T14:00:00', value: 2.0, refLow: 3.5, refHigh: 5.0),
+      ];
+      final result = RetrieverTools(sessions: [], readings: [], bloodTestRows: rows, now: fixedNow)
+          .getOutOfRangeMarkers();
+      final flagged = (result['out_of_range'] as List)[0] as Map;
+      expect(flagged['direction'], 'low');
+    });
+
+    test('skips markers with both bounds null (e.g. intact_pth)', () {
+      final rows = [
+        _btRow(marker: 'intact_pth', datetime: '2026-05-18T14:00:00', value: 99.0),
+        _btRow(marker: 'phosphate',  datetime: '2026-05-18T14:00:00', value: 1.9, refLow: 0.8, refHigh: 1.5),
+      ];
+      final result = RetrieverTools(sessions: [], readings: [], bloodTestRows: rows, now: fixedNow)
+          .getOutOfRangeMarkers();
+      expect(result['total_markers_checked'], 1); // intact_pth excluded
+    });
+
+    test('prefers pre row over post when both exist on same date', () {
+      final rows = [
+        _btRow(marker: 'potassium', datetime: '2026-05-18T14:00:00', value: 4.2,
+            refLow: 3.5, refHigh: 5.0, timing: 'post'), // in range
+        _btRow(marker: 'potassium', datetime: '2026-05-18T12:00:00', value: 6.5,
+            refLow: 3.5, refHigh: 5.0, timing: 'pre'),  // out of range (high)
+      ];
+      final result = RetrieverTools(sessions: [], readings: [], bloodTestRows: rows, now: fixedNow)
+          .getOutOfRangeMarkers();
+      // pre row used: 6.5 > 5.0 → flagged high
+      final flagged = result['out_of_range'] as List;
+      expect(flagged.length, 1);
+      expect((flagged[0] as Map)['direction'], 'high');
+    });
+
+    test('in-range markers are not included in out_of_range', () {
+      final rows = [
+        _btRow(marker: 'potassium', datetime: '2026-05-18T14:00:00', value: 4.2, refLow: 3.5, refHigh: 5.0),
+      ];
+      final result = RetrieverTools(sessions: [], readings: [], bloodTestRows: rows, now: fixedNow)
+          .getOutOfRangeMarkers();
+      expect((result['out_of_range'] as List).isEmpty, true);
+      expect(result['total_markers_checked'], 1);
+    });
+  });
 }
