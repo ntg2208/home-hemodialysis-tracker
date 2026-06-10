@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:home_hd/features/blood_tests/models.dart';
 import 'package:home_hd/features/chat/retriever_tools.dart';
+import 'package:home_hd/features/treatment/models.dart';
 
 BloodTestRow _btRow({
   required String marker,
@@ -117,6 +118,106 @@ void main() {
       expect(rowMap['ref_high'], 5.0);
       expect(rowMap['in_range'], true);
       expect(rowMap['timing'], 'pre');
+    });
+  });
+
+  group('getSessions', () {
+    Session session(String date, {double? preW, double? postW,
+        int? preSys, int? preDia, int? postSys, int? postDia,
+        double? ufGoal, double? totalUf, int? durationMin}) =>
+        Session(
+          sessionId: date,
+          date: date,
+          preWeight: preW,
+          postWeight: postW,
+          preBpSys: preSys,
+          preBpDia: preDia,
+          postBpSys: postSys,
+          postBpDia: postDia,
+          ufGoal: ufGoal,
+          totalUf: totalUf,
+          durationMin: durationMin,
+        );
+
+    final sessions = [
+      session('2026-06-09', preW: 61.0, postW: 59.4, preSys: 117, preDia: 89,
+          postSys: 112, postDia: 78, ufGoal: 2.0, totalUf: 1.6, durationMin: 255),
+      session('2026-06-07', preW: 60.5, postW: 59.0, preSys: 120, preDia: 80,
+          postSys: 115, postDia: 75, ufGoal: 1.5, totalUf: 1.5, durationMin: 255),
+      session('2026-06-05'),
+      session('2026-06-03'),
+      session('2026-06-01'),
+      session('2026-05-30'),
+      session('2026-05-28'),
+      session('2026-05-26'),
+    ];
+
+    RetrieverTools makeRetriever() =>
+        RetrieverTools(sessions: sessions, readings: [], bloodTestRows: [], now: fixedNow);
+
+    test('last_n returns N most recent sessions, newest first', () {
+      final result = makeRetriever().getSessions(lastN: 3);
+      final list = result['sessions'] as List;
+      expect(list.length, 3);
+      expect((list[0] as Map)['date'], '2026-06-09');
+      expect((list[1] as Map)['date'], '2026-06-07');
+      expect(result['count'], 3);
+    });
+
+    test('default last_n is 7', () {
+      final result = makeRetriever().getSessions();
+      expect((result['sessions'] as List).length, 7);
+    });
+
+    test('last_n is clamped to 30', () {
+      final result = makeRetriever().getSessions(lastN: 999);
+      expect((result['sessions'] as List).length, sessions.length); // only 8 exist
+    });
+
+    test('from/to date range filters correctly', () {
+      final result = makeRetriever().getSessions(from: '2026-06-01', to: '2026-06-07');
+      final dates = (result['sessions'] as List).map((s) => (s as Map)['date']).toList();
+      expect(dates, containsAll(['2026-06-01', '2026-06-05', '2026-06-07']));
+      expect(dates, isNot(contains('2026-05-30')));
+      expect(dates, isNot(contains('2026-06-09')));
+    });
+
+    test('from/to wins when both from/to and lastN provided', () {
+      final result = makeRetriever().getSessions(lastN: 2, from: '2026-05-26', to: '2026-05-30');
+      final list = result['sessions'] as List;
+      expect(list.length, 3); // May sessions: 2026-05-26, 2026-05-28, 2026-05-30
+    });
+
+    test('weight_removed is computed correctly', () {
+      final result = makeRetriever().getSessions(lastN: 1);
+      final session = (result['sessions'] as List)[0] as Map;
+      expect(session['weight_removed'], closeTo(1.6, 0.01));
+    });
+
+    test('uf_achievement_pct is computed correctly', () {
+      final result = makeRetriever().getSessions(lastN: 1);
+      final session = (result['sessions'] as List)[0] as Map;
+      expect(session['uf_achievement_pct'], 80); // 1.6/2.0 = 80%
+    });
+
+    test('pre_bp formatted as sys/dia string', () {
+      final result = makeRetriever().getSessions(lastN: 1);
+      final session = (result['sessions'] as List)[0] as Map;
+      expect(session['pre_bp'], '117/89');
+      expect(session['post_bp'], '112/78');
+    });
+
+    test('null bp/weight fields are null in output', () {
+      final result = makeRetriever().getSessions(from: '2026-06-05', to: '2026-06-05');
+      final session = (result['sessions'] as List)[0] as Map;
+      expect(session['pre_bp'], isNull);
+      expect(session['pre_weight'], isNull);
+    });
+
+    test('include_readings: false gives empty readings array', () {
+      final result = makeRetriever().getSessions(lastN: 1);
+      final session = (result['sessions'] as List)[0] as Map;
+      expect((session['readings'] as List).isEmpty, true);
     });
   });
 }

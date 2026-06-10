@@ -49,9 +49,74 @@ class RetrieverTools {
     return {'results': results};
   }
 
-  Map<String, dynamic> getSessions(
-          {int? lastN, String? from, String? to, bool includeReadings = false}) =>
-      {'sessions': <dynamic>[], 'count': 0};
+  Map<String, dynamic> getSessions({
+    int? lastN,
+    String? from,
+    String? to,
+    bool includeReadings = false,
+  }) {
+    var sorted = [...sessions]..sort((a, b) => b.date.compareTo(a.date));
+
+    List<Session> filtered;
+    if (from != null || to != null) {
+      filtered = sorted.where((s) {
+        if (from != null && s.date.compareTo(from) < 0) return false;
+        if (to != null && s.date.compareTo(to) > 0) return false;
+        return true;
+      }).toList();
+    } else {
+      final n = (lastN ?? 7).clamp(1, 30);
+      filtered = sorted.take(n).toList();
+    }
+
+    final sessionMaps = filtered.map((s) {
+      final weightRemoved = (s.preWeight != null && s.postWeight != null)
+          ? double.parse((s.preWeight! - s.postWeight!).toStringAsFixed(1))
+          : null;
+      final ufAchievementPct =
+          (s.ufGoal != null && s.ufGoal! > 0 && s.totalUf != null)
+              ? ((s.totalUf! / s.ufGoal!) * 100).round()
+              : null;
+
+      final Map<String, dynamic> m = {
+        'date': s.date,
+        'session_id': s.sessionId,
+        'pre_weight': s.preWeight,
+        'post_weight': s.postWeight,
+        'weight_removed': weightRemoved,
+        'pre_bp': s.preBpSys != null ? '${s.preBpSys}/${s.preBpDia}' : null,
+        'post_bp': s.postBpSys != null ? '${s.postBpSys}/${s.postBpDia}' : null,
+        'pre_pulse': s.prePulse,
+        'post_pulse': s.postPulse,
+        'uf_goal': s.ufGoal,
+        'total_uf': s.totalUf,
+        'uf_achievement_pct': ufAchievementPct,
+        'duration_min': s.durationMin,
+        'comment': s.comment ?? '',
+      };
+
+      if (includeReadings) {
+        final sessionReadings = readings
+            .where((r) => r.sessionId == s.sessionId)
+            .toList()
+          ..sort((a, b) => a.seq.compareTo(b.seq));
+        m['readings'] = sessionReadings
+            .map((r) => {
+                  'time': r.time,
+                  'bp': r.bpSys != null ? '${r.bpSys}/${r.bpDia}' : null,
+                  'pulse': r.pulse,
+                  'blood_flow': r.bloodFlow,
+                })
+            .toList();
+      } else {
+        m['readings'] = <dynamic>[];
+      }
+
+      return m;
+    }).toList();
+
+    return {'sessions': sessionMaps, 'count': sessionMaps.length};
+  }
 
   Map<String, dynamic> getOutOfRangeMarkers() =>
       {'draw_date': null, 'out_of_range': <dynamic>[], 'total_markers_checked': 0};
