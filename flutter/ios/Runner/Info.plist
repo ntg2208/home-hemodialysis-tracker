@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Voice input for the HD assistant</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Microphone access for voice input to the HD assistant</string>
 </dict>
 </plist>
