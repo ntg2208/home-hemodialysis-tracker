@@ -4,10 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive/hive.dart';
 
 import '../../app/providers.dart'
-    show authControllerProvider, aiSettingsControllerProvider, AiSettings, themeModeProvider, testModeProvider, cacheBoxName;
+    show authControllerProvider, aiSettingsControllerProvider, themeModeProvider, testModeProvider, cacheBoxName;
 import '../../app/shell.dart';
 import '../../app/theme.dart';
 import '../../firebase/firebase_init.dart';
+import '../blood_tests/csv_import.dart' show csvImportTemplate;
 import '../treatment/providers.dart' show treatmentStoreProvider;
 
 const _patientNameKey = 'patient_name';
@@ -52,6 +53,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (v == null || v <= 0) return;
     await ref.read(treatmentStoreProvider).setDriedWeight(v);
     setState(() => _drySaved = true);
+  }
+
+  Future<void> _downloadTemplate() async {
+    await Clipboard.setData(const ClipboardData(text: csvImportTemplate));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('CSV template copied to clipboard')));
+    }
   }
 
   Future<void> _confirmClear(BuildContext context, WidgetRef ref) async {
@@ -119,13 +128,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           OutlinedButton(
               onPressed: _saveDryWeight,
               child: Text(_drySaved ? 'Saved ✓' : 'Save dry weight')),
-          const SizedBox(height: 28),
+          const SizedBox(height: 20),
+          _section(t, 'AI ASSISTANT (OPTIONAL)'),
+          Text(
+            'Enter an AI Studio key to enable the chat assistant. Leave blank to hide the chat button.',
+            style: TextStyle(fontSize: 12, color: t.textMuted),
+          ),
+          const SizedBox(height: 8),
+          const _AiSection(),
+          const SizedBox(height: 20),
+          _section(t, 'BLOOD TESTS'),
+          OutlinedButton.icon(
+            onPressed: _downloadTemplate,
+            icon: const Icon(Icons.download_outlined, size: 16),
+            label: const Text('Copy CSV template to clipboard'),
+          ),
+          const SizedBox(height: 20),
           _section(t, 'APPEARANCE'),
           const SizedBox(height: 8),
           _ThemeToggle(
             mode: mode,
             onChanged: (m) => ref.read(themeModeProvider.notifier).set(m),
           ),
+          const SizedBox(height: 28),
+          _section(t, 'DEVELOPER'),
+          const SizedBox(height: 8),
+          const _TestModeSection(),
           const SizedBox(height: 28),
           _section(t, 'CREDENTIALS'),
           const SizedBox(height: 8),
@@ -138,14 +166,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               side: BorderSide(color: t.danger),
             ),
           ),
-          const SizedBox(height: 28),
-          _section(t, 'AI ASSISTANT'),
-          const SizedBox(height: 8),
-          const _AiSection(),
-          const SizedBox(height: 28),
-          _section(t, 'DEVELOPER'),
-          const SizedBox(height: 8),
-          const _TestModeSection(),
         ],
       ),
     );
@@ -217,25 +237,15 @@ class _AiSectionState extends ConsumerState<_AiSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Enable AI chat'),
-          value: ai.enabled,
-          onChanged: (v) =>
-              ref.read(aiSettingsControllerProvider.notifier).setEnabled(v),
-        ),
-        const SizedBox(height: 8),
         TextField(
           controller: _keyCtrl,
           obscureText: _obscure,
-          enabled: ai.enabled,
           decoration: InputDecoration(
-            labelText: 'AI Studio API key',
-            hintText: 'AIza…',
+            hintText: 'AI Studio API key',
             suffixIcon: IconButton(
               icon: const Icon(Icons.content_paste, size: 18),
               tooltip: 'Paste from clipboard',
-              onPressed: ai.enabled ? _pasteKey : null,
+              onPressed: _pasteKey,
             ),
           ),
           onChanged: (_) => setState(() => _keySaved = false),
@@ -243,7 +253,7 @@ class _AiSectionState extends ConsumerState<_AiSection> {
         ),
         const SizedBox(height: 8),
         OutlinedButton(
-          onPressed: ai.enabled ? () => _saveKey(_keyCtrl.text) : null,
+          onPressed: () => _saveKey(_keyCtrl.text),
           child: Text(_keySaved ? 'Saved ✓' : 'Save key'),
         ),
         const SizedBox(height: 4),
@@ -251,8 +261,6 @@ class _AiSectionState extends ConsumerState<_AiSection> {
           'Get a free key at aistudio.google.com',
           style: TextStyle(fontSize: 11, color: t.textMuted),
         ),
-        const SizedBox(height: 8),
-        _statusLine(t, ai),
         if (ai.apiKey != null) ...[
           const SizedBox(height: 8),
           TextButton.icon(
@@ -264,25 +272,6 @@ class _AiSectionState extends ConsumerState<_AiSection> {
         ],
       ],
     );
-  }
-
-  Widget _statusLine(HdTokens t, AiSettings ai) {
-    if (!ai.enabled) return const SizedBox.shrink();
-    if (!ai.ready) {
-      return Row(children: [
-        Icon(Icons.warning_amber_rounded, size: 14, color: t.warning),
-        const SizedBox(width: 4),
-        Expanded(
-          child: Text('API key required — chat will show an error until one is entered',
-              style: TextStyle(fontSize: 11, color: t.warning)),
-        ),
-      ]);
-    }
-    return Row(children: [
-      Icon(Icons.check_circle_outline, size: 14, color: t.success),
-      const SizedBox(width: 4),
-      Text('AI assistant ready', style: TextStyle(fontSize: 11, color: t.success)),
-    ]);
   }
 
   Future<void> _pasteKey() async {
