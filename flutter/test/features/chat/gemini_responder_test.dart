@@ -30,6 +30,16 @@ GenerateContentResponse _emptyResponse() {
   return GenerateContentResponse([], null);
 }
 
+extension _StreamJoin on Stream<String> {
+  Future<String> join() async {
+    final buf = StringBuffer();
+    await for (final chunk in this) {
+      buf.write(chunk);
+    }
+    return buf.toString();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Fake backend
 // ---------------------------------------------------------------------------
@@ -203,6 +213,51 @@ void main() {
       expect(dispatched, hasLength(1));
       expect(chunks, isNotEmpty,
           reason: 'A fallback bubble should be emitted when commands ran but model text is empty');
+    });
+  });
+
+  group('retrieval tool routing', () {
+    test('get_blood_markers does not enqueue an AppCommand', () async {
+      final dispatched = <AppCommand>[];
+      final responder = _makeResponder(
+        backend: _FakeBackend(
+          streamResponses: [_toolResponse('get_blood_markers', {'markers': ['phosphate'], 'months_back': 2})],
+          generateResponses: [_textResponse('Phosphate is elevated.')],
+        ),
+        dispatched: dispatched,
+      );
+
+      final reply = await responder.reply('why am I itching?', []).join();
+      expect(reply, contains('Phosphate'));
+      expect(dispatched, isEmpty);
+    });
+
+    test('get_sessions does not enqueue an AppCommand', () async {
+      final dispatched = <AppCommand>[];
+      final responder = _makeResponder(
+        backend: _FakeBackend(
+          streamResponses: [_toolResponse('get_sessions', {'last_n': 7})],
+          generateResponses: [_textResponse('Your last 7 sessions look fine.')],
+        ),
+        dispatched: dispatched,
+      );
+
+      await responder.reply('how were my sessions?', []).join();
+      expect(dispatched, isEmpty);
+    });
+
+    test('get_out_of_range_markers does not enqueue an AppCommand', () async {
+      final dispatched = <AppCommand>[];
+      final responder = _makeResponder(
+        backend: _FakeBackend(
+          streamResponses: [_toolResponse('get_out_of_range_markers', {})],
+          generateResponses: [_textResponse('Phosphate is flagged.')],
+        ),
+        dispatched: dispatched,
+      );
+
+      await responder.reply('anything flagged?', []).join();
+      expect(dispatched, isEmpty);
     });
   });
 }

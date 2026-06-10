@@ -13,6 +13,7 @@ import 'chat_context.dart';
 import 'chat_controller.dart';
 import 'command_dispatch.dart';
 import 'command_validator.dart';
+import 'retriever_tools.dart';
 import 'screen_context.dart';
 
 enum ChatError { network, invalidKey, rateLimited, serverError }
@@ -158,15 +159,43 @@ class GeminiChatResponder implements ChatResponder {
           'total_uf': Schema.number(description: 'Total UF removed in litres'),
         }),
       ),
+      FunctionDeclaration(
+        'get_blood_markers',
+        'Fetch historical blood test rows for specific markers. Use when asked about symptoms, trends, or comparisons across months.',
+        Schema.object(properties: {
+          'markers': Schema.array(
+            items: Schema.string(description: 'Canonical marker name, e.g. phosphate, potassium, haemoglobin'),
+            description: 'List of marker names to fetch',
+          ),
+          'months_back': Schema.integer(description: 'How many months back to look. Default 2, max 12.'),
+        }, requiredProperties: ['markers']),
+      ),
+      FunctionDeclaration(
+        'get_sessions',
+        'Fetch dialysis session records. Use for BP trends, UF patterns, weight trends, or multi-session comparisons.',
+        Schema.object(properties: {
+          'last_n': Schema.integer(description: 'Last N sessions. Default 7, max 30. Mutually exclusive with from/to.'),
+          'from': Schema.string(description: 'Start date YYYY-MM-DD (inclusive). Use with to.'),
+          'to': Schema.string(description: 'End date YYYY-MM-DD (inclusive). Use with from.'),
+          'include_readings': Schema.boolean(description: 'Include intra-session BP readings. Default false. Only use for last_n ≤ 5.'),
+        }),
+      ),
+      FunctionDeclaration(
+        'get_out_of_range_markers',
+        'Returns all markers from the most recent blood draw that are outside their reference range. Use for general health checks or "is anything flagged?" questions.',
+        Schema.object(properties: {}),
+      ),
     ]),
   ];
 
   @override
   Stream<String> reply(String prompt, List<ChatMessage> history) async* {
+    late final RetrieverTools retriever;
     final GeminiBackend backend;
 
     if (_testBackend != null) {
       // Test path — skip data fetch and model construction entirely.
+      retriever = RetrieverTools(sessions: [], readings: [], bloodTestRows: []);
       backend = _testBackend;
     } else {
       // Production path — fetch data and build system prompt.
@@ -210,6 +239,11 @@ class GeminiChatResponder implements ChatResponder {
         appState: _screenContext,
       ).build();
 
+      retriever = RetrieverTools(
+        sessions: [...treatmentData.sessions],
+        readings: treatmentData.readings,
+        bloodTestRows: btCache.rows,
+      );
       backend = _RealBackend(GenerativeModel(
         model: 'gemini-3.1-flash-lite',
         apiKey: _apiKey,
@@ -269,20 +303,41 @@ class GeminiChatResponder implements ChatResponder {
           turn++) {
         final functionResponses = <Content>[];
         for (final call in response.functionCalls) {
-          final cmd = _parseCommand(call);
           Map<String, dynamic> result;
 
-          if (cmd == null) {
-            result = {'error': 'Unknown tool: ${call.name}'};
+          // Retrieval tools: return data, no AppCommand enqueued.
+          if (call.name == 'get_blood_markers') {
+            final markers =
+                ((call.args['markers'] as List?) ?? []).cast<String>();
+            final months = (call.args['months_back'] as num?)?.toInt() ?? 2;
+            result = retriever.getBloodMarkers(markers, months);
+          } else if (call.name == 'get_sessions') {
+            result = retriever.getSessions(
+              lastN: (call.args['last_n'] as num?)?.toInt(),
+              from: call.args['from'] as String?,
+              to: call.args['to'] as String?,
+              includeReadings:
+                  call.args['include_readings'] as bool? ?? false,
+            );
+          } else if (call.name == 'get_out_of_range_markers') {
+            result = retriever.getOutOfRangeMarkers();
           } else {
-            final stateError = validateCommand(cmd, _screenContext.treatmentState);
-            final valueError = stateError == null ? validateValues(cmd) : null;
-            final error = stateError ?? valueError;
-            if (error != null) {
-              result = {'error': error};
+            // Action tools: validate state, enqueue command.
+            final cmd = _parseCommand(call);
+            if (cmd == null) {
+              result = {'error': 'Unknown tool: ${call.name}'};
             } else {
-              commandsToRun.add(cmd); // deferred — run after narration is shown
-              result = {'ok': true};
+              final stateError =
+                  validateCommand(cmd, _screenContext.treatmentState);
+              final valueError =
+                  stateError == null ? validateValues(cmd) : null;
+              final error = stateError ?? valueError;
+              if (error != null) {
+                result = {'error': error};
+              } else {
+                commandsToRun.add(cmd);
+                result = {'ok': true};
+              }
             }
           }
 
