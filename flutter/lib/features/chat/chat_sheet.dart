@@ -1,8 +1,12 @@
+import 'dart:async' show StreamSubscription;
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:speech_to_text/speech_to_text.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:record/record.dart';
 
 import '../../app/providers.dart' show aiSettingsControllerProvider;
 import '../../app/theme.dart';
@@ -38,9 +42,11 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   final _focus = FocusNode();
-  final _stt = SpeechToText();
-  bool _sttAvailable = false;
-  bool _listening = false;
+  late final AudioRecorder _recorder;
+  bool _recording = false;
+  bool _transcribing = false;
+  List<Uint8List> _audioChunks = [];
+  StreamSubscription<Uint8List>? _audioSub;
 
   @override
   void initState() {
@@ -58,7 +64,7 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
         ref.read(chatSheetCloseSignalProvider.notifier).reset();
       }
     });
-    _initStt();
+    _recorder = AudioRecorder();
   }
 
   @override
@@ -66,8 +72,9 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
     _input.dispose();
     _scroll.dispose();
     _focus.dispose();
-    if (_listening) _stt.stop();
-    _stt.cancel();
+    _audioSub?.cancel();
+    if (_recording) _recorder.stop();
+    _recorder.dispose();
     super.dispose();
   }
 
@@ -88,32 +95,83 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
     });
   }
 
-  Future<void> _initStt() async {
-    final available = await _stt.initialize();
-    if (mounted) setState(() => _sttAvailable = available);
+  Future<void> _toggleRecording() async {
+    if (_recording) {
+      // Stop recorder first so all PCM is flushed before cancelling the stream.
+      await _recorder.stop();
+      await _audioSub?.cancel();
+      _audioSub = null;
+      if (!mounted) return;
+      setState(() { _recording = false; _transcribing = true; });
+      if (_audioChunks.isEmpty) {
+        setState(() => _transcribing = false);
+        return;
+      }
+      final wav = _buildWav(_audioChunks);
+      final text = await _transcribeAudio(wav);
+      if (mounted) {
+        setState(() => _transcribing = false);
+        if (text != null && text.isNotEmpty) _send(text);
+      }
+    } else {
+      final hasPermission = await _recorder.hasPermission();
+      if (!hasPermission || !mounted) return;
+      _audioChunks = [];
+      final stream = await _recorder.startStream(
+        const RecordConfig(
+          encoder: AudioEncoder.pcm16bits,
+          sampleRate: 16000,
+          numChannels: 1,
+        ),
+      );
+      _audioSub = stream.listen(
+        (chunk) => _audioChunks.add(chunk),
+        onError: (_) { if (mounted) setState(() => _recording = false); },
+      );
+      if (!mounted) { await _recorder.stop(); return; }
+      setState(() => _recording = true);
+    }
   }
 
-  Future<void> _toggleListening() async {
-    if (_listening) {
-      await _stt.stop();
-      setState(() => _listening = false);
-      if (_input.text.trim().isNotEmpty) _send(_input.text);
-      return;
+  Future<String?> _transcribeAudio(Uint8List wavBytes) async {
+    final key = ref.read(aiSettingsControllerProvider).apiKey;
+    if (key == null) return null;
+    try {
+      final model = GenerativeModel(model: 'gemini-3.1-flash-lite', apiKey: key);
+      final response = await model.generateContent([
+        Content('user', [
+          DataPart('audio/wav', wavBytes),
+          TextPart('Transcribe the audio. Return only the transcribed text, nothing else.'),
+        ]),
+      ]);
+      return response.text?.trim();
+    } catch (_) {
+      return null;
     }
-    setState(() => _listening = true);
-    await _stt.listen(
-      onResult: (result) {
-        setState(() => _input.text = result.recognizedWords);
-        if (result.finalResult) {
-          setState(() => _listening = false);
-          if (_input.text.trim().isNotEmpty) _send(_input.text);
-        }
-      },
-      listenOptions: SpeechListenOptions(
-        partialResults: true,
-        pauseFor: const Duration(seconds: 2),
-      ),
-    );
+  }
+
+  static Uint8List _buildWav(List<Uint8List> chunks) {
+    const sampleRate = 16000;
+    const channels = 1;
+    const bitsPerSample = 16;
+    final pcm = Uint8List.fromList(chunks.expand((c) => c).toList());
+    final result = Uint8List(44 + pcm.length);
+    final bd = result.buffer.asByteData();
+    result.setRange(0, 4, [82, 73, 70, 70]);           // 'RIFF'
+    bd.setUint32(4, 36 + pcm.length, Endian.little);
+    result.setRange(8, 12, [87, 65, 86, 69]);           // 'WAVE'
+    result.setRange(12, 16, [102, 109, 116, 32]);       // 'fmt '
+    bd.setUint32(16, 16, Endian.little);
+    bd.setUint16(20, 1, Endian.little);                 // PCM
+    bd.setUint16(22, channels, Endian.little);
+    bd.setUint32(24, sampleRate, Endian.little);
+    bd.setUint32(28, sampleRate * channels * bitsPerSample ~/ 8, Endian.little);
+    bd.setUint16(32, channels * bitsPerSample ~/ 8, Endian.little);
+    bd.setUint16(34, bitsPerSample, Endian.little);
+    result.setRange(36, 40, [100, 97, 116, 97]);        // 'data'
+    bd.setUint32(40, pcm.length, Endian.little);
+    result.setRange(44, 44 + pcm.length, pcm);
+    return result;
   }
 
   @override
@@ -469,6 +527,7 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
   }
 
   Widget _inputRow(HdTokens t, ChatState state) {
+    final ai = ref.watch(aiSettingsControllerProvider);
     return Padding(
       padding: EdgeInsets.only(
         left: 12,
@@ -486,7 +545,7 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
             textInputAction: TextInputAction.send,
             onSubmitted: state.sending ? null : _send,
             decoration: InputDecoration(
-              hintText: _listening ? 'Listening…' : 'Message',
+              hintText: _recording ? 'Recording…' : 'Message',
               isDense: true,
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -494,9 +553,14 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
           ),
         ),
         const SizedBox(width: 8),
-        if (_sttAvailable)
-          _MicButton(listening: _listening, onTap: _toggleListening),
-        if (_sttAvailable) const SizedBox(width: 8),
+        if (ai.ready) ...[
+          _MicButton(
+            recording: _recording,
+            transcribing: _transcribing,
+            onTap: _toggleRecording,
+          ),
+          const SizedBox(width: 8),
+        ],
         _SendButton(
           enabled: !state.sending,
           onTap: () => _send(_input.text),
@@ -625,26 +689,34 @@ class _KbUpdateChip extends StatelessWidget {
 }
 
 class _MicButton extends StatelessWidget {
-  const _MicButton({required this.listening, required this.onTap});
-  final bool listening;
+  const _MicButton({required this.recording, required this.transcribing, required this.onTap});
+  final bool recording;
+  final bool transcribing;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final t = context.hd;
     return Material(
-      color: listening ? Colors.red.shade400 : t.panel,
+      color: recording ? Colors.red.shade400 : t.panel,
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
-        onTap: onTap,
+        onTap: transcribing ? null : onTap,
         child: Padding(
           padding: const EdgeInsets.all(10),
-          child: Icon(
-            listening ? Icons.mic : Icons.mic_none,
-            size: 20,
-            color: listening ? Colors.white : t.textSecondary,
-          ),
+          child: transcribing
+              ? SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: t.textSecondary),
+                )
+              : Icon(
+                  recording ? Icons.mic : Icons.mic_none,
+                  size: 20,
+                  color: recording ? Colors.white : t.textSecondary,
+                ),
         ),
       ),
     );
