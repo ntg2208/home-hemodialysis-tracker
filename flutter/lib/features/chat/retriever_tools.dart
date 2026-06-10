@@ -18,31 +18,30 @@ class RetrieverTools {
     final cutoff = DateTime(_now.year, _now.month - monthsBack, 1);
 
     final results = markers.map((marker) {
-      final markerRows = bloodTestRows
-          .where((r) {
-            if (r.marker != marker) return false;
-            final dt = DateTime.tryParse(r.datetime);
-            return dt != null && !dt.isBefore(cutoff);
-          })
+      final parsed = bloodTestRows
+          .where((r) => r.marker == marker)
+          .map((r) => (r, DateTime.tryParse(r.datetime)))
+          .where((pair) => pair.$2 != null && !pair.$2!.isBefore(cutoff))
           .toList()
-        ..sort((a, b) {
-          final dtA = DateTime.tryParse(a.datetime)!;
-          final dtB = DateTime.tryParse(b.datetime)!;
-          return dtB.compareTo(dtA);
-        });
+        ..sort((a, b) => b.$2!.compareTo(a.$2!));
 
       return {
         'marker': marker,
-        'rows': markerRows
-            .map((r) => {
-                  'date': r.datetime.substring(0, 10),
-                  'value': r.value,
-                  'unit': r.unit,
-                  'ref_low': r.refLow,
-                  'ref_high': r.refHigh,
-                  'in_range': _inRange(r.value, r.refLow, r.refHigh),
-                  'timing': r.timing,
-                })
+        'rows': parsed
+            .map((pair) {
+              final r = pair.$1;
+              final dt = pair.$2!;
+              return {
+                'date':
+                    '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}',
+                'value': r.value,
+                'unit': r.unit,
+                'ref_low': r.refLow,
+                'ref_high': r.refHigh,
+                'in_range': _inRange(r.value, r.refLow, r.refHigh),
+                'timing': r.timing,
+              };
+            })
             .toList(),
       };
     }).toList();
