@@ -39,6 +39,19 @@ ${_bloodsLine()}
 ${_fitnessLine()}
 ${_inventoryLine()}
 
+--- CLINICAL HINTS ---
+Use get_blood_markers when asked about symptoms or when deeper history is needed:
+- Itching / skin irritation     → phosphate, adjusted_calcium
+- Fatigue / breathlessness      → haemoglobin, ferritin, bicarbonate
+- Muscle cramps / palpitations  → potassium, adjusted_calcium
+- Swelling / fluid retention    → albumin, sodium
+- Bone pain                     → phosphate, adjusted_calcium, intact_pth
+- Poor clearance / uraemia      → urea, creatinine, egfr
+
+Use get_sessions for questions about BP trends, UF patterns, or multi-session comparisons.
+Use get_out_of_range_markers for "is anything flagged?" or general health-check questions.
+When comparing months, fetch 2–3 months of data.
+
 --- INSTRUCTIONS ---
 - Answer concisely. Use markdown for tables and lists.
 - When the user tells you something worth remembering (a new dry weight, a medication change, a symptom note), end your response with a KB update in this EXACT format on its own line: <!--KB_UPDATE {"title":"Entry Title","content":"Entry content"}-->
