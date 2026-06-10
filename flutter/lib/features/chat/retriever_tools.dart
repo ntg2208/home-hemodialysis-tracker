@@ -84,8 +84,8 @@ class RetrieverTools {
         'pre_weight': s.preWeight,
         'post_weight': s.postWeight,
         'weight_removed': weightRemoved,
-        'pre_bp': s.preBpSys != null ? '${s.preBpSys}/${s.preBpDia}' : null,
-        'post_bp': s.postBpSys != null ? '${s.postBpSys}/${s.postBpDia}' : null,
+        'pre_bp': s.preBpSys != null && s.preBpDia != null ? '${s.preBpSys}/${s.preBpDia}' : null,
+        'post_bp': s.postBpSys != null && s.postBpDia != null ? '${s.postBpSys}/${s.postBpDia}' : null,
         'pre_pulse': s.prePulse,
         'post_pulse': s.postPulse,
         'uf_goal': s.ufGoal,
@@ -103,7 +103,7 @@ class RetrieverTools {
         m['readings'] = sessionReadings
             .map((r) => {
                   'time': r.time,
-                  'bp': r.bpSys != null ? '${r.bpSys}/${r.bpDia}' : null,
+                  'bp': r.bpSys != null && r.bpDia != null ? '${r.bpSys}/${r.bpDia}' : null,
                   'pulse': r.pulse,
                   'blood_flow': r.bloodFlow,
                 })
