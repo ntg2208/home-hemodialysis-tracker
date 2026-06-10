@@ -27,7 +27,7 @@ Use get_blood_markers when asked about symptoms or when deeper history is needed
 - Fatigue / breathlessness      → haemoglobin, ferritin, bicarbonate
 - Muscle cramps / palpitations  → potassium, adjusted_calcium
 - Swelling / fluid retention    → albumin, sodium
-- Bone pain                     → phosphate, adjusted_calcium, pth
+- Bone pain                     → phosphate, adjusted_calcium, intact_pth
 - Poor clearance / uraemia      → urea, creatinine, egfr
 
 Use get_sessions for questions about BP trends, UF patterns, or multi-session comparisons.
@@ -73,6 +73,13 @@ Parameters:
 }
 ```
 Top-level `results` array — one object per requested marker, in request order. Rows sorted newest-first. If a marker is not found in cache, its `rows` array is empty.
+
+**`in_range` logic (one-sided bounds):** Some markers have a null lower or upper bound (e.g. `egfr` has no upper bound; `intact_pth` has both null). `in_range` is computed as:
+- `false` (low) if `refLow != null && value < refLow`
+- `false` (high) if `refHigh != null && value > refHigh`
+- `true` otherwise (including when both bounds are null — treat as "unknown / no range defined")
+
+`direction` is only included in `get_out_of_range_markers` responses, not in `get_blood_markers` rows.
 
 ### 2b. `get_sessions`
 
@@ -137,7 +144,11 @@ Parameters: (none)
 }
 ```
 
-Covers only the most recent draw date. `direction` is `"high"` or `"low"`.
+Covers only the most recent draw date. "Most recent draw date" = the latest `datetime.substring(0,10)` across all rows in cache.
+
+**Pre/post dedup:** When both a `pre` and `post` row exist for the same marker on the draw date, use the `pre` row for flagging (pre-dialysis values are what the clinical team monitors for adequacy targets). If only a `post` row exists, use that. Empty-timing rows use the same fallback.
+
+**`direction`** is `"high"` or `"low"`. Same null-bound logic as `get_blood_markers`: skip markers where both bounds are null (e.g. `intact_pth`) — they are not included in `out_of_range` or counted in `total_markers_checked`.
 
 ---
 
@@ -182,33 +193,47 @@ Retrieval tools are added to `GeminiChatResponder._tools` alongside the existing
 
 ### 3d. Tool-call loop handling
 
-In the existing tool-call loop in `reply()`, retrieval tool calls are handled by calling `RetrieverTools` methods and returning the result as a `FunctionResponse`. No `AppCommand` is enqueued (retrieval tools have no UI side-effect).
+`RetrieverTools` is constructed **once in the production branch** of `reply()` (alongside `systemPrompt`), then passed into the tool-call loop. The loop must handle each `FunctionCall` independently — a single model turn can mix retrieval and action calls.
+
+**Routing rule (per call, in order):**
+1. Check if `call.name` is a retrieval name (`get_blood_markers`, `get_sessions`, `get_out_of_range_markers`) — if so, call `RetrieverTools`, return data as `FunctionResponse`, **do not enqueue an `AppCommand`**.
+2. Otherwise pass to `_parseCommand()` → existing validate + `commandsToRun.add` + `{'ok': true}` path.
+
+This replaces the current single-branch `_parseCommand` dispatch for retrieval names; everything else is unchanged.
 
 ```dart
+// Constructed once, before the tool-call loop:
 final retriever = RetrieverTools(
   sessions: [...treatmentData.sessions],
   readings: treatmentData.readings,
   bloodTestRows: btCache.rows,
 );
 
-// In the loop:
-'get_blood_markers' => {
+// Per-call routing inside the loop:
+Map<String, dynamic> result;
+if (call.name == 'get_blood_markers') {
   final markers = (call.args['markers'] as List).cast<String>();
   final months = (call.args['months_back'] as num?)?.toInt() ?? 2;
   result = retriever.getBloodMarkers(markers, months);
-},
-'get_sessions' => {
+} else if (call.name == 'get_sessions') {
   result = retriever.getSessions(
     lastN: (call.args['last_n'] as num?)?.toInt(),
     from: call.args['from'] as String?,
     to: call.args['to'] as String?,
     includeReadings: call.args['include_readings'] as bool? ?? false,
   );
-},
-'get_out_of_range_markers' => {
+} else if (call.name == 'get_out_of_range_markers') {
   result = retriever.getOutOfRangeMarkers();
-},
+} else {
+  // existing _parseCommand path
+  final cmd = _parseCommand(call);
+  ...
+}
 ```
+
+### 3e. Testability
+
+`RetrieverTools` is a pure class — covered entirely by `retriever_tools_test.dart` with fixture data. No changes to `GeminiChatResponder.forTest()` are needed; the round-trip test in `gemini_responder_test.dart` (§6) is limited to verifying that the **routing branch is reached** (i.e. the loop does not call `_parseCommand` for retrieval names), not the data content. Data correctness lives in `retriever_tools_test.dart`.
 
 ### 3e. Token budget
 
@@ -226,7 +251,12 @@ All well within `gemini-3.1-flash-lite`'s context window.
 
 ### 4a. Package
 
-`speech_to_text` (pub.dev). Covers Android (native recognizer), iOS (Siri), Chrome/web (Web Speech API). Mic button hidden on unsupported platforms (non-Chrome web, permission permanently denied).
+`speech_to_text` (pub.dev). Covers Android (native recognizer), iOS (Siri), Chrome/web (Web Speech API).
+
+**Platform permissions required (must add before build):**
+- Android: `RECORD_AUDIO` in `AndroidManifest.xml`
+- iOS: `NSSpeechRecognitionUsageDescription` + `NSMicrophoneUsageDescription` in `Info.plist`
+- Web: browser handles mic permission via the Web Speech API — no manifest change needed
 
 ### 4b. UI
 
@@ -238,19 +268,27 @@ Mic icon button added to the right of the chat input field, left of the send but
 | Listening | `Icons.mic` (pulsing red) | "Listening…" replaces placeholder |
 | Unavailable | hidden | — |
 
+**Availability gate:** mic button visibility is driven by `SpeechToText.initialize()` returning `true`, not by platform/browser detection. If `initialize()` returns `false` (unsupported platform, permission permanently denied), hide the button.
+
 ### 4c. Interaction flow
 
-1. Tap mic → request permission (one-time OS dialog)
-2. On grant: start listening, enter listening state
-3. Speech recognised: transcript streams into the text field
-4. On silence detection (2s pause) or second tap: stop listening, auto-send if field is non-empty
-5. User can edit the transcript before auto-send fires (cancels the timer)
+1. Tap mic → call `SpeechToText.initialize()` if not yet done → OS/browser permission prompt
+2. On grant: call `SpeechToText.listen()`, enter listening state
+3. Speech recognised: `onResult` callback streams transcript into the text field
+4. On `SpeechRecognitionResult.finalResult == true` (package's own silence detection): stop listening, auto-send if field is non-empty. Second tap on the mic also stops and auto-sends.
+5. User can edit the transcript while listening; editing cancels the auto-send.
 
-### 4d. What doesn't change
+Use `SpeechToText`'s built-in `pauseFor` / `finalResult` — do not implement a parallel timer.
+
+### 4d. Lifecycle
+
+`SpeechToText` must be disposed when the chat sheet closes. In `ChatSheet`, add to the existing `dispose()` method (line 61): call `_stt.stop()` then `_stt.cancel()` if listening, then `_stt.cancel()` unconditionally. This prevents the recognizer running after the sheet is gone.
+
+### 4e. What doesn't change
 
 Everything downstream of the text field is unchanged — Gemini sees the same prompt, retrieval tools and action tools work identically whether input came from keyboard or voice.
 
-### 4e. TTS (deferred)
+### 4f. TTS (deferred)
 
 Not in scope. The AI responds with text in the chat bubble. Phase B (speak responses aloud) is a clean addition wrapping the existing `Stream<String>` reply — deferred until needed.
 
@@ -276,8 +314,10 @@ Not in scope. The AI responds with text in the chat bubble. Phase B (speak respo
 | `lib/features/chat/retriever_tools.dart` | **New file** — `RetrieverTools` pure class |
 | `lib/features/chat/chat_sheet.dart` | Add mic button to input row |
 | `pubspec.yaml` | Add `speech_to_text` dependency |
-| `test/retriever_tools_test.dart` | **New file** — unit tests for `RetrieverTools` |
-| `test/features/chat/gemini_responder_test.dart` | Add tests for retrieval tool call/response round-trip |
+| `test/retriever_tools_test.dart` | **New file** — unit tests for `RetrieverTools` (data correctness, null-bound logic, pre/post dedup) |
+| `test/features/chat/gemini_responder_test.dart` | Add routing test: verify retrieval tool names do not reach `_parseCommand` (no `AppCommand` enqueued) |
+| `android/app/src/main/AndroidManifest.xml` | Add `RECORD_AUDIO` permission |
+| `ios/Runner/Info.plist` | Add `NSSpeechRecognitionUsageDescription` + `NSMicrophoneUsageDescription` |
 
 ---
 
