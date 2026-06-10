@@ -48,6 +48,23 @@ class TreatmentRepo {
     await batch.commit();
   }
 
+  /// Fetches only sessions, ordered newest-first, capped at [limit].
+  /// Cheaper than [getAll] for the home screen — no readings fetch.
+  Future<List<Session>> getSessions({int limit = 30}) async {
+    final snap = await _sessions
+        .orderBy('date', descending: true)
+        .limit(limit)
+        .get();
+    final sessions = <Session>[];
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      if ((data['session_id'] as String?)?.isNotEmpty ?? false) {
+        sessions.add(Session.fromMap(data));
+      }
+    }
+    return sessions;
+  }
+
   Future<({List<Session> sessions, List<Reading> readings})> getAll() async {
     final results = await Future.wait([_sessions.get(), _readings.get()]);
     final sessions = <Session>[];

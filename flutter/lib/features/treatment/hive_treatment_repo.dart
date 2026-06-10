@@ -53,6 +53,17 @@ class HiveTreatmentRepo extends TreatmentRepo {
   }
 
   @override
+  Future<List<Session>> getSessions({int limit = 30}) async {
+    final all = _sessions.values
+        .map((v) => Map<String, dynamic>.from(v as Map))
+        .where((m) => (m['session_id'] as String?)?.isNotEmpty ?? false)
+        .map(Session.fromMap)
+        .toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+    return all.take(limit).toList();
+  }
+
+  @override
   Future<({List<Session> sessions, List<Reading> readings})> getAll() async {
     final sessions = _sessions.values
         .map((v) => Map<String, dynamic>.from(v as Map))

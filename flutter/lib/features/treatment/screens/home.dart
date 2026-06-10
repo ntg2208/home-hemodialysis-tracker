@@ -1,11 +1,15 @@
+import 'dart:typed_data' show Uint8List;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
 
 import '../../../app/shell.dart';
-import '../../../app/theme.dart';
 import '../../../flavor.dart';
+import '../../../app/theme.dart';
 import '../../../pdf_export/session_pdf.dart';
+import '../../../pdf_export/web_pdf_download.dart';
 import '../../../widgets/pressable_scale.dart';
 import '../models.dart';
 import '../providers.dart';
@@ -23,17 +27,20 @@ class TreatmentHome extends ConsumerStatefulWidget {
   ConsumerState<TreatmentHome> createState() => _TreatmentHomeState();
 }
 
-class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
+class _TreatmentHomeState extends ConsumerState<TreatmentHome>
+    with WidgetsBindingObserver {
   List<Session>? _sessions;
   bool _refreshing = false;
   String? _error;
   late double _driedWeight;
   bool _editingDried = false;
   final _driedController = TextEditingController();
+  DateTime? _lastFetchedAt;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final store = ref.read(treatmentStoreProvider);
     _driedWeight = store.getDriedWeight();
     _sessions = store.getCachedSessions();
@@ -43,8 +50,18 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _driedController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    final age = _lastFetchedAt == null
+        ? const Duration(days: 1)
+        : DateTime.now().difference(_lastFetchedAt!);
+    if (age.inMinutes >= 5) _load();
   }
 
   Future<void> _load() async {
@@ -53,10 +70,11 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
       _refreshing = true;
     });
     try {
-      final r = await ref.read(treatmentRepoProvider).getAll();
-      final sorted = [...r.sessions]..sort((a, b) => b.date.compareTo(a.date));
-      ref.read(treatmentStoreProvider).saveCachedSessions(sorted);
-      if (mounted) setState(() => _sessions = sorted);
+      if (!kCommunity) await ref.read(treatmentAuthProvider).ensure();
+      final sessions = await ref.read(treatmentRepoProvider).getSessions();
+      ref.read(treatmentStoreProvider).saveCachedSessions(sessions);
+      _lastFetchedAt = DateTime.now();
+      if (mounted) setState(() => _sessions = sessions);
     } catch (e) {
       if (mounted) setState(() => _error = 'Load failed: ${treatmentErrorCode(e)}');
     } finally {
@@ -112,34 +130,27 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
     }
   }
 
-  Future<void> _exportSessionPdf(Session session) async {
-    try {
-      final repo = ref.read(treatmentRepoProvider);
-      final readings = await repo.getReadings(session.sessionId);
-      final bytes = await buildSessionPdf(session, readings);
-      await Printing.sharePdf(
-          bytes: bytes,
-          filename: 'session_${session.sessionId.substring(0, 8)}.pdf');
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('PDF export failed: $e')));
-      }
-    }
-  }
-
   Future<void> _exportSummary() async {
     try {
       final result = await ref.read(treatmentRepoProvider).getAll();
       final to = DateTime.now();
       final from = to.subtract(const Duration(days: 30));
-      final bytes = await buildSummaryPdf(result.sessions, from, to);
-      await Printing.sharePdf(bytes: bytes, filename: 'hd_summary.pdf');
+      final bytes = await buildSummaryPdf(result.sessions, result.readings, from, to);
+      final filename = '${patientDisplayName()} ${_monthLabel(from.toIso8601String())} Treatment Records.pdf';
+      await _sharePdf(bytes, filename);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Summary export failed: $e')));
       }
+    }
+  }
+
+  Future<void> _sharePdf(Uint8List bytes, String filename) async {
+    if (kIsWeb) {
+      await webDownloadPdf(bytes, filename);
+    } else {
+      await Printing.sharePdf(bytes: bytes, filename: filename);
     }
   }
 
@@ -160,15 +171,13 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
 
     return HdScaffold(
       title: 'Treatment',
-      actions: kCommunity
-          ? [
-              IconButton(
-                icon: const Icon(Icons.picture_as_pdf_outlined),
-                tooltip: 'Export monthly summary PDF',
-                onPressed: _exportSummary,
-              ),
-            ]
-          : null,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.picture_as_pdf_outlined),
+          tooltip: 'Export monthly summary PDF',
+          onPressed: _exportSummary,
+        ),
+      ],
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -239,10 +248,7 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () => _openDetail(s),
-                    child: SessionListItem(
-                      session: s,
-                      onExportPdf: kCommunity ? () => _exportSessionPdf(s) : null,
-                    ),
+                    child: SessionListItem(session: s),
                   ),
                 )),
         ],
@@ -321,3 +327,17 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome> {
 }
 
 String _fmt(num v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();
+
+const _monthNames = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+/// Returns the full month name from an ISO date string ('YYYY-MM-DD' or 'YYYY-MM').
+String _monthLabel(String isoDate) {
+  final parts = isoDate.split('-');
+  if (parts.length < 2) return isoDate;
+  final m = int.tryParse(parts[1]);
+  if (m == null || m < 1 || m > 12) return isoDate;
+  return _monthNames[m - 1];
+}

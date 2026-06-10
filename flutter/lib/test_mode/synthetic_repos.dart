@@ -61,6 +61,12 @@ class SyntheticTreatmentRepo extends TreatmentRepo {
       _readings.where((r) => r.sessionId == sessionId).toList();
 
   @override
+  Future<List<Session>> getSessions({int limit = 30}) async {
+    final sorted = [..._sessions]..sort((a, b) => b.date.compareTo(a.date));
+    return sorted.take(limit).toList();
+  }
+
+  @override
   Future<({List<Session> sessions, List<Reading> readings})> getAll() async =>
       (sessions: List<Session>.unmodifiable(_sessions), readings: List<Reading>.unmodifiable(_readings));
 }
