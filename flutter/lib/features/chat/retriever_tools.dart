@@ -15,16 +15,21 @@ class RetrieverTools {
   final DateTime _now;
 
   Map<String, dynamic> getBloodMarkers(List<String> markers, int monthsBack) {
-    final cutoff = DateTime(_now.year, _now.month - monthsBack, _now.day);
-    final cutoffStr = cutoff.toIso8601String().substring(0, 10);
+    final cutoff = DateTime(_now.year, _now.month - monthsBack, 1);
 
     final results = markers.map((marker) {
       final markerRows = bloodTestRows
-          .where((r) =>
-              r.marker == marker &&
-              r.datetime.substring(0, 10).compareTo(cutoffStr) >= 0)
+          .where((r) {
+            if (r.marker != marker) return false;
+            final dt = DateTime.tryParse(r.datetime);
+            return dt != null && !dt.isBefore(cutoff);
+          })
           .toList()
-        ..sort((a, b) => b.datetime.compareTo(a.datetime));
+        ..sort((a, b) {
+          final dtA = DateTime.tryParse(a.datetime)!;
+          final dtB = DateTime.tryParse(b.datetime)!;
+          return dtB.compareTo(dtA);
+        });
 
       return {
         'marker': marker,

@@ -87,5 +87,36 @@ void main() {
       final row = (((result['results'] as List)[0] as Map)['rows'] as List)[0] as Map;
       expect(row['in_range'], false);
     });
+
+    test('skips rows with empty or malformed datetime without crashing', () {
+      final badRow = _btRow(marker: 'phosphate', datetime: '', value: 1.5, refLow: 0.8, refHigh: 1.5);
+      final retriever = RetrieverTools(sessions: [], readings: [], bloodTestRows: [badRow], now: fixedNow);
+      final result = retriever.getBloodMarkers(['phosphate'], 2);
+      final rowList = ((result['results'] as List)[0] as Map)['rows'] as List;
+      expect(rowList.isEmpty, true);
+    });
+
+    test('row at exact cutoff boundary is included', () {
+      // cutoff for monthsBack=1 from 2026-06-10 is 2026-05-01
+      final boundaryRow = _btRow(marker: 'phosphate', datetime: '2026-05-01T00:00:00', value: 1.2, refLow: 0.8, refHigh: 1.5);
+      final retriever = RetrieverTools(sessions: [], readings: [], bloodTestRows: [boundaryRow], now: fixedNow);
+      final result = retriever.getBloodMarkers(['phosphate'], 1);
+      final rowList = ((result['results'] as List)[0] as Map)['rows'] as List;
+      expect(rowList.length, 1);
+    });
+
+    test('row map contains all expected fields', () {
+      final row = _btRow(marker: 'potassium', datetime: '2026-05-18T14:00:00', value: 4.2, refLow: 3.5, refHigh: 5.0, timing: 'pre');
+      final retriever = RetrieverTools(sessions: [], readings: [], bloodTestRows: [row], now: fixedNow);
+      final result = retriever.getBloodMarkers(['potassium'], 12);
+      final rowMap = (((result['results'] as List)[0] as Map)['rows'] as List)[0] as Map;
+      expect(rowMap['date'], '2026-05-18');
+      expect(rowMap['value'], 4.2);
+      expect(rowMap['unit'], 'mmol/L');
+      expect(rowMap['ref_low'], 3.5);
+      expect(rowMap['ref_high'], 5.0);
+      expect(rowMap['in_range'], true);
+      expect(rowMap['timing'], 'pre');
+    });
   });
 }
