@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 import '../../app/providers.dart' show aiSettingsControllerProvider;
 import '../../app/theme.dart';
@@ -37,6 +38,9 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   final _focus = FocusNode();
+  final _stt = SpeechToText();
+  bool _sttAvailable = false;
+  bool _listening = false;
 
   @override
   void initState() {
@@ -54,6 +58,7 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
         ref.read(chatSheetCloseSignalProvider.notifier).reset();
       }
     });
+    _initStt();
   }
 
   @override
@@ -61,6 +66,8 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
     _input.dispose();
     _scroll.dispose();
     _focus.dispose();
+    if (_listening) _stt.stop();
+    _stt.cancel();
     super.dispose();
   }
 
@@ -79,6 +86,34 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
             duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
       }
     });
+  }
+
+  Future<void> _initStt() async {
+    final available = await _stt.initialize();
+    if (mounted) setState(() => _sttAvailable = available);
+  }
+
+  Future<void> _toggleListening() async {
+    if (_listening) {
+      await _stt.stop();
+      setState(() => _listening = false);
+      if (_input.text.trim().isNotEmpty) _send(_input.text);
+      return;
+    }
+    setState(() => _listening = true);
+    await _stt.listen(
+      onResult: (result) {
+        setState(() => _input.text = result.recognizedWords);
+        if (result.finalResult) {
+          setState(() => _listening = false);
+          if (_input.text.trim().isNotEmpty) _send(_input.text);
+        }
+      },
+      listenOptions: SpeechListenOptions(
+        partialResults: true,
+        pauseFor: const Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
@@ -279,7 +314,7 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
         child: ListView.separated(
           padding: const EdgeInsets.all(16),
           itemCount: state.conversations.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          separatorBuilder: (_, _) => const SizedBox(height: 8),
           itemBuilder: (_, i) {
             final conv = state.conversations[i];
             return InkWell(
@@ -450,14 +485,18 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
             maxLines: 4,
             textInputAction: TextInputAction.send,
             onSubmitted: state.sending ? null : _send,
-            decoration: const InputDecoration(
-              hintText: 'Message',
+            decoration: InputDecoration(
+              hintText: _listening ? 'Listening…' : 'Message',
               isDense: true,
-              contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             ),
           ),
         ),
         const SizedBox(width: 8),
+        if (_sttAvailable)
+          _MicButton(listening: _listening, onTap: _toggleListening),
+        if (_sttAvailable) const SizedBox(width: 8),
         _SendButton(
           enabled: !state.sending,
           onTap: () => _send(_input.text),
@@ -581,6 +620,33 @@ class _KbUpdateChip extends StatelessWidget {
       side: BorderSide(color: t.accent.withValues(alpha: 0.3)),
       shape: const StadiumBorder(),
       onPressed: onConfirm,
+    );
+  }
+}
+
+class _MicButton extends StatelessWidget {
+  const _MicButton({required this.listening, required this.onTap});
+  final bool listening;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.hd;
+    return Material(
+      color: listening ? Colors.red.shade400 : t.panel,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Icon(
+            listening ? Icons.mic : Icons.mic_none,
+            size: 20,
+            color: listening ? Colors.white : t.textSecondary,
+          ),
+        ),
+      ),
     );
   }
 }
