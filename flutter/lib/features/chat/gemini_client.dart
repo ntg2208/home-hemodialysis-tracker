@@ -353,14 +353,16 @@ class GeminiChatResponder implements ChatResponder {
 
         final candidate = response.candidates.firstOrNull;
         if (candidate == null) break;
-        // For the first tool turn, prepend any text that was streamed before
-        // the function call so the history reflects the model's full output.
-        if (turn == 0 && streamedChunks.isNotEmpty) {
+        if (turn == 0) {
+          // Streaming chunks are deltas — their role may be unset and parts
+          // are incomplete. Rebuild the model turn explicitly from accumulated
+          // text (if any) + the fully-parsed function calls.
           contents.add(Content('model', [
-            TextPart(streamedChunks.join()),
-            ...candidate.content.parts,
+            if (streamedChunks.isNotEmpty) TextPart(streamedChunks.join()),
+            ...response.functionCalls,
           ]));
         } else {
+          // Non-streaming generate() returns complete content; safe to use.
           contents.add(candidate.content);
         }
         contents.addAll(functionResponses);
