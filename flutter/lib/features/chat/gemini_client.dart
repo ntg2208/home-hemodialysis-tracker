@@ -1,5 +1,7 @@
 // flutter/lib/features/chat/gemini_client.dart
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:google_generative_ai/google_generative_ai.dart';
 
 import '../../features/blood_tests/bt_store.dart';
@@ -336,12 +338,17 @@ class GeminiChatResponder implements ChatResponder {
                 result = {'error': error};
               } else {
                 commandsToRun.add(cmd);
-                result = {'ok': true};
+                result = _commandResult(cmd);
               }
             }
           }
 
-          functionResponses.add(Content.functionResponse(call.name, result));
+          // JSON round-trip ensures nested lists/maps and null values are
+          // typed as plain JSON-compatible objects, which the SDK can safely
+          // serialize into the function response part.
+          final sanitized =
+              (jsonDecode(jsonEncode(result)) as Map).cast<String, Object?>();
+          functionResponses.add(Content.functionResponse(call.name, sanitized));
         }
 
         final candidate = response.candidates.firstOrNull;
@@ -360,22 +367,29 @@ class GeminiChatResponder implements ChatResponder {
         response = await backend.generate(contents);
       }
 
-      // Show narration FIRST so the user sees the AI's response before the app
-      // acts on it, then execute deferred commands after a brief pause.
+      // Yield narration so the user can read it, then execute commands.
       final finalText = response.text ?? '';
-      if (finalText.isNotEmpty) {
-        yield finalText;
-      } else if (commandsToRun.isNotEmpty) {
-        yield _fallbackNarration(commandsToRun);
-      }
+      final narration = finalText.isNotEmpty
+          ? finalText
+          : commandsToRun.isNotEmpty
+              ? _fallbackNarration(commandsToRun)
+              : '';
+      if (narration.isNotEmpty) yield narration;
+
       if (commandsToRun.isNotEmpty) {
-        // Let the user read the response, then close the sheet, then navigate.
-        await Future.delayed(const Duration(milliseconds: 400));
+        // Hold the sheet open long enough to read the narration before closing.
+        // ~250 ms per word, min 2 s, max 5 s.
+        final words = narration.isEmpty
+            ? 0
+            : narration.trim().split(RegExp(r'\s+')).length;
+        final readMs = (words * 250).clamp(2000, 5000);
+        await Future.delayed(Duration(milliseconds: readMs));
         for (final cmd in commandsToRun) {
           _onCommand(cmd);
         }
       }
     } on GenerativeAIException catch (e) {
+      debugPrint('[GeminiClient] GenerativeAIException: ${e.message}');
       // Narration API failed but commands were validated — still execute them
       // and confirm, rather than showing an error for a succeeded action.
       if (commandsToRun.isNotEmpty) {
@@ -404,6 +418,50 @@ class GeminiChatResponder implements ChatResponder {
       throw ChatError.network;
     }
   }
+
+  /// Returns a rich result map sent back to Gemini as the function response.
+  /// Gives the model enough context to narrate what happened naturally.
+  static Map<String, dynamic> _commandResult(AppCommand cmd) => switch (cmd) {
+    NavigateTo(:final route) => {
+      'success': true,
+      'navigated_to': _routeName(route),
+      'route': route,
+    },
+    FilterBloodTests(:final marker, :final phase, :final months, :final tab) => {
+      'success': true,
+      'screen': 'Blood Tests',
+      'marker': ?marker,
+      'phase': ?phase,
+      'months_back': ?months,
+      'tab': ?tab,
+    },
+    FilterFitness(:final type, :final days) => {
+      'success': true,
+      'screen': 'Fitness',
+      'type': ?type,
+      'days_back': ?days,
+    },
+    PrefillPreTreatment() => {
+      'success': true,
+      'form': 'pre-treatment',
+      'form_opened': true,
+    },
+    PrefillReading() => {
+      'success': true,
+      'form': 'add-reading',
+      'form_opened': true,
+    },
+    PrefillPostTreatment() => {
+      'success': true,
+      'form': 'post-treatment',
+      'form_opened': true,
+    },
+    EndSession() => {
+      'success': true,
+      'session_ended': true,
+      'post_treatment_form_opened': true,
+    },
+  };
 
   AppCommand? _parseCommand(FunctionCall call) {
     final a = call.args;
@@ -453,20 +511,7 @@ class GeminiChatResponder implements ChatResponder {
     };
   }
 
-  static String _fallbackNarration(List<AppCommand> commands) {
-    for (final cmd in commands) {
-      return switch (cmd) {
-        NavigateTo(:final route) => 'Here — ${_routeName(route)}.',
-        FilterBloodTests()      => 'Filter applied.',
-        FilterFitness()         => 'Filter applied.',
-        PrefillPreTreatment()   => 'Pre-treatment form filled in.',
-        PrefillReading()        => 'Add Reading sheet filled in.',
-        PrefillPostTreatment()  => 'Post-treatment form filled in.',
-        EndSession()            => 'Session ended — post-treatment form is open.',
-      };
-    }
-    return 'Done.';
-  }
+  static String _fallbackNarration(List<AppCommand> _) => 'Done.';
 
   static String _routeName(String route) => switch (route) {
     '/treatment'   => 'Treatment',
