@@ -252,9 +252,12 @@ class _AiSectionState extends ConsumerState<_AiSection> {
           onSubmitted: (v) => _saveKey(v),
         ),
         const SizedBox(height: 8),
-        OutlinedButton(
-          onPressed: () => _saveKey(_keyCtrl.text),
-          child: Text(_keySaved ? 'Saved ✓' : 'Save key'),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            onPressed: () => _saveKey(_keyCtrl.text),
+            child: Text(_keySaved ? 'Saved ✓' : 'Save key'),
+          ),
         ),
         const SizedBox(height: 4),
         Text(

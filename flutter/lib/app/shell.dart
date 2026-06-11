@@ -145,7 +145,6 @@ class HdScaffold extends ConsumerWidget {
   final Widget? titleWidget;
 
   bool _shouldShowChatFab(WidgetRef ref) {
-    if (!kCommunity) return true;
     final ai = ref.watch(aiSettingsControllerProvider);
     return ai.ready;
   }

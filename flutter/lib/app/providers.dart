@@ -116,7 +116,7 @@ class TestModeController extends Notifier<bool> {
   static const _key = 'test_mode';
 
   @override
-  bool build() => kCommunity ? false : (Hive.box(cacheBoxName).get(_key) as bool? ?? true);
+  bool build() => Hive.box(cacheBoxName).get(_key) as bool? ?? false;
 
   void toggle() {
     final next = !state;
@@ -153,12 +153,16 @@ class AiSettingsController extends Notifier<AiSettings> {
   }
 
   Future<void> setKey(String k) async {
-    await ref.read(secureStoreProvider).writeAiKey(k);
-    state = AiSettings(enabled: state.enabled, apiKey: k);
+    final store = ref.read(secureStoreProvider);
+    await store.writeAiKey(k);
+    await store.writeAiEnabled(true);
+    state = AiSettings(enabled: true, apiKey: k);
   }
 
   Future<void> clearKey() async {
-    await ref.read(secureStoreProvider).clearAiKey();
-    state = AiSettings(enabled: state.enabled, apiKey: null);
+    final store = ref.read(secureStoreProvider);
+    await store.clearAiKey();
+    await store.writeAiEnabled(false);
+    state = AiSettings(enabled: false, apiKey: null);
   }
 }
