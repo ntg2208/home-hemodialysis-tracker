@@ -247,7 +247,7 @@ class GeminiChatResponder implements ChatResponder {
         bloodTestRows: btCache.rows,
       );
       backend = _RealBackend(GenerativeModel(
-        model: 'gemini-3.1-flash-lite',
+        model: 'gemma-4-26b-a4b-it',
         apiKey: _apiKey,
         tools: _tools,
         systemInstruction: Content.system(systemPrompt),
@@ -270,12 +270,12 @@ class GeminiChatResponder implements ChatResponder {
 
     try {
       // --- First turn: streaming ---
-      // Yield text chunks as they arrive. When a function call chunk is
-      // detected, stop yielding text but continue draining the stream fully.
-      // Breaking early causes premature HTTP cancellation (which can itself
-      // throw), and any text the model generates before the function call
-      // would be absent from the history sent to the next generate() call,
-      // producing an incomplete turn that the API rejects intermittently.
+      // Buffer ALL text rather than yielding immediately. Thinking models
+      // (e.g. Gemma 4) stream internal reasoning as plain text chunks before
+      // emitting a function call — yielding those would show the model's
+      // internal monologue to the user. We yield only after confirming the
+      // stream is pure-chat (no function calls). Breaking early risks premature
+      // HTTP cancellation, so we always drain the stream to completion.
       GenerateContentResponse? firstResponse;
       final streamedChunks = <String>[];
       var hasToolCalls = false;
@@ -285,16 +285,20 @@ class GeminiChatResponder implements ChatResponder {
           hasToolCalls = true;
           firstResponse = chunk;
           // No break — drain to completion.
-        } else if (!hasToolCalls) {
+        } else {
           final text = chunk.text;
           if (text != null && text.isNotEmpty) {
             streamedChunks.add(text);
-            yield text; // stream incrementally
           }
         }
       }
 
-      if (!hasToolCalls) return; // pure-chat path: already yielded all chunks
+      if (!hasToolCalls) {
+        // Pure-chat path: yield the complete buffered response.
+        final fullText = streamedChunks.join();
+        if (fullText.isNotEmpty) yield fullText;
+        return;
+      }
 
       // --- Tool-call path: buffered loop ---
       var response = firstResponse!;
@@ -370,7 +374,18 @@ class GeminiChatResponder implements ChatResponder {
       }
 
       // Yield narration so the user can read it, then execute commands.
-      final finalText = response.text ?? '';
+      // Thinking models return multiple TextParts: earlier parts are internal
+      // reasoning, the last part is the user-facing answer. Taking the last
+      // TextPart strips thinking tokens from the narration.
+      final textParts = response.candidates
+              .firstOrNull
+              ?.content
+              .parts
+              .whereType<TextPart>()
+              .toList() ??
+          const [];
+      final finalText =
+          textParts.isNotEmpty ? textParts.last.text : (response.text ?? '');
       final narration = finalText.isNotEmpty
           ? finalText
           : commandsToRun.isNotEmpty

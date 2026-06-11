@@ -1,4 +1,5 @@
 import 'dart:async' show StreamSubscription;
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -137,14 +138,22 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
     final key = ref.read(aiSettingsControllerProvider).apiKey;
     if (key == null) return null;
     try {
-      final model = GenerativeModel(model: 'gemini-3.1-flash-lite', apiKey: key);
+      final model = GenerativeModel(model: 'gemma-4-26b-a4b-it', apiKey: key);
       final response = await model.generateContent([
         Content('user', [
           DataPart('audio/wav', wavBytes),
           TextPart('Transcribe the audio. Return only the transcribed text, nothing else.'),
         ]),
       ]);
-      return response.text?.trim();
+      // Thinking models return multiple TextParts; the last one is the answer.
+      final parts = response.candidates
+              .firstOrNull
+              ?.content
+              .parts
+              .whereType<TextPart>()
+              .toList() ??
+          const [];
+      return (parts.isNotEmpty ? parts.last.text : response.text)?.trim();
     } catch (_) {
       return null;
     }
@@ -528,13 +537,49 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
 
   Widget _inputRow(HdTokens t, ChatState state) {
     final ai = ref.watch(aiSettingsControllerProvider);
+    final padding = EdgeInsets.only(
+      left: 12,
+      right: 12,
+      top: 8,
+      bottom: 24 + MediaQuery.of(context).viewInsets.bottom,
+    );
+
+    if (_recording) {
+      return Padding(
+        padding: padding,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            border: Border.all(color: t.border),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: _RecordingRow(onStop: _toggleRecording),
+        ),
+      );
+    }
+
+    if (_transcribing) {
+      return Padding(
+        padding: padding,
+        child: SizedBox(
+          height: 40,
+          child: Row(children: [
+            const SizedBox(width: 4),
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: t.textMuted),
+            ),
+            const SizedBox(width: 12),
+            Text('Transcribing…',
+                style: TextStyle(color: t.textMuted, fontSize: 14)),
+          ]),
+        ),
+      );
+    }
+
     return Padding(
-      padding: EdgeInsets.only(
-        left: 12,
-        right: 12,
-        top: 8,
-        bottom: 24 + MediaQuery.of(context).viewInsets.bottom,
-      ),
+      padding: padding,
       child: Row(children: [
         Expanded(
           child: TextField(
@@ -544,21 +589,17 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
             maxLines: 4,
             textInputAction: TextInputAction.send,
             onSubmitted: state.sending ? null : _send,
-            decoration: InputDecoration(
-              hintText: _recording ? 'Recording…' : 'Message',
+            decoration: const InputDecoration(
+              hintText: 'Message',
               isDense: true,
               contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             ),
           ),
         ),
         const SizedBox(width: 8),
         if (ai.ready) ...[
-          _MicButton(
-            recording: _recording,
-            transcribing: _transcribing,
-            onTap: _toggleRecording,
-          ),
+          _MicButton(onTap: _toggleRecording),
           const SizedBox(width: 8),
         ],
         _SendButton(
@@ -689,36 +730,90 @@ class _KbUpdateChip extends StatelessWidget {
 }
 
 class _MicButton extends StatelessWidget {
-  const _MicButton({required this.recording, required this.transcribing, required this.onTap});
-  final bool recording;
-  final bool transcribing;
+  const _MicButton({required this.onTap});
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final t = context.hd;
     return Material(
-      color: recording ? Colors.red.shade400 : t.panel,
+      color: t.panel,
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
-        onTap: transcribing ? null : onTap,
+        onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(10),
-          child: transcribing
-              ? SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: t.textSecondary),
-                )
-              : Icon(
-                  recording ? Icons.mic : Icons.mic_none,
-                  size: 20,
-                  color: recording ? Colors.white : t.textSecondary,
-                ),
+          child: Icon(Icons.mic_none, size: 20, color: t.textSecondary),
         ),
       ),
+    );
+  }
+}
+
+class _RecordingRow extends StatefulWidget {
+  const _RecordingRow({required this.onStop});
+  final VoidCallback onStop;
+
+  @override
+  State<_RecordingRow> createState() => _RecordingRowState();
+}
+
+class _RecordingRowState extends State<_RecordingRow>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: AnimatedBuilder(
+            animation: _c,
+            builder: (_, _) => Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: List.generate(11, (i) {
+                final phase = (_c.value + i * 0.09) % 1.0;
+                final h = 4.0 + 20.0 * (0.5 + 0.5 * math.sin(phase * 2 * math.pi));
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2.5),
+                  child: Container(
+                    width: 3.5,
+                    height: h,
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade400,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Material(
+          color: Colors.red.shade400,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: widget.onStop,
+            child: const Padding(
+              padding: EdgeInsets.all(10),
+              child: Icon(Icons.stop_rounded, size: 20, color: Colors.white),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
