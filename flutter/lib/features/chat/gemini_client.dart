@@ -358,13 +358,12 @@ class GeminiChatResponder implements ChatResponder {
         final candidate = response.candidates.firstOrNull;
         if (candidate == null) break;
         if (turn == 0) {
-          // Streaming chunks are deltas — their role may be unset and parts
-          // are incomplete. Rebuild the model turn explicitly from accumulated
-          // text (if any) + the fully-parsed function calls.
-          contents.add(Content('model', [
-            if (streamedChunks.isNotEmpty) TextPart(streamedChunks.join()),
-            ...response.functionCalls,
-          ]));
+          // Use only the function calls for the model history turn. For
+          // thinking models (Gemma 4), streamedChunks contains internal
+          // reasoning that must not appear in the history — the API treats
+          // a TextPart+FunctionCallPart mix as a malformed turn and may
+          // ignore the function response in the next generate() call.
+          contents.add(Content('model', [...response.functionCalls]));
         } else {
           // Non-streaming generate() returns complete content; safe to use.
           contents.add(candidate.content);
