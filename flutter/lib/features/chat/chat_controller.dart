@@ -4,8 +4,6 @@ import 'dart:convert' show jsonDecode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
-import '../../storage/cache_store.dart';
-import '../blood_tests/bt_store.dart';
 import '../blood_tests/providers.dart';
 import '../kb/kb_providers.dart';
 import '../treatment/providers.dart';
@@ -154,6 +152,7 @@ class ChatController extends Notifier<ChatState> {
           kbStore: ref.read(kbStoreProvider),
           treatmentRepo: ref.read(treatmentRepoProvider),
           btStore: ref.read(btStoreProvider),
+          bloodTestsApi: ref.read(bloodTestsApiProvider),
           cacheStore: ref.read(cacheStoreProvider),
           screenContext: ref.read(screenContextProvider),
           onCommand: (cmd) => dispatchCommand(cmd, ref),

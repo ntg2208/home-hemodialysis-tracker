@@ -138,7 +138,7 @@ class _ChatSheetState extends ConsumerState<_ChatSheet> {
     final key = ref.read(aiSettingsControllerProvider).apiKey;
     if (key == null) return null;
     try {
-      final model = GenerativeModel(model: 'gemma-4-26b-a4b-it', apiKey: key);
+      final model = GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: key);
       final response = await model.generateContent([
         Content('user', [
           DataPart('audio/wav', wavBytes),
