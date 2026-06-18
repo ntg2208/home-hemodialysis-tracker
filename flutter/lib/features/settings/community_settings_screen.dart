@@ -10,6 +10,9 @@ import '../../app/theme.dart';
 import '../treatment/providers.dart' show treatmentStoreProvider;
 import '../treatment/store.dart';
 import '../blood_tests/csv_import.dart' show csvImportTemplate;
+import 'about_section.dart';
+import 'notification_settings_section.dart';
+import 'supply_rates_section.dart';
 
 // Stored in the cache box under a simple key.
 const _patientNameKey = 'community_patient_name';
@@ -163,6 +166,14 @@ class _CommunitySettingsScreenState
               onPressed: _saveDryWeight,
               child: Text(_drySaved ? 'Saved ✓' : 'Save dry weight')),
           const SizedBox(height: 20),
+          _section(t, 'SUPPLY RATES'),
+          Text(
+            'How many of each supply you use per session and how much to keep on hand. Defaults are for a standard NxStage treatment.',
+            style: TextStyle(fontSize: 12, color: t.textMuted),
+          ),
+          const SizedBox(height: 8),
+          const SupplyRatesSection(),
+          const SizedBox(height: 20),
           _section(t, 'AI ASSISTANT (OPTIONAL)'),
           Text(
             'Enter an AI Studio key to enable the chat assistant. Leave blank to hide the chat button.',
@@ -197,6 +208,12 @@ class _CommunitySettingsScreenState
             onSelectionChanged: (s) =>
                 ref.read(themeModeProvider.notifier).set(s.first),
           ),
+          const SizedBox(height: 28),
+          _section(t, 'NOTIFICATIONS'),
+          const NotificationSettingsSection(),
+          const SizedBox(height: 28),
+          _section(t, 'ABOUT'),
+          const AboutSection(),
           const SizedBox(height: 28),
           _section(t, 'DATA'),
           OutlinedButton.icon(
