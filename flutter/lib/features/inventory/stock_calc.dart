@@ -8,6 +8,7 @@ const _amberThreshold = 16; // < 4 weeks of sessions
 
 enum StockStatus { red, amber, green }
 
+/// Sessions of supply remaining, or null for hospital/unknown items.
 int? sessionsRemaining(String code, int qty,
     {Map<String, RateOverride> rates = const {}}) {
   if (code == 'PAK-001') return qty * 10;  // always hardcoded, no override

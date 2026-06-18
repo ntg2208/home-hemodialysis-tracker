@@ -65,10 +65,17 @@ class _SupplyRatesSectionState extends ConsumerState<SupplyRatesSection> {
       final target = int.tryParse(targetText);
       final validRate = (rate != null && rate > 0) ? rate : null;
       final validTarget = (target != null && target > 0) ? target : null;
-      if (validRate != null || validTarget != null) {
+      // Only store fields that differ from catalogue defaults — so future
+      // catalogue corrections still reach users who haven't customised them.
+      final defaultRate = _effectiveDefaultRate(item);
+      final rateChanged = item.code != 'PAK-001' &&
+          validRate != null &&
+          validRate != defaultRate;
+      final targetChanged = validTarget != null && validTarget != item.targetQty;
+      if (rateChanged || targetChanged) {
         overrides[item.code] = RateOverride(
-          perSession: item.code != 'PAK-001' ? validRate : null,
-          targetQty: validTarget,
+          perSession: rateChanged ? validRate : null,
+          targetQty: targetChanged ? validTarget : null,
         );
       }
     }
