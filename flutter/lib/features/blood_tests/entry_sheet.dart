@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
-import 'hive_bt_store.dart';
+import '../../flavor.dart';
 import 'marker_definitions.dart';
 import 'models.dart';
 import 'providers.dart';
@@ -11,9 +11,7 @@ Future<void> showEntrySheet(BuildContext context) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
-    builder: (ctx) => const ProviderScope(
-      child: _EntrySheet(),
-    ),
+    builder: (ctx) => const ProviderScope(child: _EntrySheet()),
   );
 }
 
@@ -26,12 +24,12 @@ class _EntrySheet extends ConsumerStatefulWidget {
 class _EntrySheetState extends ConsumerState<_EntrySheet> {
   DateTime _date = DateTime.now();
   MarkerDefinition? _marker;
-  final _searchCtrl  = TextEditingController();
-  final _valueCtrl   = TextEditingController();
-  final _unitCtrl    = TextEditingController();
-  final _refLowCtrl  = TextEditingController();
+  final _searchCtrl = TextEditingController();
+  final _valueCtrl = TextEditingController();
+  final _unitCtrl = TextEditingController();
+  final _refLowCtrl = TextEditingController();
   final _refHighCtrl = TextEditingController();
-  final _noteCtrl    = TextEditingController();
+  final _noteCtrl = TextEditingController();
   String _timing = '';
   bool _saving = false;
   String? _error;
@@ -40,12 +38,24 @@ class _EntrySheetState extends ConsumerState<_EntrySheet> {
     final q = _searchCtrl.text.toLowerCase();
     if (q.isEmpty) return markerDefinitions;
     return markerDefinitions
-        .where((m) => m.displayName.toLowerCase().contains(q) ||
-                      m.name.toLowerCase().contains(q))
+        .where(
+          (m) =>
+              m.displayName.toLowerCase().contains(q) ||
+              m.name.toLowerCase().contains(q),
+        )
         .toList();
   }
 
-  final _valueFocus  = FocusNode();
+  final _valueFocus = FocusNode();
+  final _searchFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _searchFocus.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
 
   void _selectFirstMatch() {
     final matches = _filtered;
@@ -82,7 +92,10 @@ class _EntrySheetState extends ConsumerState<_EntrySheet> {
       setState(() => _error = 'Value must be a number');
       return;
     }
-    setState(() { _saving = true; _error = null; });
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
 
     final row = BloodTestRow(
       marker: markerName.toLowerCase().replaceAll(' ', '_'),
@@ -100,10 +113,23 @@ class _EntrySheetState extends ConsumerState<_EntrySheet> {
       qualitative: false,
     );
 
-    final store = ref.read(btStoreProvider) as HiveBtStore;
-    await store.upsertRow(row);
+    String? apiError;
+    if (!kCommunity) {
+      try {
+        await ref.read(bloodTestsApiProvider).postRow(row);
+      } catch (_) {
+        apiError =
+            'Saved locally — cloud sync failed. It will not appear on other devices.';
+      }
+    }
+    await ref.read(btStoreProvider).upsertRow(row);
 
     if (!mounted) return;
+    if (apiError != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(apiError)));
+    }
     if (addAnother) {
       setState(() {
         _saving = false;
@@ -130,6 +156,7 @@ class _EntrySheetState extends ConsumerState<_EntrySheet> {
     _refHighCtrl.dispose();
     _noteCtrl.dispose();
     _valueFocus.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -138,7 +165,9 @@ class _EntrySheetState extends ConsumerState<_EntrySheet> {
     final t = context.hd;
     return Padding(
       padding: EdgeInsets.only(
-        left: 16, right: 16, top: 16,
+        left: 16,
+        right: 16,
+        top: 16,
         bottom: MediaQuery.of(context).viewInsets.bottom + 16,
       ),
       child: SingleChildScrollView(
@@ -146,11 +175,23 @@ class _EntrySheetState extends ConsumerState<_EntrySheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(children: [
-              Expanded(child: Text('Add result',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700))),
-              IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close)),
-            ]),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Add result',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             // Date
             OutlinedButton.icon(
@@ -170,76 +211,107 @@ class _EntrySheetState extends ConsumerState<_EntrySheet> {
             // Marker search
             TextField(
               controller: _searchCtrl,
+              focusNode: _searchFocus,
               textInputAction: TextInputAction.done,
               decoration: const InputDecoration(
                 labelText: 'Marker',
                 hintText: 'Search or type custom marker',
                 prefixIcon: Icon(Icons.search, size: 18),
               ),
-              onChanged: (_) => setState(() { _marker = null; }),
+              onTap: () => setState(() {
+                _marker = null;
+              }),
+              onChanged: (_) => setState(() {
+                _marker = null;
+              }),
               onSubmitted: (_) => _selectFirstMatch(),
             ),
-            if (_searchCtrl.text.isNotEmpty && _marker == null)
+            if (_searchFocus.hasFocus && _marker == null)
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 180),
-                child: ListView(
-                  shrinkWrap: true,
-                  children: _filtered.map((m) => ListTile(
-                    dense: true,
-                    title: Text(m.displayName, style: const TextStyle(fontSize: 13)),
-                    onTap: () => _selectMarker(m),
-                  )).toList(),
-                ),
+                child: _filtered.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          'No matching marker — will save as custom.',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      )
+                    : ListView(
+                        shrinkWrap: true,
+                        children: _filtered
+                            .map(
+                              (m) => ListTile(
+                                dense: true,
+                                title: Text(
+                                  m.displayName,
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                                onTap: () => _selectMarker(m),
+                              ),
+                            )
+                            .toList(),
+                      ),
               ),
             const SizedBox(height: 8),
             // Value + Unit row
-            Row(children: [
-              Expanded(
-                flex: 2,
-                child: TextField(
-                  controller: _valueCtrl,
-                  focusNode: _valueFocus,
-                  textInputAction: TextInputAction.done,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Value'),
-                  onSubmitted: (_) => _save(),
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: _valueCtrl,
+                    focusNode: _valueFocus,
+                    textInputAction: TextInputAction.done,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'Value'),
+                    onSubmitted: (_) => _save(),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                flex: 3,
-                child: TextField(
-                  controller: _unitCtrl,
-                  decoration: const InputDecoration(labelText: 'Unit'),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 3,
+                  child: TextField(
+                    controller: _unitCtrl,
+                    decoration: const InputDecoration(labelText: 'Unit'),
+                  ),
                 ),
-              ),
-            ]),
+              ],
+            ),
             const SizedBox(height: 8),
             // Ref range row
-            Row(children: [
-              Expanded(
-                child: TextField(
-                  controller: _refLowCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Ref low'),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _refLowCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'Ref low'),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: _refHighCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Ref high'),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _refHighCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'Ref high'),
+                  ),
                 ),
-              ),
-            ]),
+              ],
+            ),
             const SizedBox(height: 12),
             // Timing
             SegmentedButton<String>(
               segments: const [
-                ButtonSegment(value: 'pre',  label: Text('Pre')),
+                ButtonSegment(value: 'pre', label: Text('Pre')),
                 ButtonSegment(value: 'post', label: Text('Post')),
-                ButtonSegment(value: '',     label: Text('None')),
+                ButtonSegment(value: '', label: Text('None')),
               ],
               selected: {_timing},
               showSelectedIcon: false,
@@ -255,21 +327,23 @@ class _EntrySheetState extends ConsumerState<_EntrySheet> {
               Text(_error!, style: TextStyle(color: t.danger, fontSize: 12)),
             ],
             const SizedBox(height: 16),
-            Row(children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _saving ? null : () => _save(addAnother: true),
-                  child: const Text('Add another'),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _saving ? null : () => _save(addAnother: true),
+                    child: const Text('Add another'),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton(
-                  onPressed: _saving ? null : () => _save(),
-                  child: const Text('Save'),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _saving ? null : () => _save(),
+                    child: const Text('Save'),
+                  ),
                 ),
-              ),
-            ]),
+              ],
+            ),
           ],
         ),
       ),

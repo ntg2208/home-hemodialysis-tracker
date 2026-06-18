@@ -1,7 +1,7 @@
 import '../../api/rest_client.dart';
 import 'models.dart';
 
-/// GET /api/blood-tests with optional from/to. Port of BloodTests/api.ts.
+/// GET/POST /api/blood-tests. Port of BloodTests/api.ts.
 class BloodTestsApi {
   BloodTestsApi(this._rest);
   final RestClient _rest;
@@ -19,5 +19,12 @@ class BloodTestsApi {
     return rows
         .map((e) => BloodTestRow.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList();
+  }
+
+  /// POST a single manually-entered row to Firestore via Cloud Run.
+  Future<void> postRow(BloodTestRow row) async {
+    await _rest.send('POST', '/api/blood-tests', body: {
+      'rows': [row.toJson()],
+    }, retry: false);
   }
 }

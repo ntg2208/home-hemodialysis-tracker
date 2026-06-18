@@ -31,23 +31,4 @@ class HiveBtStore extends BtStore {
     await box.put(_coveredKey, coveredFrom);
   }
 
-  Future<void> upsertRow(BloodTestRow row) async {
-    final key = '${row.datetime.substring(0, 10)}_${row.marker}';
-    final existing = readCache();
-    final updated = [
-      ...existing.rows.where(
-          (r) => '${r.datetime.substring(0, 10)}_${r.marker}' != key),
-      row,
-    ];
-    await writeCache(updated, existing.coveredFrom ?? '', 0);
-  }
-
-  Future<void> deleteRow(String date, String marker) async {
-    final key = '${date}_$marker';
-    final existing = readCache();
-    final updated = existing.rows
-        .where((r) => '${r.datetime.substring(0, 10)}_${r.marker}' != key)
-        .toList();
-    await writeCache(updated, existing.coveredFrom ?? '', 0);
-  }
 }

@@ -29,7 +29,8 @@ class BloodTestsScreen extends ConsumerStatefulWidget {
   ConsumerState<BloodTestsScreen> createState() => _BloodTestsScreenState();
 }
 
-class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
+class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen>
+    with WidgetsBindingObserver {
   _Status _status = _Status.loading;
   String? _errorMsg;
   List<BloodTestRow> _rows = [];
@@ -47,6 +48,7 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _favorites = ref.read(btStoreProvider).readFavorites();
     _bootstrap();
     // Re-bootstrap when test mode is toggled so synthetic data loads immediately.
@@ -57,7 +59,9 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
 
     // Publish current route for AI context (deferred past build — Riverpod
     // disallows provider mutation during widget tree construction).
-    Future(() => ref.read(screenContextProvider.notifier).setRoute('/blood-tests'));
+    Future(
+      () => ref.read(screenContextProvider.notifier).setRoute('/blood-tests'),
+    );
 
     // React to AI blood test filter commands
     ref.listenManual(btFilterCommandProvider, (_, cmd) {
@@ -69,8 +73,20 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _markerScrollCtrl.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    final age = _lastSynced == null
+        ? const Duration(days: 1)
+        : Duration(
+            milliseconds: DateTime.now().millisecondsSinceEpoch - _lastSynced!,
+          );
+    if (age.inMinutes >= 10) _revalidate(_effectiveFrom());
   }
 
   Future<void> _bootstrap() async {
@@ -90,7 +106,9 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
     }
 
     try {
-      final rows = await ref.read(bloodTestsApiProvider).fetchRange(from: defaultFrom);
+      final rows = await ref
+          .read(bloodTestsApiProvider)
+          .fetchRange(from: defaultFrom);
       final now = DateTime.now().millisecondsSinceEpoch;
       await store.writeCache(rows, defaultFrom, now);
       if (!mounted) return;
@@ -124,12 +142,14 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
       if (cmd.marker != null) f = f.copyWith(marker: cmd.marker);
       if (cmd.phase != null) f = f.copyWith(phases: [cmd.phase!]);
       if (cmd.months != null) {
-        f = f.copyWith(rangePreset: switch (cmd.months!) {
-          3 => '3m',
-          6 => '6m',
-          12 => '1y',
-          _ => 'all',
-        });
+        f = f.copyWith(
+          rangePreset: switch (cmd.months!) {
+            3 => '3m',
+            6 => '6m',
+            12 => '1y',
+            _ => 'all',
+          },
+        );
       }
       _filter = f;
     });
@@ -141,12 +161,14 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
       _refreshError = false;
     });
     try {
-      final fresh =
-          await ref.read(bloodTestsApiProvider).fetchRange(from: fromFloor);
+      final fresh = await ref
+          .read(bloodTestsApiProvider)
+          .fetchRange(from: fromFloor);
       final now = DateTime.now().millisecondsSinceEpoch;
       final merged = mergeRows(_rows, fresh);
-      final coveredFrom =
-          earlierMonth(fromFloor, _coveredFrom) ? fromFloor : _coveredFrom;
+      final coveredFrom = earlierMonth(fromFloor, _coveredFrom)
+          ? fromFloor
+          : _coveredFrom;
       await ref.read(btStoreProvider).writeCache(merged, coveredFrom, now);
       if (!mounted) return;
       setState(() {
@@ -218,8 +240,7 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
     if (next.rangePreset == 'all') {
       // Switching to all-time — backfill any uncovered history.
       _ensureRange('2020-01');
-    } else if (next.rangePreset != oldPreset &&
-        next.rangePreset.isNotEmpty) {
+    } else if (next.rangePreset != oldPreset && next.rangePreset.isNotEmpty) {
       _ensureRange(rangeFrom(next.rangePreset));
     }
   }
@@ -236,8 +257,9 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
     final rows = _rows;
     if (rows.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No data to export')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('No data to export')));
       }
       return;
     }
@@ -245,13 +267,15 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
     buf.writeln('date,marker,value,unit,ref_low,ref_high,timing,note');
     for (final r in rows) {
       buf.writeln(
-          '${r.datetime.substring(0, 10)},${r.marker},${r.value},${r.unit},'
-          '${r.refLow ?? ''},${r.refHigh ?? ''},${r.timing},${r.note}');
+        '${r.datetime.substring(0, 10)},${r.marker},${r.value},${r.unit},'
+        '${r.refLow ?? ''},${r.refHigh ?? ''},${r.timing},${r.note}',
+      );
     }
     await Clipboard.setData(ClipboardData(text: buf.toString()));
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('CSV copied to clipboard')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('CSV copied to clipboard')));
     }
   }
 
@@ -259,7 +283,9 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
     if (_refreshing) return 'Syncing…';
     if (_refreshError) return 'Offline — showing cached';
     if (_lastSynced == null) return 'Not synced yet';
-    final mins = ((DateTime.now().millisecondsSinceEpoch - _lastSynced!) / 60000).round();
+    final mins =
+        ((DateTime.now().millisecondsSinceEpoch - _lastSynced!) / 60000)
+            .round();
     if (mins < 1) return 'Synced just now';
     if (mins < 60) return 'Synced ${mins}m ago';
     final hrs = (mins / 60).round();
@@ -270,8 +296,18 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
   /// "Jun 2023" from the cache floor "2023-06".
   String _coveredFromLabel() {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final parts = _coveredFrom.split('-');
     if (parts.length != 2) return _coveredFrom;
@@ -290,12 +326,17 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
         children: [
           const SizedBox(height: 80),
           Center(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              Text('Downloading…',
-                  style: TextStyle(fontSize: 14, color: t.textMuted)),
-            ]),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(
+                  'Downloading…',
+                  style: TextStyle(fontSize: 14, color: t.textMuted),
+                ),
+              ],
+            ),
           ),
         ],
       );
@@ -312,29 +353,43 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
         Center(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.cloud_download_outlined, size: 44, color: t.textMuted),
-              const SizedBox(height: 16),
-              Text('No results for these filters',
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.cloud_download_outlined,
+                  size: 44,
+                  color: t.textMuted,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No results for these filters',
                   style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: t.textPrimary)),
-              const SizedBox(height: 8),
-              Text(coverageText,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: t.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  coverageText,
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: t.textMuted)),
-              const SizedBox(height: 20),
-              OutlinedButton.icon(
-                onPressed: () {
-                  // Fetch full history and switch to "all" so the data is visible.
-                  setState(() => _filter = _filter.copyWith(rangePreset: 'all'));
-                  _ensureRange('2020-01');
-                },
-                icon: const Icon(Icons.download, size: 18),
-                label: const Text('Download full history'),
-              ),
-            ]),
+                  style: TextStyle(fontSize: 13, color: t.textMuted),
+                ),
+                const SizedBox(height: 20),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    // Fetch full history and switch to "all" so the data is visible.
+                    setState(
+                      () => _filter = _filter.copyWith(rangePreset: 'all'),
+                    );
+                    _ensureRange('2020-01');
+                  },
+                  icon: const Icon(Icons.download, size: 18),
+                  label: const Text('Download full history'),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -350,26 +405,28 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
       body = const Center(child: CircularProgressIndicator());
     } else if (_status == _Status.error) {
       body = Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(_errorMsg ?? 'Error', style: TextStyle(color: t.danger)),
-          const SizedBox(height: 12),
-          OutlinedButton(onPressed: _bootstrap, child: const Text('Retry')),
-        ]),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_errorMsg ?? 'Error', style: TextStyle(color: t.danger)),
+            const SizedBox(height: 12),
+            OutlinedButton(onPressed: _bootstrap, child: const Text('Retry')),
+          ],
+        ),
       );
     } else {
       final inTrend = _filter.marker.isNotEmpty;
       final markers = _markers();
-      final scoped = filterRows(_rows,
-          phase: _filter.phases,
-          rangePreset: _filter.rangePreset,
-          to: _filter.to.isEmpty ? null : _filter.to);
+      final scoped = filterRows(
+        _rows,
+        phase: _filter.phases,
+        rangePreset: _filter.rangePreset,
+        to: _filter.to.isEmpty ? null : _filter.to,
+      );
 
       body = Column(
         children: [
-          FilterBar(
-            filter: _filter,
-            onChange: _onFilterChange,
-          ),
+          FilterBar(filter: _filter, onChange: _onFilterChange),
           _syncRow(t),
           if (inTrend) _markerPillsRow(t, markers),
           Expanded(
@@ -378,13 +435,13 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
               child: inTrend
                   ? _trendView(scoped)
                   : scoped.isEmpty
-                      ? _emptyState(t)
-                      : Scorecard(
-                          rows: scoped,
-                          favorites: _favorites,
-                          onSelectMarker: _selectMarker,
-                          onToggleFavorite: _toggleFavorite,
-                        ),
+                  ? _emptyState(t)
+                  : Scorecard(
+                      rows: scoped,
+                      favorites: _favorites,
+                      onSelectMarker: _selectMarker,
+                      onToggleFavorite: _toggleFavorite,
+                    ),
             ),
           ),
         ],
@@ -400,30 +457,33 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
           setState(() => _filter = _filter.copyWith(marker: ''));
         } else {
           // Scorecard view → go to Treatment
-          context.findAncestorWidgetOfExactType<StatefulNavigationShell>()?.goBranch(0);
+          context
+              .findAncestorWidgetOfExactType<StatefulNavigationShell>()
+              ?.goBranch(0);
         }
       },
       child: HdScaffold(
         title: 'Blood Tests',
-        actions: kCommunity
-            ? [
-                IconButton(
-                  icon: const Icon(Icons.download_outlined),
-                  tooltip: 'Export CSV',
-                  onPressed: _exportCsv,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.upload_file_outlined),
-                  tooltip: 'Import CSV',
-                  onPressed: () => showCsvImportSheet(context).then((_) => _bootstrap()),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.add),
-                  tooltip: 'Add result',
-                  onPressed: () => showEntrySheet(context).then((_) => _bootstrap()),
-                ),
-              ]
-            : null,
+        actions: [
+          if (kCommunity) ...[
+            IconButton(
+              icon: const Icon(Icons.download_outlined),
+              tooltip: 'Export CSV',
+              onPressed: _exportCsv,
+            ),
+            IconButton(
+              icon: const Icon(Icons.upload_file_outlined),
+              tooltip: 'Import CSV',
+              onPressed: () =>
+                  showCsvImportSheet(context).then((_) => _bootstrap()),
+            ),
+          ],
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'Add result',
+            onPressed: () => showEntrySheet(context).then((_) => _bootstrap()),
+          ),
+        ],
         body: body,
       ),
     );
@@ -432,57 +492,68 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
   /// Scrollable row of marker pills — shown above the trend chart so the user
   /// can switch markers without going back to the scorecard.
   Widget _markerPillsRow(HdTokens t, List<String> markers) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: t.panel,
-          border: Border(bottom: BorderSide(color: t.border)),
-        ),
-        child: MouseRegion(
-          onEnter: (_) => setState(() => _markerHovered = true),
-          onExit: (_) => setState(() => _markerHovered = false),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final pageWidth = constraints.maxWidth * 0.7;
-              return Stack(
-                children: [
-                  SizedBox(
-                    height: 32,
-                    child: ListView.builder(
-                      controller: _markerScrollCtrl,
-                      scrollDirection: Axis.horizontal,
-                      physics: const ClampingScrollPhysics(),
-                      itemCount: markers.length,
-                      itemBuilder: (_, i) {
-                        final m = markers[i];
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: FilterPill(
-                            label: displayName(m),
-                            active: _filter.marker == m,
-                            onTap: () => setState(
-                                () => _filter = _filter.copyWith(marker: m)),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  if (_markerHovered) ...[
-                    _scrollArrow(t, Icons.chevron_left, true,
-                        () => _scrollMarkersBy(-pageWidth)),
-                    _scrollArrow(t, Icons.chevron_right, false,
-                        () => _scrollMarkersBy(pageWidth)),
-                  ],
-                ],
-              );
-            },
-          ),
-        ),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+    decoration: BoxDecoration(
+      color: t.panel,
+      border: Border(bottom: BorderSide(color: t.border)),
+    ),
+    child: MouseRegion(
+      onEnter: (_) => setState(() => _markerHovered = true),
+      onExit: (_) => setState(() => _markerHovered = false),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final pageWidth = constraints.maxWidth * 0.7;
+          return Stack(
+            children: [
+              SizedBox(
+                height: 32,
+                child: ListView.builder(
+                  controller: _markerScrollCtrl,
+                  scrollDirection: Axis.horizontal,
+                  physics: const ClampingScrollPhysics(),
+                  itemCount: markers.length,
+                  itemBuilder: (_, i) {
+                    final m = markers[i];
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: FilterPill(
+                        label: displayName(m),
+                        active: _filter.marker == m,
+                        onTap: () => setState(
+                          () => _filter = _filter.copyWith(marker: m),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              if (_markerHovered) ...[
+                _scrollArrow(
+                  t,
+                  Icons.chevron_left,
+                  true,
+                  () => _scrollMarkersBy(-pageWidth),
+                ),
+                _scrollArrow(
+                  t,
+                  Icons.chevron_right,
+                  false,
+                  () => _scrollMarkersBy(pageWidth),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    ),
+  );
 
   void _scrollMarkersBy(double delta) {
     if (!_markerScrollCtrl.hasClients) return;
-    final target = (_markerScrollCtrl.offset + delta)
-        .clamp(0.0, _markerScrollCtrl.position.maxScrollExtent);
+    final target = (_markerScrollCtrl.offset + delta).clamp(
+      0.0,
+      _markerScrollCtrl.position.maxScrollExtent,
+    );
     _markerScrollCtrl.animateTo(
       target,
       duration: const Duration(milliseconds: 200),
@@ -491,43 +562,45 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
   }
 
   Widget _scrollArrow(
-          HdTokens t, IconData icon, bool left, VoidCallback onTap) =>
-      Positioned(
-        left: left ? 0 : null,
-        right: left ? null : 0,
-        top: 0,
-        bottom: 0,
-        child: Center(
-          child: Material(
-            color: t.panel.withValues(alpha: 0.85),
-            borderRadius: BorderRadius.only(
-              topLeft: left ? Radius.zero : const Radius.circular(20),
-              bottomLeft: left ? Radius.zero : const Radius.circular(20),
-              topRight: left ? const Radius.circular(20) : Radius.zero,
-              bottomRight: left ? const Radius.circular(20) : Radius.zero,
-            ),
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.only(
-                topLeft: left ? Radius.zero : const Radius.circular(20),
-                bottomLeft: left ? Radius.zero : const Radius.circular(20),
-                topRight: left ? const Radius.circular(20) : Radius.zero,
-                bottomRight: left ? const Radius.circular(20) : Radius.zero,
-              ),
-              child: SizedBox(
-                width: 28,
-                height: 32,
-                child: Icon(icon, size: 16, color: t.textSecondary),
-              ),
-            ),
+    HdTokens t,
+    IconData icon,
+    bool left,
+    VoidCallback onTap,
+  ) => Positioned(
+    left: left ? 0 : null,
+    right: left ? null : 0,
+    top: 0,
+    bottom: 0,
+    child: Center(
+      child: Material(
+        color: t.panel.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.only(
+          topLeft: left ? Radius.zero : const Radius.circular(20),
+          bottomLeft: left ? Radius.zero : const Radius.circular(20),
+          topRight: left ? const Radius.circular(20) : Radius.zero,
+          bottomRight: left ? const Radius.circular(20) : Radius.zero,
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.only(
+            topLeft: left ? Radius.zero : const Radius.circular(20),
+            bottomLeft: left ? Radius.zero : const Radius.circular(20),
+            topRight: left ? const Radius.circular(20) : Radius.zero,
+            bottomRight: left ? const Radius.circular(20) : Radius.zero,
+          ),
+          child: SizedBox(
+            width: 28,
+            height: 32,
+            child: Icon(icon, size: 16, color: t.textSecondary),
           ),
         ),
-      );
+      ),
+    ),
+  );
 
   /// Trend chart + results table for the currently selected marker.
   Widget _trendView(List<BloodTestRow> scoped) {
-    final trendRows =
-        scoped.where((r) => r.marker == _filter.marker).toList();
+    final trendRows = scoped.where((r) => r.marker == _filter.marker).toList();
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
@@ -538,52 +611,55 @@ class _BloodTestsScreenState extends ConsumerState<BloodTestsScreen> {
   }
 
   Widget _syncRow(HdTokens t) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: t.panel,
-          border: Border(bottom: BorderSide(color: t.border)),
-        ),
-        child: Row(children: [
-          // Green dot when synced successfully.
-          if (!_refreshError && _lastSynced != null)
-            Container(
-              width: 8,
-              height: 8,
-              margin: const EdgeInsets.only(right: 8),
-              decoration:
-                  BoxDecoration(color: t.good, shape: BoxShape.circle),
-            ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(_syncLabel(),
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: _refreshError ? t.warning : t.textMuted)),
-              if (_coveredFrom.isNotEmpty)
-                Text('from ${_coveredFromLabel()}',
-                    style: TextStyle(fontSize: 11, color: t.textMuted)),
-            ],
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    decoration: BoxDecoration(
+      color: t.panel,
+      border: Border(bottom: BorderSide(color: t.border)),
+    ),
+    child: Row(
+      children: [
+        // Green dot when synced successfully.
+        if (!_refreshError && _lastSynced != null)
+          Container(
+            width: 8,
+            height: 8,
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(color: t.good, shape: BoxShape.circle),
           ),
-          const Spacer(),
-          SizedBox(
-            height: 30,
-            child: OutlinedButton(
-              onPressed: _refreshing
-                  ? null
-                  : () => _revalidate(_effectiveFrom()),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(0, 30),
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                side: BorderSide(color: t.border),
-                foregroundColor: t.textSecondary,
-                textStyle: const TextStyle(fontSize: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _syncLabel(),
+              style: TextStyle(
+                fontSize: 12,
+                color: _refreshError ? t.warning : t.textMuted,
               ),
-              child: Text(_refreshing ? 'Syncing…' : 'Sync'),
             ),
+            if (_coveredFrom.isNotEmpty)
+              Text(
+                'from ${_coveredFromLabel()}',
+                style: TextStyle(fontSize: 11, color: t.textMuted),
+              ),
+          ],
+        ),
+        const Spacer(),
+        SizedBox(
+          height: 30,
+          child: OutlinedButton(
+            onPressed: _refreshing ? null : () => _revalidate(_effectiveFrom()),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 30),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              side: BorderSide(color: t.border),
+              foregroundColor: t.textSecondary,
+              textStyle: const TextStyle(fontSize: 12),
+            ),
+            child: Text(_refreshing ? 'Syncing…' : 'Sync'),
           ),
-        ]),
-      );
-
+        ),
+      ],
+    ),
+  );
 }
