@@ -9,6 +9,8 @@ import '../../app/shell.dart';
 import '../../app/theme.dart';
 import '../../firebase/firebase_init.dart';
 import '../blood_tests/csv_import.dart' show csvImportTemplate;
+import 'about_section.dart';
+import 'notification_settings_section.dart';
 import '../treatment/providers.dart' show treatmentStoreProvider;
 
 const _patientNameKey = 'patient_name';
@@ -150,6 +152,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             mode: mode,
             onChanged: (m) => ref.read(themeModeProvider.notifier).set(m),
           ),
+          const SizedBox(height: 28),
+          _section(t, 'NOTIFICATIONS'),
+          const NotificationSettingsSection(),
+          const SizedBox(height: 28),
+          _section(t, 'ABOUT'),
+          const AboutSection(),
           const SizedBox(height: 28),
           _section(t, 'DEVELOPER'),
           const SizedBox(height: 8),
