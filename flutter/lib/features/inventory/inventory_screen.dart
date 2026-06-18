@@ -5,10 +5,13 @@ import 'package:go_router/go_router.dart';
 import '../../app/providers.dart' show cacheStoreProvider;
 import '../../app/shell.dart';
 import '../../app/theme.dart';
+import '../../flavor.dart';
 import '../treatment/providers.dart' show inventoryApiProvider;
 import 'constants.dart';
+import 'consumption_rates_provider.dart';
 import 'inventory_models.dart';
 import 'inventory_sheets.dart';
+import 'rate_overrides.dart';
 import 'stock_calc.dart';
 
 String _today() => DateTime.now().toIso8601String().substring(0, 10);
@@ -23,13 +26,26 @@ int _daysUntil(String dateStr) {
 }
 
 const _months = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 String _fmt(String dateStr) {
   final d = DateTime.tryParse(dateStr);
   return d == null ? dateStr : '${d.day} ${_months[d.month - 1]}';
 }
+
+String _fmtLifetime(double v) =>
+    v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(1);
 
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({super.key});
@@ -37,25 +53,46 @@ class InventoryScreen extends ConsumerStatefulWidget {
   ConsumerState<InventoryScreen> createState() => _InventoryScreenState();
 }
 
-class _InventoryScreenState extends ConsumerState<InventoryScreen> {
+class _InventoryScreenState extends ConsumerState<InventoryScreen>
+    with WidgetsBindingObserver {
   InventoryResponse? _data;
   String? _error;
+  DateTime? _lastFetchedAt;
 
   static const _cacheKey = 'inventory';
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Show cached data immediately — user pulls to refresh.
     try {
       final cached = ref.read(cacheStoreProvider).readStale(_cacheKey);
       if (cached != null) _data = InventoryResponse.fromJson(cached);
-    } catch (_) {/* cache unavailable (e.g. first launch) */}
+    } catch (_) {
+      /* cache unavailable (e.g. first launch) */
+    }
     // Auto-load once if there's no cached data yet (first visit).
     if (_data == null) {
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _load(autoApply: true));
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _load(autoApply: true),
+      );
     }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    final age = _lastFetchedAt == null
+        ? const Duration(days: 1)
+        : DateTime.now().difference(_lastFetchedAt!);
+    if (age.inMinutes >= 10) _load();
   }
 
   Future<void> _load({bool autoApply = false}) async {
@@ -66,6 +103,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       try {
         ref.read(cacheStoreProvider).write(_cacheKey, data.toJson());
       } catch (_) {}
+      _lastFetchedAt = DateTime.now();
       setState(() {
         _data = data;
         _error = null;
@@ -98,7 +136,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     } catch (_) {
       // revert
       if (mounted) {
-        setState(() => _data = _withStock(_data!, {code: (_data!.stock[code] ?? 0) - delta}));
+        setState(
+          () => _data = _withStock(_data!, {
+            code: (_data!.stock[code] ?? 0) - delta,
+          }),
+        );
       }
     }
   }
@@ -110,7 +152,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final result = await showDialog<int>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Set exact count', style: TextStyle(color: context.hd.textPrimary)),
+        title: Text(
+          'Set exact count',
+          style: TextStyle(color: context.hd.textPrimary),
+        ),
         backgroundColor: context.hd.panel,
         content: TextField(
           controller: controller,
@@ -137,7 +182,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final prev = _data!.stock[code] ?? 0;
     setState(() => _data = _withStock(_data!, {code: result}));
     try {
-      await ref.read(inventoryApiProvider).logEvent('stock_count', {code: result});
+      await ref.read(inventoryApiProvider).logEvent('stock_count', {
+        code: result,
+      });
     } catch (_) {
       if (mounted) setState(() => _data = _withStock(_data!, {code: prev}));
     }
@@ -149,6 +196,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       cycle: base.cycle,
       pakInstalledAt: base.pakInstalledAt,
       pakSessions: base.pakSessions,
+      pakAvgSessions: base.pakAvgSessions,
     );
   }
 
@@ -161,45 +209,60 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     if (data == null) {
       body = _error != null
           ? Center(
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Text(_error!, style: TextStyle(color: t.danger)),
-              const SizedBox(height: 12),
-              OutlinedButton(onPressed: _load, child: const Text('Retry')),
-            ]))
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_error!, style: TextStyle(color: t.danger)),
+                  const SizedBox(height: 12),
+                  OutlinedButton(onPressed: _load, child: const Text('Retry')),
+                ],
+              ),
+            )
           : const Center(child: CircularProgressIndicator());
     } else {
-      final entries = items.map((i) => StockEntry(i.code, data.stock[i.code] ?? 0)).toList();
-      final sorted = sortStock(entries);
-      final nxstage =
-          sorted.where((e) => getItem(e.code)?.section == 'nxstage').toList();
-      final hospital =
-          sorted.where((e) => getItem(e.code)?.section == 'hospital').toList();
+      final rates = kCommunity
+          ? ref.watch(consumptionRatesProvider)
+          : const <String, RateOverride>{};
+      final entries = items
+          .map((i) => StockEntry(i.code, data.stock[i.code] ?? 0))
+          .toList();
+      final sorted = sortStock(entries, rates: rates);
+      final nxstage = sorted
+          .where((e) => getItem(e.code)?.section == 'nxstage')
+          .toList();
+      final hospital = sorted
+          .where((e) => getItem(e.code)?.section == 'hospital')
+          .toList();
 
       body = RefreshIndicator(
         onRefresh: () => _load(autoApply: true),
         child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        children: [
-          _Banner(cycle: data.cycle, onAction: _onBannerAction),
-          const SizedBox(height: 12),
-          Row(children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => _openLogEvent(data),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Log event'),
-              ),
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            _Banner(cycle: data.cycle, onAction: _onBannerAction),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _openLogEvent(data),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Log event'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: _openHistory,
+                  child: const Text('Deliveries'),
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
-            OutlinedButton(
-                onPressed: _openHistory, child: const Text('Deliveries')),
-          ]),
-          const SizedBox(height: 16),
-          _section(t, 'NxStage Supplies', nxstage, data),
-          const SizedBox(height: 16),
-          _section(t, 'Hospital Prescriptions', hospital, data),
-        ],
+            const SizedBox(height: 16),
+            _section(t, 'NxStage Supplies', nxstage, data, rates: rates),
+            const SizedBox(height: 16),
+            _section(t, 'Hospital Prescriptions', hospital, data, rates: rates),
+          ],
         ),
       );
     }
@@ -207,19 +270,29 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) context.findAncestorWidgetOfExactType<StatefulNavigationShell>()?.goBranch(0);
+        if (!didPop)
+          context
+              .findAncestorWidgetOfExactType<StatefulNavigationShell>()
+              ?.goBranch(0);
       },
       child: HdScaffold(title: 'Inventory', body: body),
     );
   }
 
   Widget _section(
-      HdTokens t, String title, List<StockEntry> entries, InventoryResponse data) {
+    HdTokens t,
+    String title,
+    List<StockEntry> entries,
+    InventoryResponse data, {
+    Map<String, RateOverride> rates = const {},
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title.toUpperCase(),
-            style: TextStyle(fontSize: 12, letterSpacing: 1, color: t.textMuted)),
+        Text(
+          title.toUpperCase(),
+          style: TextStyle(fontSize: 12, letterSpacing: 1, color: t.textMuted),
+        ),
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
@@ -232,12 +305,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             children: [
               for (final e in entries)
                 _StockRow(
-                  item: getItem(e.code)!,
+                  item: resolveItem(e.code, rates) ?? getItem(e.code)!,
                   qty: e.qty,
+                  rates: rates,
                   onAdjust: (d) => _adjust(e.code, d),
                   onSetExact: () => _setExact(e.code, e.qty),
-                  pakInstalledAt: e.code == 'PAK-001' ? data.pakInstalledAt : null,
+                  pakInstalledAt: e.code == 'PAK-001'
+                      ? data.pakInstalledAt
+                      : null,
                   pakSessions: e.code == 'PAK-001' ? data.pakSessions : null,
+                  pakAvgSessions: e.code == 'PAK-001'
+                      ? data.pakAvgSessions
+                      : null,
                 ),
             ],
           ),
@@ -286,11 +365,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
   void _openHistory() => _sheet(const HistorySheet());
 
-  void _openViewOrder(Cycle cycle) => _sheet(ViewOrderSheet(
-        cycle: cycle,
-        onEdit: () => _sheet(EditOrderSheet(cycle: cycle, onDone: _load)),
-        onEarlyDelivery: _quickDeliver,
-      ));
+  void _openViewOrder(Cycle cycle) => _sheet(
+    ViewOrderSheet(
+      cycle: cycle,
+      onEdit: () => _sheet(EditOrderSheet(cycle: cycle, onDone: _load)),
+      onEarlyDelivery: _quickDeliver,
+    ),
+  );
 
   Future<void> _openCycleDates({required Cycle? initial}) async {
     _sheet(CycleDatesSheet(initial: initial, onDone: _load));
@@ -306,10 +387,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 // ============================ Stock row ============================
 
 Color _statusColor(HdTokens t, StockStatus s) => switch (s) {
-      StockStatus.red => t.danger,
-      StockStatus.amber => t.warning,
-      StockStatus.green => t.good,
-    };
+  StockStatus.red => t.danger,
+  StockStatus.amber => t.warning,
+  StockStatus.green => t.good,
+};
+
+// Used only until the patient has accumulated enough PAK history to compute
+// a real average (see averagePakLifespan on the backend).
+const _defaultPakLifetime = 10.0;
 
 class _StockRow extends StatelessWidget {
   const _StockRow({
@@ -319,6 +404,8 @@ class _StockRow extends StatelessWidget {
     required this.onSetExact,
     this.pakInstalledAt,
     this.pakSessions,
+    this.pakAvgSessions,
+    this.rates = const {},
   });
   final ItemDef item;
   final int qty;
@@ -326,50 +413,63 @@ class _StockRow extends StatelessWidget {
   final VoidCallback onSetExact;
   final String? pakInstalledAt;
   final int? pakSessions;
+  final double? pakAvgSessions;
+  final Map<String, RateOverride> rates;
 
   @override
   Widget build(BuildContext context) {
     final t = context.hd;
-    final sr = sessionsRemaining(item.code, qty);
-    final status = stockStatus(item.code, qty);
+    final sr = sessionsRemaining(item.code, qty, rates: rates);
+    final status = stockStatus(item.code, qty, rates: rates);
     final color = _statusColor(t, status);
     final showPak = item.code == 'PAK-001' && pakInstalledAt != null;
-    final pakColor = (pakSessions ?? 0) >= 10
+    final pakLifetime = pakAvgSessions ?? _defaultPakLifetime;
+    final pakColor = (pakSessions ?? 0) >= pakLifetime
         ? t.danger
-        : (pakSessions ?? 0) >= 8
-            ? t.warning
-            : t.good;
+        : (pakSessions ?? 0) >= pakLifetime - 2
+        ? t.warning
+        : t.good;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
           Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(children: [
-                  Flexible(
-                      child: Text(item.label,
-                          style: TextStyle(color: t.textPrimary, fontSize: 14))),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onLongPress: onSetExact,
-                    child: Text('$qty ${item.unit}${qty != 1 ? 's' : ''}',
-                        style: TextStyle(color: color, fontSize: 12)),
-                  ),
-                  if (sr != null)
-                    Text(' ~$sr sess',
-                        style: TextStyle(color: t.textMuted, fontSize: 12)),
-                ]),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        item.label,
+                        style: TextStyle(color: t.textPrimary, fontSize: 14),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onLongPress: onSetExact,
+                      child: Text(
+                        '$qty ${item.unit}${qty != 1 ? 's' : ''}',
+                        style: TextStyle(color: color, fontSize: 12),
+                      ),
+                    ),
+                    if (sr != null)
+                      Text(
+                        ' ~$sr sess',
+                        style: TextStyle(color: t.textMuted, fontSize: 12),
+                      ),
+                  ],
+                ),
                 if (showPak)
                   Text(
-                    'Installed ${_fmt(pakInstalledAt!)} · ${pakSessions ?? 0}/10 sess',
+                    'Installed ${_fmt(pakInstalledAt!)} · ${pakSessions ?? 0}/${_fmtLifetime(pakLifetime)} sess',
                     style: TextStyle(color: pakColor, fontSize: 11),
                   ),
               ],
@@ -384,25 +484,38 @@ class _StockRow extends StatelessWidget {
   }
 
   Widget _round(HdTokens t, IconData icon, VoidCallback? onTap) => InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                  color: onTap == null ? t.border.withValues(alpha: 0.4) : t.border)),
-          child: Icon(icon,
-              size: 14,
-              color: onTap == null ? t.textMuted.withValues(alpha: 0.4) : t.textSecondary),
+    onTap: onTap,
+    customBorder: const CircleBorder(),
+    child: Container(
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: onTap == null ? t.border.withValues(alpha: 0.4) : t.border,
         ),
-      );
+      ),
+      child: Icon(
+        icon,
+        size: 14,
+        color: onTap == null
+            ? t.textMuted.withValues(alpha: 0.4)
+            : t.textSecondary,
+      ),
+    ),
+  );
 }
 
 // ============================ Banner ============================
 
-enum _BannerAction { setup, editDates, placeOrder, viewOrder, deliver, adjustDelivery }
+enum _BannerAction {
+  setup,
+  editDates,
+  placeOrder,
+  viewOrder,
+  deliver,
+  adjustDelivery,
+}
 
 class _Banner extends StatelessWidget {
   const _Banner({required this.cycle, required this.onAction});
@@ -414,32 +527,38 @@ class _Banner extends StatelessWidget {
     final t = context.hd;
 
     Widget card(Widget child) => Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: t.panel,
-            border: Border.all(color: t.border),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: child,
-        );
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: t.panel,
+        border: Border.all(color: t.border),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: child,
+    );
 
     // ── No cycle ──────────────────────────────────────────────
     if (cycle == null) {
-      return card(Column(children: [
-        _headerRow(t, 'DELIVERY CYCLE'),
-        const SizedBox(height: 12),
-        Text('No delivery cycle set up yet.',
-            style: TextStyle(color: t.textSecondary, fontSize: 13)),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () => onAction(_BannerAction.setup),
-            icon: const Icon(Icons.calendar_today, size: 18),
-            label: const Text('Set dates'),
-          ),
+      return card(
+        Column(
+          children: [
+            _headerRow(t, 'DELIVERY CYCLE'),
+            const SizedBox(height: 12),
+            Text(
+              'No delivery cycle set up yet.',
+              style: TextStyle(color: t.textSecondary, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => onAction(_BannerAction.setup),
+                icon: const Icon(Icons.calendar_today, size: 18),
+                label: const Text('Set dates'),
+              ),
+            ),
+          ],
         ),
-      ]));
+      );
     }
 
     final c = cycle!;
@@ -450,13 +569,13 @@ class _Banner extends StatelessWidget {
     final callLabel = callDays == 0
         ? 'today'
         : callDays < 0
-            ? '${callDays.abs()}d ago'
-            : 'in ${callDays}d';
+        ? '${callDays.abs()}d ago'
+        : 'in ${callDays}d';
     final deliveryLabel = deliveryDays == 0
         ? 'today'
         : deliveryDays < 0
-            ? '${deliveryDays.abs()}d overdue'
-            : 'in ${deliveryDays}d';
+        ? '${deliveryDays.abs()}d overdue'
+        : 'in ${deliveryDays}d';
 
     // ── Main action button (context-dependent) ─────────────────
     Widget action;
@@ -493,62 +612,94 @@ class _Banner extends StatelessWidget {
       );
     }
 
-    return card(Column(children: [
-      _headerRow(t, 'DELIVERY CYCLE',
-          onEdit: () => onAction(_BannerAction.editDates)),
-      const SizedBox(height: 16),
-      // CALL BY ──▶ DELIVERY timeline
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return card(
+      Column(
         children: [
-          Expanded(child: _dateBlock(t, 'CALL BY', _fmt(c.callDate), callLabel,
-              overdue: callDays < 0)),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: Icon(Icons.arrow_forward, size: 18, color: t.textMuted),
+          _headerRow(
+            t,
+            'DELIVERY CYCLE',
+            onEdit: () => onAction(_BannerAction.editDates),
           ),
-          Expanded(
-              child: _dateBlock(t, 'DELIVERY', _fmt(c.deliveryDate),
+          const SizedBox(height: 16),
+          // CALL BY ──▶ DELIVERY timeline
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _dateBlock(
+                  t,
+                  'CALL BY',
+                  _fmt(c.callDate),
+                  callLabel,
+                  overdue: callDays < 0,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
+                child: Icon(Icons.arrow_forward, size: 18, color: t.textMuted),
+              ),
+              Expanded(
+                child: _dateBlock(
+                  t,
+                  'DELIVERY',
+                  _fmt(c.deliveryDate),
                   deliveryLabel,
-                  overdue: deliveryDue)),
+                  overdue: deliveryDue,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          action,
         ],
       ),
-      const SizedBox(height: 16),
-      action,
-    ]));
+    );
   }
 
   /// Section header: muted uppercase label + optional edit pencil.
-  Widget _headerRow(HdTokens t, String title, {VoidCallback? onEdit}) =>
-      Row(children: [
-        Text(title,
-            style:
-                TextStyle(fontSize: 11, letterSpacing: 1, color: t.textMuted)),
-        const Spacer(),
-        if (onEdit != null)
-          GestureDetector(
-            onTap: onEdit,
-            child: Icon(Icons.edit_outlined, size: 16, color: t.textMuted),
-          ),
-      ]);
+  Widget _headerRow(HdTokens t, String title, {VoidCallback? onEdit}) => Row(
+    children: [
+      Text(
+        title,
+        style: TextStyle(fontSize: 11, letterSpacing: 1, color: t.textMuted),
+      ),
+      const Spacer(),
+      if (onEdit != null)
+        GestureDetector(
+          onTap: onEdit,
+          child: Icon(Icons.edit_outlined, size: 16, color: t.textMuted),
+        ),
+    ],
+  );
 
   /// One side of the CALL BY → DELIVERY timeline.
   Widget _dateBlock(
-      HdTokens t, String label, String date, String relative,
-      {bool overdue = false}) {
+    HdTokens t,
+    String label,
+    String date,
+    String relative, {
+    bool overdue = false,
+  }) {
     final labelColor = overdue ? t.warning : t.textMuted;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: TextStyle(
-                fontSize: 10, letterSpacing: 1, color: t.textMuted)),
+        Text(
+          label,
+          style: TextStyle(fontSize: 10, letterSpacing: 1, color: t.textMuted),
+        ),
         const SizedBox(height: 4),
-        Text(date,
-            style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: overdue ? t.warning : t.textPrimary)),
+        Text(
+          date,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: overdue ? t.warning : t.textPrimary,
+          ),
+        ),
         Text(relative, style: TextStyle(fontSize: 12, color: labelColor)),
       ],
     );
@@ -564,7 +715,9 @@ class _SheetShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.hd;
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
         decoration: BoxDecoration(
           color: t.bg,

@@ -3,9 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
+import '../../flavor.dart';
 import '../treatment/providers.dart' show inventoryApiProvider;
 import 'constants.dart';
+import 'consumption_rates_provider.dart';
 import 'inventory_models.dart';
+import 'rate_overrides.dart';
 import 'stock_calc.dart';
 
 const _months = [
@@ -20,7 +23,25 @@ String _fmt(String? dateStr) {
 
 String _iso(DateTime d) => d.toIso8601String().substring(0, 10);
 
-String _boxLabel(ItemDef i, int n) => n == 1 ? i.boxLabel : '${i.boxLabel}s';
+/// Sessions between today and [deliveryDate] + 4-week buffer (16 sessions).
+/// Returns 16 when delivery date is unknown or already passed.
+int _deliverySessions(String? deliveryDate) {
+  const _bufferSessions = 16; // 4 weeks × 4 sessions/week
+  if (deliveryDate == null) return _bufferSessions;
+  final d = DateTime.tryParse(deliveryDate);
+  if (d == null) return _bufferSessions;
+  final today = DateTime.now();
+  final days = DateTime(d.year, d.month, d.day)
+      .difference(DateTime(today.year, today.month, today.day))
+      .inDays;
+  final sessionsUntilDelivery = days > 0 ? (days * 4 / 7).ceil() : 0;
+  return sessionsUntilDelivery + _bufferSessions;
+}
+
+String _boxLabel(ItemDef i, int n) {
+  if (n == 1) return i.boxLabel;
+  return i.boxLabel.endsWith('x') ? '${i.boxLabel}es' : '${i.boxLabel}s';
+}
 
 Widget _grab(HdTokens t) => Center(
       child: Container(
@@ -214,6 +235,7 @@ class OrderSheet extends ConsumerStatefulWidget {
 class _OrderSheetState extends ConsumerState<OrderSheet> {
   _OrderStep _step = _OrderStep.count;
   late final Map<String, int> _counts; // physical stock count per nxstage item
+  final Map<String, int> _backup = {}; // backup/reserve qty per item (excluded from order)
   final Map<String, int> _boxes = {}; // boxes to order per item
   bool _saving = false;
   bool _copied = false;
@@ -234,8 +256,13 @@ class _OrderSheetState extends ConsumerState<OrderSheet> {
           .read(inventoryApiProvider)
           .logEvent('stock_count', _counts, note: 'order stock count');
       _boxes.clear();
+      final ds = _deliverySessions(widget.data.cycle?.deliveryDate);
+      final rates = kCommunity
+          ? ref.read(consumptionRatesProvider)
+          : const <String, RateOverride>{};
       for (final i in _nxstage) {
-        final b = orderBoxes(i.code, _counts[i.code] ?? 0);
+        final b = orderBoxes(i.code, _counts[i.code] ?? 0,
+            backupQty: _backup[i.code] ?? 0, deliverySessions: ds, rates: rates);
         if (b > 0) _boxes[i.code] = b;
       }
       setState(() {
@@ -296,35 +323,62 @@ class _OrderSheetState extends ConsumerState<OrderSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('Count what you physically have — this resets the estimate before calculating the order.',
-              style: TextStyle(fontSize: 12, color: t.textMuted)),
+          Text(
+            'Count what you physically have. If ordering early, enter backup/reserve stock separately — it is excluded from the order calculation.',
+            style: TextStyle(fontSize: 12, color: t.textMuted),
+          ),
           const SizedBox(height: 8),
           ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 320),
+            constraints: const BoxConstraints(maxHeight: 380),
             child: ListView(
               shrinkWrap: true,
               children: _nxstage.map((i) {
+                final backup = _backup[i.code] ?? 0;
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(children: [
-                    Expanded(
-                        child: Text(i.label,
-                            style: TextStyle(color: t.textPrimary, fontSize: 14))),
-                    Text('${i.unit}s ',
-                        style: TextStyle(color: t.textMuted, fontSize: 11)),
-                    SizedBox(
-                      width: 64,
-                      child: TextFormField(
-                        initialValue: '${_counts[i.code] ?? 0}',
-                        textAlign: TextAlign.right,
-                        keyboardType: TextInputType.number,
-                        onChanged: (raw) {
-                          final n = int.tryParse(raw);
-                          if (n != null && n >= 0) _counts[i.code] = n;
-                        },
-                      ),
-                    ),
-                  ]),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Expanded(
+                            child: Text(i.label,
+                                style: TextStyle(color: t.textPrimary, fontSize: 14))),
+                        Text('${i.unit}s ',
+                            style: TextStyle(color: t.textMuted, fontSize: 11)),
+                        SizedBox(
+                          width: 64,
+                          child: TextFormField(
+                            initialValue: '${_counts[i.code] ?? 0}',
+                            textAlign: TextAlign.right,
+                            keyboardType: TextInputType.number,
+                            onChanged: (raw) {
+                              final n = int.tryParse(raw);
+                              if (n != null && n >= 0) _counts[i.code] = n;
+                            },
+                          ),
+                        ),
+                      ]),
+                      Row(children: [
+                        const SizedBox(width: 12),
+                        Text('backup: ',
+                            style: TextStyle(color: t.textMuted, fontSize: 11)),
+                        _roundBtn(t, Icons.remove,
+                            backup <= 0
+                                ? null
+                                : () => setState(() => _backup[i.code] = backup - 1)),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Text('$backup',
+                              style: TextStyle(color: t.textMuted, fontSize: 12)),
+                        ),
+                        _roundBtn(t, Icons.add,
+                            backup >= (_counts[i.code] ?? 0)
+                                ? null
+                                : () => setState(
+                                    () => _backup[i.code] = backup + 1)),
+                      ]),
+                    ],
+                  ),
                 );
               }).toList(),
             ),
@@ -364,8 +418,12 @@ class _OrderSheetState extends ConsumerState<OrderSheet> {
                         children: [
                           Text(i.label,
                               style: TextStyle(color: t.textPrimary, fontSize: 14)),
-                          Text('have ${_counts[i.code] ?? 0}',
-                              style: TextStyle(color: t.textMuted, fontSize: 11)),
+                          Text(
+                            (_backup[i.code] ?? 0) > 0
+                                ? 'have ${_counts[i.code] ?? 0} (${_backup[i.code]} backup)'
+                                : 'have ${_counts[i.code] ?? 0}',
+                            style: TextStyle(color: t.textMuted, fontSize: 11),
+                          ),
                         ],
                       ),
                     ),
