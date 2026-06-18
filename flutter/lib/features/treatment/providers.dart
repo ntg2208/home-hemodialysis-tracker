@@ -7,6 +7,7 @@ import '../../app/providers.dart';
 import '../../flavor.dart';
 import '../../test_mode/synthetic_repos.dart';
 import 'hive_treatment_repo.dart';
+import 'notification_prefs.dart';
 import 'store.dart';
 import 'treatment_auth.dart';
 import 'treatment_repo.dart';
@@ -27,6 +28,25 @@ final treatmentAuthProvider = Provider<TreatmentAuth>((ref) => TreatmentAuth(
       ref.read(restClientProvider),
       ref.read(authControllerProvider),
     ));
+
+final notificationPrefsStoreProvider = Provider<NotificationPrefsStore>(
+  (_) => NotificationPrefsStore(Hive.box(treatmentBoxName)),
+);
+
+final notificationPrefsProvider =
+    NotifierProvider<_NotificationPrefsNotifier, NotificationPrefs>(
+        _NotificationPrefsNotifier.new);
+
+class _NotificationPrefsNotifier extends Notifier<NotificationPrefs> {
+  @override
+  NotificationPrefs build() =>
+      ref.read(notificationPrefsStoreProvider).read();
+
+  Future<void> update(NotificationPrefs p) async {
+    await ref.read(notificationPrefsStoreProvider).write(p);
+    state = p;
+  }
+}
 
 final inventoryApiProvider = Provider<InventoryApi>((ref) {
   if (kCommunity) return HiveInventoryApi();
