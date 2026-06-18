@@ -77,7 +77,13 @@ describe('ApplyDeliveryBodySchema', () => {
 
 describe('StockGetResponseSchema', () => {
   it('accepts valid response with null cycle', () => {
-    const r = StockGetResponseSchema.safeParse({ stock: { 'SAK-303': 12 }, cycle: null });
+    const r = StockGetResponseSchema.safeParse({
+      stock: { 'SAK-303': 12 },
+      cycle: null,
+      pak_installed_at: null,
+      pak_sessions: 0,
+      pak_avg_sessions: null,
+    });
     expect(r.success).toBe(true);
   });
 
@@ -91,6 +97,20 @@ describe('StockGetResponseSchema', () => {
         order_placed_at: '2026-06-23T10:00:00Z',
         delivery_applied_at: null,
       },
+      pak_installed_at: '2026-04-01',
+      pak_sessions: 9,
+      pak_avg_sessions: 10.3,
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('accepts pak_avg_sessions as null', () => {
+    const r = StockGetResponseSchema.safeParse({
+      stock: {},
+      cycle: null,
+      pak_installed_at: null,
+      pak_sessions: 0,
+      pak_avg_sessions: null,
     });
     expect(r.success).toBe(true);
   });

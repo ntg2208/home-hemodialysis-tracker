@@ -54,5 +54,6 @@ export const StockGetResponseSchema = z.object({
   cycle: CycleSchema.nullable(),
   pak_installed_at: z.string().nullable(),
   pak_sessions: z.number(),
+  pak_avg_sessions: z.number().nullable(),
 });
 export type StockGetResponse = z.infer<typeof StockGetResponseSchema>;

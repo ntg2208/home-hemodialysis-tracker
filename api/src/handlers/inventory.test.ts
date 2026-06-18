@@ -11,11 +11,16 @@ const mocks = vi.hoisted(() => ({
   colAdd: vi.fn().mockResolvedValue({ id: 'event-id' }),
 }));
 
+function chainableQuery(): { where: () => ReturnType<typeof chainableQuery>; get: typeof mocks.colGet } {
+  return { where: chainableQuery, get: mocks.colGet };
+}
+
 vi.mock('../lib/firestore.js', () => ({
   getDb: () => ({
     collection: () => ({
       get: mocks.colGet,
       add: mocks.colAdd,
+      where: chainableQuery,
       doc: () => ({
         get: mocks.docGet,
         set: mocks.docSet,
@@ -87,6 +92,37 @@ describe('GET /api/inventory', () => {
   it('returns 401 without auth', async () => {
     const res = await makeApp().request('/api/inventory');
     expect(res.status).toBe(401);
+  });
+
+  it('returns pak_avg_sessions null when no pak_history exists', async () => {
+    const res = await get(makeApp(), '/api/inventory');
+    const body = await res.json() as { pak_avg_sessions: number | null };
+    expect(body.pak_avg_sessions).toBeNull();
+  });
+
+  it('computes pak_avg_sessions as the average of recent pak_history entries', async () => {
+    mocks.colGet.mockResolvedValue({
+      docs: [
+        { data: () => ({ sessions: 9, replaced_at: '2026-01-01' }) },
+        { data: () => ({ sessions: 11, replaced_at: '2026-02-01' }) },
+        { data: () => ({ sessions: 10, replaced_at: '2026-03-01' }) },
+      ],
+    });
+    const res = await get(makeApp(), '/api/inventory');
+    const body = await res.json() as { pak_avg_sessions: number | null };
+    expect(body.pak_avg_sessions).toBeCloseTo(10);
+  });
+
+  it('averages only the 6 most recent pak_history entries by replaced_at', async () => {
+    mocks.colGet.mockResolvedValue({
+      docs: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({
+        data: () => ({ sessions: n, replaced_at: `2026-0${n}-01` }),
+      })),
+    });
+    const res = await get(makeApp(), '/api/inventory');
+    const body = await res.json() as { pak_avg_sessions: number | null };
+    // Most recent 6 by replaced_at (Mar..Aug => sessions 3..8): avg = 5.5
+    expect(body.pak_avg_sessions).toBeCloseTo(5.5);
   });
 });
 
@@ -251,5 +287,56 @@ describe('POST /api/inventory/apply-delivery', () => {
     mocks.docGet.mockResolvedValue({ exists: false, data: () => undefined });
     const res = await post(makeApp(), '/apply-delivery', {});
     expect(res.status).toBe(404);
+  });
+});
+
+describe('POST /api/inventory/set-pak-install', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.docSet.mockResolvedValue(undefined);
+    mocks.colAdd.mockResolvedValue({ id: 'history-id' });
+    mocks.colGet.mockResolvedValue({ docs: [] });
+    mocks.docGet.mockResolvedValue({ exists: false, data: () => undefined });
+  });
+
+  it('archives the previous PAK lifespan into pak_history when replacing it', async () => {
+    mocks.docGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ installed_at: '2026-01-01' }),
+    });
+    mocks.colGet.mockResolvedValue({ docs: [{}, {}, {}] }); // 3 sessions on the outgoing PAK
+    const res = await post(makeApp(), '/set-pak-install', { installed_at: '2026-04-01' });
+    expect(res.status).toBe(200);
+    expect(mocks.colAdd).toHaveBeenCalledWith({
+      installed_at: '2026-01-01',
+      replaced_at: '2026-04-01',
+      sessions: 3,
+    });
+  });
+
+  it('does not archive when there is no previous PAK install', async () => {
+    const res = await post(makeApp(), '/set-pak-install', { installed_at: '2026-04-01' });
+    expect(res.status).toBe(200);
+    expect(mocks.colAdd).not.toHaveBeenCalled();
+  });
+
+  it('does not archive when re-setting the same install date', async () => {
+    mocks.docGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ installed_at: '2026-04-01' }),
+    });
+    const res = await post(makeApp(), '/set-pak-install', { installed_at: '2026-04-01' });
+    expect(res.status).toBe(200);
+    expect(mocks.colAdd).not.toHaveBeenCalled();
+  });
+
+  it('sets the new installed_at on the pak config doc', async () => {
+    await post(makeApp(), '/set-pak-install', { installed_at: '2026-04-01' });
+    expect(mocks.docSet).toHaveBeenCalledWith({ installed_at: '2026-04-01' });
+  });
+
+  it('returns 400 for malformed installed_at', async () => {
+    const res = await post(makeApp(), '/set-pak-install', { installed_at: '01/04/2026' });
+    expect(res.status).toBe(400);
   });
 });

@@ -16,10 +16,11 @@ export const inventory = new Hono()
   .get('/', async (c) => {
     const db = getDb();
 
-    const [stockSnap, cycleDoc, pakDoc] = await Promise.all([
+    const [stockSnap, cycleDoc, pakDoc, pakHistorySnap] = await Promise.all([
       db.collection('inventory_stock').get(),
       db.collection('inventory_config').doc('cycle').get(),
       db.collection('inventory_config').doc('pak').get(),
+      db.collection('pak_history').get(),
     ]);
 
     const stock: Record<string, number> = {};
@@ -41,10 +42,14 @@ export const inventory = new Hono()
       const sessionsSnap = await db.collection('treatment_sessions')
         .where('date', '>=', pak_installed_at)
         .get();
-      pak_sessions = sessionsSnap.size;
+      pak_sessions = sessionsSnap.docs.length;
     }
 
-    return c.json({ stock, cycle, pak_installed_at, pak_sessions });
+    // Expected PAK lifetime varies per patient (and even per PAK), so derive
+    // it from the patient's own recent history instead of a fixed number.
+    const pak_avg_sessions = averagePakLifespan(pakHistorySnap.docs);
+
+    return c.json({ stock, cycle, pak_installed_at, pak_sessions, pak_avg_sessions });
   })
 
   .post('/event', async (c) => {
@@ -59,6 +64,17 @@ export const inventory = new Hono()
     const { type, deltas, note } = parsed.data;
     const now = new Date().toISOString();
     const db = getDb();
+
+    // Idempotency guard: if a session event for this session_id already
+    // exists, skip the write — the client may be retrying after a timeout.
+    if (type === 'session' && note) {
+      const existingSnap = await db.collection('inventory_events')
+        .where('type', '==', 'session')
+        .where('note', '==', note)
+        .limit(1)
+        .get();
+      if (!existingSnap.empty) return c.json({ ok: true, deduped: true });
+    }
 
     // Update stock quantities (batch)
     const batch = db.batch();
@@ -266,12 +282,48 @@ export const inventory = new Hono()
     const parsed = SetPakInstallBodySchema.safeParse(body);
     if (!parsed.success) return c.json({ error: 'invalid request', details: parsed.error.issues }, 400);
 
-    await getDb().collection('inventory_config').doc('pak').set({
-      installed_at: parsed.data.installed_at,
-    });
+    const db = getDb();
+    const newInstalledAt = parsed.data.installed_at;
+    const pakRef = db.collection('inventory_config').doc('pak');
+    const pakDoc = await pakRef.get();
+    const prev = pakDoc.exists ? (pakDoc.data() as { installed_at?: string }) : null;
+
+    // Archive the outgoing PAK's lifespan so future averages include it.
+    if (prev?.installed_at && prev.installed_at !== newInstalledAt) {
+      const sessionsSnap = await db.collection('treatment_sessions')
+        .where('date', '>=', prev.installed_at)
+        .where('date', '<', newInstalledAt)
+        .get();
+      await db.collection('pak_history').add({
+        installed_at: prev.installed_at,
+        replaced_at: newInstalledAt,
+        sessions: sessionsSnap.docs.length,
+      });
+    }
+
+    await pakRef.set({ installed_at: newInstalledAt });
 
     return c.json({ ok: true });
   });
+
+/// Average session count of the patient's last 6 replaced PAKs, sorted by
+/// recency — null when there's no history yet (client falls back to a default).
+function averagePakLifespan(
+  docs: { data: () => { sessions?: number; replaced_at?: string } }[],
+): number | null {
+  const lifespans = docs
+    .map((d) => d.data())
+    .filter(
+      (d): d is { sessions: number; replaced_at: string } =>
+        typeof d.sessions === 'number' && d.sessions > 0 && typeof d.replaced_at === 'string',
+    )
+    .sort((a, b) => b.replaced_at.localeCompare(a.replaced_at))
+    .slice(0, 6)
+    .map((d) => d.sessions);
+
+  if (lifespans.length === 0) return null;
+  return lifespans.reduce((a, b) => a + b, 0) / lifespans.length;
+}
 
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr);
