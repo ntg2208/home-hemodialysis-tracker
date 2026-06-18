@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "uk.co.homehd.home_hd"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
