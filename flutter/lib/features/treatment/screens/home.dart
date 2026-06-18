@@ -61,7 +61,7 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome>
     final age = _lastFetchedAt == null
         ? const Duration(days: 1)
         : DateTime.now().difference(_lastFetchedAt!);
-    if (age.inMinutes >= 5) _load();
+    if (age.inMinutes >= 10) _load();
   }
 
   Future<void> _load() async {
@@ -76,7 +76,8 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome>
       _lastFetchedAt = DateTime.now();
       if (mounted) setState(() => _sessions = sessions);
     } catch (e) {
-      if (mounted) setState(() => _error = 'Load failed: ${treatmentErrorCode(e)}');
+      if (mounted)
+        setState(() => _error = 'Load failed: ${treatmentErrorCode(e)}');
     } finally {
       if (mounted) setState(() => _refreshing = false);
     }
@@ -94,15 +95,19 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome>
       builder: (ctx) => AlertDialog(
         title: const Text('Delete session'),
         content: Text(
-            'Delete session ${s.sessionId} and all its readings? This cannot be undone.'),
+          'Delete session ${s.sessionId} and all its readings? This cannot be undone.',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
-                backgroundColor: t.danger, foregroundColor: t.accentOn),
+              backgroundColor: t.danger,
+              foregroundColor: t.accentOn,
+            ),
             child: const Text('Delete'),
           ),
         ],
@@ -112,19 +117,24 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome>
   }
 
   Future<void> _performDelete(Session s) async {
-    setState(() => _sessions =
-        _sessions!.where((x) => x.sessionId != s.sessionId).toList());
+    setState(
+      () => _sessions = _sessions!
+          .where((x) => x.sessionId != s.sessionId)
+          .toList(),
+    );
     ref.read(treatmentStoreProvider).saveCachedSessions(_sessions!);
     try {
       await ref.read(treatmentRepoProvider).deleteSession(s.sessionId);
       // Reverse any inventory deduction logged for this session (best-effort).
-      ref.read(inventoryApiProvider)
+      ref
+          .read(inventoryApiProvider)
           .rollbackSession(s.sessionId)
           .catchError((_) {});
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Delete failed — restoring.')));
+          const SnackBar(content: Text('Delete failed — restoring.')),
+        );
       }
       _load();
     }
@@ -135,13 +145,20 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome>
       final result = await ref.read(treatmentRepoProvider).getAll();
       final to = DateTime.now();
       final from = to.subtract(const Duration(days: 30));
-      final bytes = await buildSummaryPdf(result.sessions, result.readings, from, to);
-      final filename = '${patientDisplayName()} ${_monthLabel(from.toIso8601String())} Treatment Records.pdf';
+      final bytes = await buildSummaryPdf(
+        result.sessions,
+        result.readings,
+        from,
+        to,
+      );
+      final filename =
+          '${patientDisplayName()} ${_monthLabel(from.toIso8601String())} Treatment Records.pdf';
       await _sharePdf(bytes, filename);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Summary export failed: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Summary export failed: $e')));
       }
     }
   }
@@ -181,77 +198,105 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome>
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        children: [
-          PressableScale(
-            child: ElevatedButton.icon(
-              onPressed: loaded ? () => widget.onStartSession(ids) : null,
-              icon: loaded
-                  ? const Icon(Icons.play_arrow_outlined)
-                  : SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: t.accentOn)),
-              label: const Text('Start session'),
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            PressableScale(
+              child: ElevatedButton.icon(
+                onPressed: loaded ? () => widget.onStartSession(ids) : null,
+                icon: loaded
+                    ? const Icon(Icons.play_arrow_outlined)
+                    : SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: t.accentOn,
+                        ),
+                      ),
+                label: const Text('Start session'),
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          _driedWeightCard(t),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Text('RECENT SESSIONS',
+            const SizedBox(height: 16),
+            _driedWeightCard(t),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Text(
+                  'RECENT SESSIONS',
                   style: TextStyle(
-                      fontSize: 12,
-                      letterSpacing: 1,
-                      color: t.textMuted,
-                      fontWeight: FontWeight.w600)),
-              const Spacer(),
-              if (_refreshing && loaded)
-                Row(children: [
-                  SizedBox(
-                      width: 12,
-                      height: 12,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: t.textMuted)),
-                  const SizedBox(width: 4),
-                  Text('refreshing',
-                      style: TextStyle(fontSize: 12, color: t.textMuted)),
-                ]),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (_error != null)
-            _errorBanner(t)
-          else if (!loaded)
-            Text('Loading…', style: TextStyle(color: t.textMuted))
-          else if (_sessions!.isEmpty)
-            Text('No sessions yet.', style: TextStyle(color: t.textMuted))
-          else
-            ..._sessions!.take(5).map((s) => Dismissible(
-                  key: ValueKey(s.sessionId),
-                  direction: DismissDirection.endToStart,
-                  confirmDismiss: (_) => _confirmDelete(s),
-                  onDismissed: (_) => _performDelete(s),
-                  background: Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.only(right: 20),
-                    alignment: Alignment.centerRight,
-                    decoration: BoxDecoration(
-                      color: t.danger,
-                      borderRadius: BorderRadius.circular(12),
+                    fontSize: 12,
+                    letterSpacing: 1,
+                    color: t.textMuted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                if (_refreshing && loaded)
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: t.textMuted,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'refreshing',
+                        style: TextStyle(fontSize: 12, color: t.textMuted),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (_error != null)
+              _errorBanner(t)
+            else if (!loaded)
+              Text('Loading…', style: TextStyle(color: t.textMuted))
+            else if (_sessions!.isEmpty)
+              Text('No sessions yet.', style: TextStyle(color: t.textMuted))
+            else
+              ..._sessions!
+                  .take(5)
+                  .map(
+                    (s) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Dismissible(
+                          key: ValueKey(s.sessionId),
+                          direction: DismissDirection.endToStart,
+                          confirmDismiss: (_) => _confirmDelete(s),
+                          onDismissed: (_) => _performDelete(s),
+                          background: Container(
+                            padding: const EdgeInsets.only(right: 20),
+                            alignment: Alignment.centerRight,
+                            decoration: BoxDecoration(
+                              color: t.danger,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.delete_outline,
+                              color: t.accentOn,
+                            ),
+                          ),
+                          child: ColoredBox(
+                            color: t.panel,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => _openDetail(s),
+                              child: SessionListItem(session: s),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                    child: Icon(Icons.delete_outline, color: t.accentOn),
                   ),
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => _openDetail(s),
-                    child: SessionListItem(session: s),
-                  ),
-                )),
-        ],
+          ],
         ),
       ),
     );
@@ -267,43 +312,56 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome>
       ),
       child: Row(
         children: [
-          Text('Dry weight',
-              style: TextStyle(fontSize: 14, color: t.textSecondary)),
+          Text(
+            'Dry weight',
+            style: TextStyle(fontSize: 14, color: t.textSecondary),
+          ),
           const Spacer(),
           if (_editingDried)
-            Row(children: [
-              SizedBox(
-                width: 70,
-                child: TextField(
-                  controller: _driedController,
-                  autofocus: true,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  textAlign: TextAlign.right,
-                  decoration: const InputDecoration(isDense: true),
-                  onSubmitted: (_) => _commitDried(),
+            Row(
+              children: [
+                SizedBox(
+                  width: 70,
+                  child: TextField(
+                    controller: _driedController,
+                    autofocus: true,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    textAlign: TextAlign.right,
+                    decoration: const InputDecoration(isDense: true),
+                    onSubmitted: (_) => _commitDried(),
+                  ),
                 ),
-              ),
-              IconButton(
+                IconButton(
                   onPressed: _commitDried,
-                  icon: Icon(Icons.check, color: t.accent)),
-              IconButton(
+                  icon: Icon(Icons.check, color: t.accent),
+                ),
+                IconButton(
                   onPressed: () => setState(() => _editingDried = false),
-                  icon: Icon(Icons.close, color: t.textMuted)),
-            ])
+                  icon: Icon(Icons.close, color: t.textMuted),
+                ),
+              ],
+            )
           else
             InkWell(
               onTap: () {
                 _driedController.text = _fmt(_driedWeight);
                 setState(() => _editingDried = true);
               },
-              child: Row(children: [
-                Text('${_fmt(_driedWeight)} kg',
+              child: Row(
+                children: [
+                  Text(
+                    '${_fmt(_driedWeight)} kg',
                     style: TextStyle(
-                        fontWeight: FontWeight.w600, color: t.textPrimary)),
-                const SizedBox(width: 6),
-                Icon(Icons.edit_outlined, size: 14, color: t.textMuted),
-              ]),
+                      fontWeight: FontWeight.w600,
+                      color: t.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(Icons.edit_outlined, size: 14, color: t.textMuted),
+                ],
+              ),
             ),
         ],
       ),
@@ -311,26 +369,39 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome>
   }
 
   Widget _errorBanner(HdTokens t) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: t.danger.withValues(alpha: 0.15),
-          border: Border.all(color: t.danger),
-          borderRadius: BorderRadius.circular(12),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    decoration: BoxDecoration(
+      color: t.danger.withValues(alpha: 0.15),
+      border: Border.all(color: t.danger),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(_error!, style: TextStyle(color: t.danger, fontSize: 13)),
         ),
-        child: Row(children: [
-          Expanded(
-              child: Text(_error!,
-                  style: TextStyle(color: t.danger, fontSize: 13))),
-          TextButton(onPressed: _load, child: const Text('Retry')),
-        ]),
-      );
+        TextButton(onPressed: _load, child: const Text('Retry')),
+      ],
+    ),
+  );
 }
 
-String _fmt(num v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();
+String _fmt(num v) =>
+    v == v.roundToDouble() ? v.toInt().toString() : v.toString();
 
 const _monthNames = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ];
 
 /// Returns the full month name from an ISO date string ('YYYY-MM-DD' or 'YYYY-MM').

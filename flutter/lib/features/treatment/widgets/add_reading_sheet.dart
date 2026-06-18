@@ -200,78 +200,96 @@ class _AddReadingSheetState extends State<_AddReadingSheet> {
                   mainAxisExtent: 76,
                 ),
                 children: [
-                  NumberField(
-                      label: 'BP sys',
-                      value: _bpSys,
-                      integer: true,
-                      suffix: _aiFilledFields.contains('bpSys')
-                          ? const Icon(Icons.auto_awesome,
-                              size: 14, color: Color(0xFFF59E0B))
-                          : null,
-                      onChanged: (v) {
-                        _bpSys = v?.toInt();
-                        _aiFilledFields.remove('bpSys');
-                      }),
-                  NumberField(
-                      label: 'BP dia',
-                      value: _bpDia,
-                      integer: true,
-                      suffix: _aiFilledFields.contains('bpDia')
-                          ? const Icon(Icons.auto_awesome,
-                              size: 14, color: Color(0xFFF59E0B))
-                          : null,
-                      onChanged: (v) {
-                        _bpDia = v?.toInt();
-                        _aiFilledFields.remove('bpDia');
-                      }),
-                  NumberField(
-                      label: 'Pulse',
-                      value: _pulse,
-                      integer: true,
-                      suffix: _aiFilledFields.contains('pulse')
-                          ? const Icon(Icons.auto_awesome,
-                              size: 14, color: Color(0xFFF59E0B))
-                          : null,
-                      onChanged: (v) {
-                        _pulse = v?.toInt();
-                        _aiFilledFields.remove('pulse');
-                      }),
-                  NumberField(
-                      label: 'Blood flow',
-                      value: _bloodFlow,
-                      integer: true,
-                      suffix: _aiFilledFields.contains('bloodFlow')
-                          ? const Icon(Icons.auto_awesome,
-                              size: 14, color: Color(0xFFF59E0B))
-                          : null,
-                      onChanged: (v) {
-                        _bloodFlow = v?.toInt();
-                        _aiFilledFields.remove('bloodFlow');
-                      }),
-                  NumberField(
-                      label: 'VP',
-                      value: _vp,
-                      integer: true,
-                      suffix: _aiFilledFields.contains('vp')
-                          ? const Icon(Icons.auto_awesome,
-                              size: 14, color: Color(0xFFF59E0B))
-                          : null,
-                      onChanged: (v) {
-                        _vp = v?.toInt();
-                        _aiFilledFields.remove('vp');
-                      }),
-                  NumberField(
-                      label: 'AP',
-                      value: _ap,
-                      integer: true,
-                      suffix: _aiFilledFields.contains('ap')
-                          ? const Icon(Icons.auto_awesome,
-                              size: 14, color: Color(0xFFF59E0B))
-                          : null,
-                      onChanged: (v) {
-                        _ap = v?.toInt();
-                        _aiFilledFields.remove('ap');
-                      }),
+                  FocusTraversalOrder(
+                    order: const NumericFocusOrder(1),
+                    child: NumberField(
+                        label: 'BP sys',
+                        value: _bpSys,
+                        integer: true,
+                        suffix: _aiFilledFields.contains('bpSys')
+                            ? const Icon(Icons.auto_awesome,
+                                size: 14, color: Color(0xFFF59E0B))
+                            : null,
+                        onChanged: (v) {
+                          _bpSys = v?.toInt();
+                          _aiFilledFields.remove('bpSys');
+                        }),
+                  ),
+                  FocusTraversalOrder(
+                    order: const NumericFocusOrder(2),
+                    child: NumberField(
+                        label: 'BP dia',
+                        value: _bpDia,
+                        integer: true,
+                        suffix: _aiFilledFields.contains('bpDia')
+                            ? const Icon(Icons.auto_awesome,
+                                size: 14, color: Color(0xFFF59E0B))
+                            : null,
+                        onChanged: (v) {
+                          _bpDia = v?.toInt();
+                          _aiFilledFields.remove('bpDia');
+                        }),
+                  ),
+                  FocusTraversalOrder(
+                    order: const NumericFocusOrder(3),
+                    child: NumberField(
+                        label: 'Pulse',
+                        value: _pulse,
+                        integer: true,
+                        suffix: _aiFilledFields.contains('pulse')
+                            ? const Icon(Icons.auto_awesome,
+                                size: 14, color: Color(0xFFF59E0B))
+                            : null,
+                        onChanged: (v) {
+                          _pulse = v?.toInt();
+                          _aiFilledFields.remove('pulse');
+                        }),
+                  ),
+                  FocusTraversalOrder(
+                    order: const NumericFocusOrder(4),
+                    child: NumberField(
+                        label: 'Blood flow',
+                        value: _bloodFlow,
+                        integer: true,
+                        suffix: _aiFilledFields.contains('bloodFlow')
+                            ? const Icon(Icons.auto_awesome,
+                                size: 14, color: Color(0xFFF59E0B))
+                            : null,
+                        onChanged: (v) {
+                          _bloodFlow = v?.toInt();
+                          _aiFilledFields.remove('bloodFlow');
+                        }),
+                  ),
+                  FocusTraversalOrder(
+                    order: const NumericFocusOrder(5),
+                    child: NumberField(
+                        label: 'VP',
+                        value: _vp,
+                        integer: true,
+                        suffix: _aiFilledFields.contains('vp')
+                            ? const Icon(Icons.auto_awesome,
+                                size: 14, color: Color(0xFFF59E0B))
+                            : null,
+                        onChanged: (v) {
+                          _vp = v?.toInt();
+                          _aiFilledFields.remove('vp');
+                        }),
+                  ),
+                  FocusTraversalOrder(
+                    order: const NumericFocusOrder(6),
+                    child: NumberField(
+                        label: 'AP',
+                        value: _ap,
+                        integer: true,
+                        suffix: _aiFilledFields.contains('ap')
+                            ? const Icon(Icons.auto_awesome,
+                                size: 14, color: Color(0xFFF59E0B))
+                            : null,
+                        onChanged: (v) {
+                          _ap = v?.toInt();
+                          _aiFilledFields.remove('ap');
+                        }),
+                  ),
                 ],
                 ),
               ),

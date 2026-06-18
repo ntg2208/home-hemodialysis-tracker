@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/theme.dart';
-import '../../../flavor.dart';
 import '../models.dart';
 
 class SessionListItem extends StatelessWidget {
-  const SessionListItem({super.key, required this.session, this.onExportPdf});
+  const SessionListItem({super.key, required this.session});
   final Session session;
-  final VoidCallback? onExportPdf;
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +23,6 @@ class SessionListItem extends StatelessWidget {
         : null;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: t.panel,
@@ -95,14 +92,6 @@ class SessionListItem extends StatelessWidget {
               const SizedBox(height: 2),
               Text(session.sessionId,
                   style: hdMono.copyWith(fontSize: 11, color: t.textMuted)),
-              if (kCommunity && onExportPdf != null) ...[
-                const SizedBox(height: 2),
-                InkWell(
-                  onTap: onExportPdf,
-                  child: Icon(Icons.ios_share,
-                      size: 16, color: t.textMuted),
-                ),
-              ],
             ],
           ),
         ],

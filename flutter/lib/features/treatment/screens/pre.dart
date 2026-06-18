@@ -175,9 +175,10 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
       title: 'Pre-treatment',
       showDrawer: false,
       leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: widget.onCancel,
-          tooltip: 'Cancel'),
+        icon: const Icon(Icons.close),
+        onPressed: widget.onCancel,
+        tooltip: 'Cancel',
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -196,107 +197,160 @@ class _PreTreatmentState extends ConsumerState<PreTreatment> {
             ),
           ),
           const SizedBox(height: 16),
-          // Weight + UF goal
-          Row(children: [
-            Expanded(
-              child: NumberField(
-                label: 'Weight (kg)',
-                value: _preWeight,
-                required: true,
-                suffix: _aiFilledFields.contains('weight')
-                    ? const Icon(Icons.auto_awesome, size: 14, color: Color(0xFFF59E0B))
-                    : null,
-                onChanged: (v) => setState(() {
-                  _preWeight = v;
-                  _aiFilledFields.remove('weight');
-                }),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: NumberField(
-                label: 'UF goal (L)',
-                value: _effectiveGoal,
-                required: true,
-                suffix: _aiFilledFields.contains('ufGoal')
-                    ? const Icon(Icons.auto_awesome, size: 14, color: Color(0xFFF59E0B))
-                    : !_goalTouched && _derivedGoal != null
+          FocusTraversalGroup(
+            policy: OrderedTraversalPolicy(),
+            child: Column(
+              children: [
+                // Weight + UF goal
+                Row(
+                  children: [
+                    Expanded(
+                      child: FocusTraversalOrder(
+                        order: const NumericFocusOrder(1),
+                        child: NumberField(
+                          label: 'Weight (kg)',
+                          value: _preWeight,
+                          required: true,
+                          suffix: _aiFilledFields.contains('weight')
+                              ? const Icon(
+                                  Icons.auto_awesome,
+                                  size: 14,
+                                  color: Color(0xFFF59E0B),
+                                )
+                              : null,
+                          onChanged: (v) => setState(() {
+                            _preWeight = v;
+                            _aiFilledFields.remove('weight');
+                          }),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FocusTraversalOrder(
+                        order: const NumericFocusOrder(2),
+                        child: NumberField(
+                          label: 'UF goal (L)',
+                          value: _effectiveGoal,
+                          required: true,
+                          suffix: _aiFilledFields.contains('ufGoal')
+                              ? const Icon(
+                                  Icons.auto_awesome,
+                                  size: 14,
+                                  color: Color(0xFFF59E0B),
+                                )
+                              : !_goalTouched && _derivedGoal != null
+                              ? const AutoBadge()
+                              : null,
+                          onChanged: (v) => setState(() {
+                            _goalTouched = v != null;
+                            _ufGoal = v;
+                            _aiFilledFields.remove('ufGoal');
+                          }),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // UF rate — full width
+                FocusTraversalOrder(
+                  order: const NumericFocusOrder(3),
+                  child: NumberField(
+                    label: 'UF rate (mL/h)',
+                    value: _effectiveRate,
+                    integer: true,
+                    suffix: _aiFilledFields.contains('ufRate')
+                        ? const Icon(
+                            Icons.auto_awesome,
+                            size: 14,
+                            color: Color(0xFFF59E0B),
+                          )
+                        : !_rateTouched && _derivedRate != null
                         ? const AutoBadge()
                         : null,
-                onChanged: (v) => setState(() {
-                  _goalTouched = v != null;
-                  _ufGoal = v;
-                  _aiFilledFields.remove('ufGoal');
-                }),
-              ),
+                    onChanged: (v) => setState(() {
+                      _rateTouched = v != null;
+                      _ufRate = v;
+                      _aiFilledFields.remove('ufRate');
+                    }),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // BP sys + BP dia
+                Row(
+                  children: [
+                    Expanded(
+                      child: FocusTraversalOrder(
+                        order: const NumericFocusOrder(4),
+                        child: NumberField(
+                          label: 'BP systolic',
+                          value: _bpSys,
+                          integer: true,
+                          required: true,
+                          suffix: _aiFilledFields.contains('bpSys')
+                              ? const Icon(
+                                  Icons.auto_awesome,
+                                  size: 14,
+                                  color: Color(0xFFF59E0B),
+                                )
+                              : null,
+                          onChanged: (v) => setState(() {
+                            _bpSys = v?.toInt();
+                            _aiFilledFields.remove('bpSys');
+                          }),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FocusTraversalOrder(
+                        order: const NumericFocusOrder(5),
+                        child: NumberField(
+                          label: 'BP diastolic',
+                          value: _bpDia,
+                          integer: true,
+                          required: true,
+                          suffix: _aiFilledFields.contains('bpDia')
+                              ? const Icon(
+                                  Icons.auto_awesome,
+                                  size: 14,
+                                  color: Color(0xFFF59E0B),
+                                )
+                              : null,
+                          onChanged: (v) => setState(() {
+                            _bpDia = v?.toInt();
+                            _aiFilledFields.remove('bpDia');
+                          }),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Pulse — full width, last numeric field → done action
+                FocusTraversalOrder(
+                  order: const NumericFocusOrder(6),
+                  child: NumberField(
+                    label: 'Pulse (bpm)',
+                    value: _pulse,
+                    integer: true,
+                    textInputAction: TextInputAction.done,
+                    suffix: _aiFilledFields.contains('pulse')
+                        ? const Icon(
+                            Icons.auto_awesome,
+                            size: 14,
+                            color: Color(0xFFF59E0B),
+                          )
+                        : null,
+                    onChanged: (v) => setState(() {
+                      _pulse = v?.toInt();
+                      _aiFilledFields.remove('pulse');
+                    }),
+                  ),
+                ),
+              ],
             ),
-          ]),
-          const SizedBox(height: 12),
-          // UF rate — full width
-          NumberField(
-            label: 'UF rate (mL/h)',
-            value: _effectiveRate,
-            integer: true,
-            suffix: _aiFilledFields.contains('ufRate')
-                ? const Icon(Icons.auto_awesome, size: 14, color: Color(0xFFF59E0B))
-                : !_rateTouched && _derivedRate != null
-                    ? const AutoBadge()
-                    : null,
-            onChanged: (v) => setState(() {
-              _rateTouched = v != null;
-              _ufRate = v;
-              _aiFilledFields.remove('ufRate');
-            }),
-          ),
-          const SizedBox(height: 12),
-          // BP sys + BP dia
-          Row(children: [
-            Expanded(
-              child: NumberField(
-                label: 'BP systolic',
-                value: _bpSys,
-                integer: true,
-                required: true,
-                suffix: _aiFilledFields.contains('bpSys')
-                    ? const Icon(Icons.auto_awesome, size: 14, color: Color(0xFFF59E0B))
-                    : null,
-                onChanged: (v) => setState(() {
-                  _bpSys = v?.toInt();
-                  _aiFilledFields.remove('bpSys');
-                }),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: NumberField(
-                label: 'BP diastolic',
-                value: _bpDia,
-                integer: true,
-                required: true,
-                suffix: _aiFilledFields.contains('bpDia')
-                    ? const Icon(Icons.auto_awesome, size: 14, color: Color(0xFFF59E0B))
-                    : null,
-                onChanged: (v) => setState(() {
-                  _bpDia = v?.toInt();
-                  _aiFilledFields.remove('bpDia');
-                }),
-              ),
-            ),
-          ]),
-          const SizedBox(height: 12),
-          // Pulse — full width, last numeric field → done action
-          NumberField(
-            label: 'Pulse (bpm)',
-            value: _pulse,
-            integer: true,
-            textInputAction: TextInputAction.done,
-            suffix: _aiFilledFields.contains('pulse')
-                ? const Icon(Icons.auto_awesome, size: 14, color: Color(0xFFF59E0B))
-                : null,
-            onChanged: (v) => setState(() {
-              _pulse = v?.toInt();
-              _aiFilledFields.remove('pulse');
-            }),
           ),
           const SizedBox(height: 20),
           // EPO toggle
@@ -367,34 +421,41 @@ class _MedToggle extends StatelessWidget {
         border: Border.all(color: t.border),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                Text(label,
-                    style: TextStyle(
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
                         fontWeight: FontWeight.w600,
-                        color: t.textPrimary)),
-                if (stock != null) ...[
-                  const SizedBox(width: 8),
-                  Text('$stock left',
-                      style: TextStyle(fontSize: 12, color: t.textMuted)),
-                ],
-              ]),
-              const SizedBox(height: 2),
-              Text(subtitle,
-                  style: TextStyle(fontSize: 12, color: t.textMuted)),
-            ],
+                        color: t.textPrimary,
+                      ),
+                    ),
+                    if (stock != null) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        '$stock left',
+                        style: TextStyle(fontSize: 12, color: t.textMuted),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(fontSize: 12, color: t.textMuted),
+                ),
+              ],
+            ),
           ),
-        ),
-        Switch(
-          value: used,
-          onChanged: onChanged,
-          activeThumbColor: t.accent,
-        ),
-      ]),
+          Switch(value: used, onChanged: onChanged, activeThumbColor: t.accent),
+        ],
+      ),
     );
   }
 }

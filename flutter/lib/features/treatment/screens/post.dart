@@ -165,7 +165,7 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
       if (mounted) setState(() => _saving = false);
     }
     if (saved) {
-      // Fire inventory deduction best-effort — don't block Finish.
+      // Fire inventory deduction — retry once, show message on failure.
       final deltas = <String, num>{
         ...sessionFixedDeltas,
         'P00012326': -widget.consumed.needles,
@@ -173,10 +173,34 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
         if (_heparinUsed) 'heparin': -1,
         if (_epoUsed) 'epo': -1,
       };
-      ref.read(inventoryApiProvider)
-          .logEvent('session', deltas, note: widget.session.sessionId)
-          .catchError((_) {});
+      _deductInventory(deltas);
       widget.onSaved();
+    }
+  }
+
+  Future<void> _deductInventory(Map<String, num> deltas) async {
+    try {
+      await ref
+          .read(inventoryApiProvider)
+          .logEvent('session', deltas, note: widget.session.sessionId);
+    } catch (e) {
+      // One retry after a short delay — transient network or cold start.
+      await Future.delayed(const Duration(seconds: 2));
+      try {
+        await ref
+            .read(inventoryApiProvider)
+            .logEvent('session', deltas, note: widget.session.sessionId);
+        return;
+      } catch (_) {}
+      // Both attempts failed — tell the user so they can fix inventory manually.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Inventory not updated — tap Inventory to fix manually.'),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
     }
   }
 
