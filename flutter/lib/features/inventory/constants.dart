@@ -1,4 +1,5 @@
 // Inventory item catalogue. Port of frontend/src/routes/Inventory/constants.ts.
+import 'rate_overrides.dart';
 
 class ItemDef {
   const ItemDef({
@@ -30,7 +31,7 @@ const items = <ItemDef>[
   ItemDef(code: 'UK00000880', label: 'Saline 1L', unit: 'bag', boxSize: 10, boxLabel: 'box', perSession: 1, targetQty: 24, section: 'nxstage', priority: 3),
   ItemDef(code: 'PAK-001', label: 'PAK', unit: 'unit', boxSize: 1, boxLabel: 'piece', perSession: null, targetQty: 3, section: 'nxstage', priority: 4),
   ItemDef(code: 'P00012326', label: 'Buttonhole Needles', unit: 'needle', boxSize: 50, boxLabel: 'box', perSession: null, targetQty: 48, section: 'nxstage', priority: 5),
-  ItemDef(code: 'UK00000774', label: 'On/Off Pack', unit: 'pack', boxSize: 60, boxLabel: 'box', perSession: null, targetQty: 24, section: 'nxstage', priority: 6),
+  ItemDef(code: 'UK00000774', label: 'On/Off Pack', unit: 'pack', boxSize: 60, boxLabel: 'box', perSession: 1, targetQty: 24, section: 'nxstage', priority: 6),
   ItemDef(code: 'F00010983', label: 'Chlorine Strips', unit: 'strip', boxSize: 100, boxLabel: 'pack', perSession: 1, targetQty: 24, section: 'nxstage', priority: 7),
   ItemDef(code: 'UK00000830', label: 'Sani-Cloth AF', unit: 'box', boxSize: 1, boxLabel: 'box', perSession: null, targetQty: 1, section: 'nxstage', priority: 8),
   ItemDef(code: '1990134', label: 'Spirigel Hand Gel', unit: 'unit', boxSize: 1, boxLabel: 'piece', perSession: null, targetQty: 1, section: 'nxstage', priority: 9),
@@ -46,4 +47,22 @@ ItemDef? getItem(String code) {
     if (i.code == code) return i;
   }
   return null;
+}
+
+ItemDef? resolveItem(String code, Map<String, RateOverride> rates) {
+  final base = getItem(code);
+  if (base == null) return null;
+  final o = rates[code];
+  if (o == null) return base;
+  return ItemDef(
+    code: base.code,
+    label: base.label,
+    unit: base.unit,
+    boxSize: base.boxSize,
+    boxLabel: base.boxLabel,
+    perSession: o.perSession ?? base.perSession,
+    targetQty: o.targetQty ?? base.targetQty,
+    section: base.section,
+    priority: base.priority,
+  );
 }
