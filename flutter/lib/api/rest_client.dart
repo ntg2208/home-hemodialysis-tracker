@@ -76,17 +76,33 @@ class RestClient {
     }
   }
 
-  /// POST/PUT/PATCH are not retried (no idempotency key → double-write risk).
+  /// POST/PUT/PATCH are retried once on transient network errors only (not
+  /// server errors) so we don't double-write on a partial success. Callers
+  /// that have server-side idempotency (e.g. inventory session events with
+  /// a session_id note) are safe; callers without MUST pass [retry: false].
   Future<Map<String, dynamic>> send(
-    String method,
-    String path, {
+    String method, String path, {
     Object? body,
-  }) {
-    return _once(() => _dio.request(
-          path,
-          data: body,
-          options: Options(method: method, headers: _headers),
-        ));
+    bool retry = true,
+  }) async {
+    Object? lastError;
+    for (var attempt = 0; attempt <= (retry ? 1 : 0); attempt++) {
+      try {
+        return await _once(() => _dio.request(
+              path,
+              data: body,
+              options: Options(method: method, headers: _headers),
+            ));
+      } on CloudRunError catch (e) {
+        lastError = e;
+        if (e.code != CloudErrorCode.network || attempt >= (retry ? 1 : 0)) {
+          rethrow;
+        }
+        await Future.delayed(const Duration(seconds: 2));
+      }
+    }
+    // ignore: only_rethrow_errors
+    throw lastError!;
   }
 
   Future<Map<String, dynamic>> _once(Future<Response> Function() run) async {

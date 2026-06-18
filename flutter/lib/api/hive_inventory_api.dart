@@ -90,8 +90,42 @@ class HiveInventoryApi extends InventoryApi {
   Future<void> applyDelivery({Map<String, int>? adjustments}) async {
     final cycleRaw =
         Map<String, dynamic>.from((_stock.get('cycle') as Map?) ?? {});
-    cycleRaw['delivery_applied_at'] = DateTime.now().toIso8601String();
+    final now = DateTime.now().toIso8601String();
+    cycleRaw['delivery_applied_at'] = now;
     await _stock.put('cycle', cycleRaw);
+
+    // Apply stock increments from the order (+ adjustments).
+    final baseOrder =
+        Map<String, int>.from((cycleRaw['order'] as Map?)?.map(
+              (k, v) => MapEntry(k as String, (v as num).toInt()),
+            ) ??
+            {});
+    final adj = adjustments ?? {};
+    final finalDelivery = <String, int>{};
+    for (final e in baseOrder.entries) {
+      finalDelivery[e.key] = e.value;
+    }
+    for (final e in adj.entries) {
+      finalDelivery[e.key] = e.value; // adjustment overrides order
+    }
+
+    final stock = Map<String, num>.from(
+        ((_stock.get('stock') as Map?) ?? {})
+            .map((k, v) => MapEntry(k as String, v as num)));
+    for (final e in finalDelivery.entries) {
+      stock[e.key] = (stock[e.key] ?? 0) + e.value;
+    }
+    await _stock.put('stock', stock);
+
+    // Log the delivery event.
+    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    await _events.put(id, {
+      'id': id,
+      'type': 'delivery',
+      'deltas': finalDelivery.map((k, v) => MapEntry(k, v)),
+      'note': 'delivery applied',
+      'created_at': now,
+    });
   }
 
   @override

@@ -17,21 +17,22 @@ class Cycle {
   bool get orderPlaced => orderPlacedAt != null;
 
   factory Cycle.fromJson(Map<String, dynamic> j) => Cycle(
-        callDate: j['call_date'] as String,
-        deliveryDate: j['delivery_date'] as String,
-        order: (j['order'] as Map?)
-            ?.map((k, v) => MapEntry(k as String, (v as num).toInt())),
-        orderPlacedAt: j['order_placed_at'] as String?,
-        deliveryAppliedAt: j['delivery_applied_at'] as String?,
-      );
+    callDate: j['call_date'] as String,
+    deliveryDate: j['delivery_date'] as String,
+    order: (j['order'] as Map?)?.map(
+      (k, v) => MapEntry(k as String, (v as num).toInt()),
+    ),
+    orderPlacedAt: j['order_placed_at'] as String?,
+    deliveryAppliedAt: j['delivery_applied_at'] as String?,
+  );
 
   Map<String, dynamic> toJson() => {
-        'call_date': callDate,
-        'delivery_date': deliveryDate,
-        if (order != null) 'order': order,
-        if (orderPlacedAt != null) 'order_placed_at': orderPlacedAt,
-        if (deliveryAppliedAt != null) 'delivery_applied_at': deliveryAppliedAt,
-      };
+    'call_date': callDate,
+    'delivery_date': deliveryDate,
+    if (order != null) 'order': order,
+    if (orderPlacedAt != null) 'order_placed_at': orderPlacedAt,
+    if (deliveryAppliedAt != null) 'delivery_applied_at': deliveryAppliedAt,
+  };
 }
 
 class DeliveryEvent {
@@ -41,12 +42,13 @@ class DeliveryEvent {
   final String? note;
 
   factory DeliveryEvent.fromJson(Map<String, dynamic> j) => DeliveryEvent(
-        j['timestamp'] as String,
-        (j['deltas'] as Map?)
-                ?.map((k, v) => MapEntry(k as String, (v as num).toInt())) ??
-            {},
-        j['note'] as String?,
-      );
+    j['timestamp'] as String,
+    (j['deltas'] as Map?)?.map(
+          (k, v) => MapEntry(k as String, (v as num).toInt()),
+        ) ??
+        {},
+    j['note'] as String?,
+  );
 }
 
 class InventoryResponse {
@@ -55,27 +57,39 @@ class InventoryResponse {
     required this.cycle,
     required this.pakInstalledAt,
     required this.pakSessions,
+    this.pakAvgSessions,
   });
   final Map<String, int> stock;
   final Cycle? cycle;
   final String? pakInstalledAt;
   final int pakSessions;
 
-  factory InventoryResponse.fromJson(Map<String, dynamic> j) => InventoryResponse(
-        stock: (j['stock'] as Map?)
-                ?.map((k, v) => MapEntry(k as String, (v as num).toInt())) ??
+  /// Average session count of the patient's last few replaced PAKs — the
+  /// expected lifetime, derived from their own history instead of a fixed
+  /// number (different patients, and even different PAKs, vary). Null when
+  /// there's no history yet; the UI falls back to a default in that case.
+  final double? pakAvgSessions;
+
+  factory InventoryResponse.fromJson(Map<String, dynamic> j) =>
+      InventoryResponse(
+        stock:
+            (j['stock'] as Map?)?.map(
+              (k, v) => MapEntry(k as String, (v as num).toInt()),
+            ) ??
             {},
         cycle: j['cycle'] == null
             ? null
             : Cycle.fromJson(Map<String, dynamic>.from(j['cycle'] as Map)),
         pakInstalledAt: j['pak_installed_at'] as String?,
         pakSessions: (j['pak_sessions'] as num?)?.toInt() ?? 0,
+        pakAvgSessions: (j['pak_avg_sessions'] as num?)?.toDouble(),
       );
 
   Map<String, dynamic> toJson() => {
-        'stock': stock,
-        'cycle': cycle?.toJson(),
-        'pak_installed_at': pakInstalledAt,
-        'pak_sessions': pakSessions,
-      };
+    'stock': stock,
+    'cycle': cycle?.toJson(),
+    'pak_installed_at': pakInstalledAt,
+    'pak_sessions': pakSessions,
+    'pak_avg_sessions': pakAvgSessions,
+  };
 }
