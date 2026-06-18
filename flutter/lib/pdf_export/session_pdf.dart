@@ -2,15 +2,18 @@ import 'dart:typed_data';
 import 'package:hive/hive.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 import '../app/providers.dart' show cacheBoxName;
 import '../features/treatment/models.dart';
+import '../flavor.dart';
 
-const _patientNameKey = 'community_patient_name';
+const _patientNameKey =
+    kCommunity ? 'community_patient_name' : 'patient_name';
 
-String _patientName() =>
+String patientDisplayName() =>
     Hive.box(cacheBoxName).get(_patientNameKey) as String? ?? 'Patient';
+
+String _patientName() => patientDisplayName();
 
 Future<Uint8List> buildSessionPdf(
     Session session, List<Reading> readings) async {
@@ -50,25 +53,10 @@ Future<Uint8List> buildSessionPdf(
         ]),
         pw.SizedBox(height: 12),
 
-        // Readings table
+        // During session averages
         _sectionHeader('During Session'),
         if (readings.isNotEmpty)
-          pw.TableHelper.fromTextArray(
-            headers: ['Time', 'BP', 'Pulse', 'BF', 'VP', 'AP', 'Note'],
-            data: readings.map((r) => [
-              r.time,
-              r.bpSys != null ? '${r.bpSys}/${r.bpDia}' : '-',
-              '${r.pulse ?? '-'}',
-              '${r.bloodFlow ?? '-'}',
-              '${r.venousPressure ?? '-'}',
-              '${r.arterialPressure ?? '-'}',
-              r.note ?? '',
-            ]).toList(),
-            cellStyle: const pw.TextStyle(fontSize: 9),
-            headerStyle: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
-            border: pw.TableBorder.all(color: PdfColors.grey300),
-            cellPadding: const pw.EdgeInsets.all(4),
-          )
+          _twoCol(_readingAverages(readings))
         else
           pw.Text('No readings recorded during this session.',
               style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey500)),
@@ -108,7 +96,7 @@ Future<Uint8List> buildSessionPdf(
 }
 
 Future<Uint8List> buildSummaryPdf(
-    List<Session> sessions, DateTime from, DateTime to) async {
+    List<Session> sessions, List<Reading> readings, DateTime from, DateTime to) async {
   final pdf = pw.Document();
   final name = _patientName();
 
@@ -119,41 +107,74 @@ Future<Uint8List> buildSummaryPdf(
     return d != null && !d.isBefore(from) && !d.isAfter(to);
   }).toList();
 
+  // Build a map of sessionId -> avg BP string from readings
+  final readingsBySession = <String, List<Reading>>{};
+  for (final r in readings) {
+    readingsBySession.putIfAbsent(r.sessionId, () => []).add(r);
+  }
+  String avgBp(String sessionId) {
+    final rs = readingsBySession[sessionId] ?? [];
+    final sysList = rs.map((r) => r.bpSys).whereType<int>().toList();
+    final diaList = rs.map((r) => r.bpDia).whereType<int>().toList();
+    if (sysList.isEmpty) return '-';
+    final avgSys = (sysList.reduce((a, b) => a + b) / sysList.length).round();
+    final avgDia = (diaList.reduce((a, b) => a + b) / diaList.length).round();
+    return '$avgSys/$avgDia';
+  }
+
   pdf.addPage(
     pw.MultiPage(
-      pageFormat: PdfPageFormat.a4,
-      margin: const pw.EdgeInsets.all(32),
+      pageFormat: PdfPageFormat.a4.landscape,
+      margin: const pw.EdgeInsets.symmetric(horizontal: 24, vertical: 28),
       build: (ctx) => [
         pw.Text('Home HD — Session Summary',
-            style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
-        pw.SizedBox(height: 4),
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 3),
         pw.Text('$name  ·  ${from.toIso8601String().substring(0, 10)} to ${to.toIso8601String().substring(0, 10)}',
-            style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+            style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600)),
         pw.Divider(),
-        pw.SizedBox(height: 8),
+        pw.SizedBox(height: 6),
         pw.TableHelper.fromTextArray(
-          headers: ['Date', 'Duration', 'Pre BP', 'Post BP', 'UF goal', 'UF actual', 'Note'],
+          headers: [
+            'Date',
+            'Pre wt', 'UF goal', 'UF rate',
+            'Pre BP sys', 'Pre BP dia', 'Pre pulse',
+            'Post wt', 'Post BP sys', 'Post BP dia', 'Post pulse',
+            'Avg BP',
+            'Duration', 'Dial vol', 'Total UF', 'Blood proc',
+          ],
           data: inRange.map((s) => [
             s.date,
-            s.durationMin != null ? '${s.durationMin} min' : '-',
-            s.preBpSys != null ? '${s.preBpSys}/${s.preBpDia}' : '-',
-            s.postBpSys != null ? '${s.postBpSys}/${s.postBpDia}' : '-',
-            s.ufGoal != null ? '${s.ufGoal} L' : '-',
-            s.totalUf != null ? '${s.totalUf} L' : '-',
-            (s.comment ?? '').length > 30
-                ? '${s.comment!.substring(0, 30)}...'
-                : (s.comment ?? ''),
+            s.preWeight != null ? '${s.preWeight}' : '-',
+            s.ufGoal != null ? '${s.ufGoal}' : '-',
+            s.ufRate != null ? '${s.ufRate}' : '-',
+            s.preBpSys != null ? '${s.preBpSys}' : '-',
+            s.preBpDia != null ? '${s.preBpDia}' : '-',
+            s.prePulse != null ? '${s.prePulse}' : '-',
+            s.postWeight != null ? '${s.postWeight}' : '-',
+            s.postBpSys != null ? '${s.postBpSys}' : '-',
+            s.postBpDia != null ? '${s.postBpDia}' : '-',
+            s.postPulse != null ? '${s.postPulse}' : '-',
+            avgBp(s.sessionId),
+            s.durationMin != null ? '${s.durationMin}' : '-',
+            s.dialysateVolume != null ? '${s.dialysateVolume}' : '-',
+            s.totalUf != null ? '${s.totalUf}' : '-',
+            s.bloodProcessed != null ? '${s.bloodProcessed}' : '-',
           ]).toList(),
-          cellStyle: const pw.TextStyle(fontSize: 8),
-          headerStyle: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
+          cellStyle: const pw.TextStyle(fontSize: 7),
+          headerStyle: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold),
           border: pw.TableBorder.all(color: PdfColors.grey300),
           cellPadding: const pw.EdgeInsets.all(3),
+          cellAlignments: {
+            for (var i = 0; i < 16; i++) i: pw.Alignment.center,
+            0: pw.Alignment.centerLeft,
+          },
         ),
-        pw.SizedBox(height: 24),
+        pw.SizedBox(height: 20),
         pw.Center(
           child: pw.Text(
             'Generated ${DateTime.now().toIso8601String().substring(0, 10)} · Home HD Tracker',
-            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey500),
+            style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey500),
           ),
         ),
       ],
@@ -171,6 +192,30 @@ pw.Widget _sectionHeader(String title) => pw.Padding(
           style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold,
               color: PdfColors.grey700)),
     );
+
+List<List<String>> _readingAverages(List<Reading> readings) {
+  int? _avg(int? Function(Reading) pick) {
+    final vals = readings.map(pick).whereType<int>().toList();
+    if (vals.isEmpty) return null;
+    return (vals.reduce((a, b) => a + b) / vals.length).round();
+  }
+
+  final avgSys  = _avg((r) => r.bpSys);
+  final avgDia  = _avg((r) => r.bpDia);
+  final avgPulse = _avg((r) => r.pulse);
+  final avgBf   = _avg((r) => r.bloodFlow);
+  final avgVp   = _avg((r) => r.venousPressure);
+  final avgAp   = _avg((r) => r.arterialPressure);
+
+  return [
+    ['Readings', '${readings.length}'],
+    ['Avg BP', avgSys != null ? '$avgSys/$avgDia mmHg' : '-'],
+    ['Avg pulse', avgPulse != null ? '$avgPulse bpm' : '-'],
+    ['Avg blood flow', avgBf != null ? '$avgBf mL/min' : '-'],
+    ['Avg VP', avgVp != null ? '$avgVp mmHg' : '-'],
+    ['Avg AP', avgAp != null ? '$avgAp mmHg' : '-'],
+  ];
+}
 
 pw.Widget _twoCol(List<List<String>> rows) {
   return pw.Wrap(
