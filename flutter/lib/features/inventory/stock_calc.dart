@@ -1,19 +1,16 @@
 import 'constants.dart';
 import 'rate_overrides.dart';
 
-const _redThreshold = 8;
-const _amberThreshold = 16;
+/// Port of frontend/src/routes/Inventory/lib/stockCalc.ts.
+
+const _redThreshold = 8; // < 2 weeks of sessions
+const _amberThreshold = 16; // < 4 weeks of sessions
 
 enum StockStatus { red, amber, green }
 
 int? sessionsRemaining(String code, int qty,
     {Map<String, RateOverride> rates = const {}}) {
-  // PAK: 1 per 10 sessions — overridable
-  if (code == 'PAK-001') {
-    final o = rates['PAK-001']?.perSession;
-    if (o != null && o > 0) return qty ~/ o;
-    return qty * 10;
-  }
+  if (code == 'PAK-001') return qty * 10;  // always hardcoded, no override
   // Needles: 2 per session — overridable
   if (code == 'P00012326') {
     final o = rates['P00012326']?.perSession;
@@ -61,12 +58,7 @@ bool needsOrdering(String code, int qty,
 
 int consumedUnits(String code, int sessionsTotal,
     {Map<String, RateOverride> rates = const {}}) {
-  // PAK: 1 per 10 sessions — overridable
-  if (code == 'PAK-001') {
-    final o = rates['PAK-001']?.perSession;
-    if (o != null && o > 0) return (sessionsTotal * o);
-    return (sessionsTotal / 10).ceil();
-  }
+  if (code == 'PAK-001') return (sessionsTotal / 10).ceil();  // always hardcoded, no override
   // Needles: 2 per session — overridable
   if (code == 'P00012326') {
     final o = rates['P00012326']?.perSession;

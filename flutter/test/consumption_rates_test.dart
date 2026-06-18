@@ -88,5 +88,25 @@ void main() {
       expect(needsOrdering('SAK-303', 25, rates: rates), isTrue);
       expect(needsOrdering('SAK-303', 25), isFalse); // default target=24
     });
+
+    test('PAK-001 perSession is not overridable — always uses 1/10 rate', () {
+      final rates = {'PAK-001': const RateOverride(perSession: 5)};
+      // Despite the override, rate stays 1/10: 20 sessions → 2 PAKs
+      expect(consumedUnits('PAK-001', 20, rates: rates), 2);
+      // sessionsRemaining: 2 PAKs → 20 sessions regardless of override
+      expect(sessionsRemaining('PAK-001', 2, rates: rates), 20);
+    });
+  });
+
+  group('On/Off Pack perSession fix', () {
+    test('sessionsRemaining uses perSession=1 for On/Off Pack', () {
+      expect(sessionsRemaining('UK00000774', 24), 24);
+      expect(sessionsRemaining('UK00000774', 8), 8);
+    });
+    test('stockStatus On/Off Pack at 8 units is amber (not green)', () {
+      expect(stockStatus('UK00000774', 8), StockStatus.amber);
+      expect(stockStatus('UK00000774', 16), StockStatus.green);
+      expect(stockStatus('UK00000774', 7), StockStatus.red);
+    });
   });
 }
