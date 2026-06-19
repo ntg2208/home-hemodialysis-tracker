@@ -8,6 +8,8 @@ import '../../flavor.dart';
 import '../treatment/models.dart';
 import '../treatment/providers.dart' show treatmentBoxName;
 import '../treatment/store.dart';
+import 'demo_reload_stub.dart'
+    if (dart.library.html) 'demo_reload_web.dart';
 
 const bool kDemoSeedEnabled = bool.fromEnvironment('DEMO_SEED');
 
@@ -17,6 +19,8 @@ Future<void> runDemoSeed() async {
   await _seedSessions();
   await _seedBloodTests();
   await _seedInventory();
+  // Reload so TreatmentFlow re-runs _bootstrap() and picks up the active state.
+  reloadPage();
 }
 
 // ── Clear ─────────────────────────────────────────────────────────────────────

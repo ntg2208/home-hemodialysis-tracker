@@ -9,7 +9,6 @@ import '../../app/shell.dart';
 import '../../app/theme.dart';
 import '../treatment/providers.dart' show treatmentStoreProvider;
 import '../blood_tests/csv_import.dart' show csvImportTemplate;
-import 'about_section.dart';
 import 'notification_settings_section.dart';
 import 'supply_rates_section.dart';
 import '../demo/demo_seed.dart' show kDemoSeedEnabled, runDemoSeed;
@@ -212,9 +211,6 @@ class _CommunitySettingsScreenState
           _section(t, 'NOTIFICATIONS'),
           const NotificationSettingsSection(),
           const SizedBox(height: 28),
-          _section(t, 'ABOUT'),
-          const AboutSection(),
-          const SizedBox(height: 28),
           _section(t, 'DATA'),
           OutlinedButton.icon(
             onPressed: _confirmClearAll,
@@ -229,13 +225,8 @@ class _CommunitySettingsScreenState
             const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: () async {
-                final messenger = ScaffoldMessenger.of(context);
                 await runDemoSeed();
-                if (!mounted) return;
-                messenger.showSnackBar(const SnackBar(
-                  content: Text('Demo data loaded — refresh the page to see the active session'),
-                  duration: Duration(seconds: 5),
-                ));
+                // Page reloads automatically via reloadPage() inside runDemoSeed.
               },
               icon: const Icon(Icons.science_outlined, size: 16),
               label: const Text('Load demo data'),
