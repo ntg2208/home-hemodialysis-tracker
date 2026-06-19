@@ -6,6 +6,7 @@ import 'package:hive/hive.dart';
 import '../../app/providers.dart' show cacheBoxName;
 import '../../flavor.dart';
 import '../treatment/models.dart';
+import '../treatment/providers.dart' show treatmentBoxName;
 import '../treatment/store.dart';
 
 const bool kDemoSeedEnabled = bool.fromEnvironment('DEMO_SEED');
@@ -32,6 +33,13 @@ Future<void> _clearAll() async {
   ]) {
     await Hive.box(n).clear();
   }
+  // Dry weight and active state live in the shared treatment box — delete
+  // just those keys so notification prefs etc. are untouched.
+  final tx = Hive.box(treatmentBoxName);
+  await tx.delete('dried_weight');
+  await tx.delete('active_state');
+  await tx.delete('sessions_cache');
+  await tx.delete('last_session');
   await Hive.box(cacheBoxName).delete('community_patient_name');
 }
 
@@ -39,7 +47,8 @@ Future<void> _clearAll() async {
 
 Future<void> _seedPatient() async {
   await Hive.box(cacheBoxName).put('community_patient_name', 'Alex');
-  await Hive.box(communitySessionsBox).put('dried_weight', 72.5);
+  // Dry weight lives in the treatment box (read by TreatmentStore).
+  await Hive.box(treatmentBoxName).put('dried_weight', 72.5);
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
@@ -48,14 +57,15 @@ Future<void> _seedSessions() async {
   final box = Hive.box(communitySessionsBox);
   final now = DateTime.now();
 
-  // 6 completed sessions, Mon/Thu cadence over the last 3 weeks
+  // 6 completed sessions stored individually by sessionId (HiveTreatmentRepo pattern).
   final offsets = [21, 18, 14, 11, 7, 4];
   final sessions = offsets.map((d) => _session(now.subtract(Duration(days: d)))).toList();
+  for (final s in sessions) {
+    await box.put(s.sessionId, s.toMap());
+  }
 
-  await box.put('sessions_cache', sessions.map((s) => s.toMap()).toList());
-  await box.put('last_session', sessions.last.toMap());
-
-  // Active session started 3h24m ago with 4 readings already logged
+  // Active session started 3h24m ago with 4 readings already logged.
+  // Active state lives in the shared treatment box (read by TreatmentStore).
   const activeId = 'demo-active';
   final startedAt = now.subtract(const Duration(hours: 3, minutes: 24));
   final activeSession = Session(
@@ -77,7 +87,7 @@ Future<void> _seedSessions() async {
     epoUsed: false,
     savedAt: now.millisecondsSinceEpoch,
   );
-  await box.put('active_state', activeState.toMap());
+  await Hive.box(treatmentBoxName).put('active_state', activeState.toMap());
 }
 
 Session _session(DateTime date) {
