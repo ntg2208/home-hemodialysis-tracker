@@ -965,3 +965,25 @@ Add a dated entry to the Obsidian vault note `Health & Home HD/Home HD - AI Comm
 - **Spec coverage:** embed-in-homehd-api ✓ (T6), `/api/mcp` inside bearer guard ✓ (T6 S4 + T6 test), stateless Streamable HTTP ✓ (T1 pinned, T5/T6 used), Tools-not-Resources ✓ (T5, four tools), extract-the-query refactor ✓ (T2/T3/T4), `get_sessions` new reader ✓ (T3), out-of-range helper ✓ (T2), KB excluded/forward-ref ✓ (no task, documented in spec), Firebase Hosting rewrite URL ✓ (T7), SDK-API spike ✓ (T1), tests for extracted reads + integration round-trip ✓ (T2/T3/T4 unit, T5 in-memory, T7 live).
 - **Placeholder scan:** none — every code step shows full code; the only deploy abstraction (Step 7 T7) defers to the repo's existing documented deploy command rather than inventing one.
 - **Type consistency:** `QueryParams` (`marker?: string[]`, `phase?: string[]`) is produced by `csv()` in T5 and consumed by `getBloodMarkers`/`filterRows` from T2 — aligned. `SessionParams`/`joinSessions`/`getSessions` names match across T3 and T5. `buildMcpServer` name matches across T5/T6. `selectOutOfRange`/`getOutOfRangeMarkers` match T2↔T5. `app` export in T6 matches the T6 route test import.
+
+## Update Log
+
+### 2026-06-19 — Task 1 spike: SDK + Hono bridge pinned
+
+- Installed `@modelcontextprotocol/sdk@1.29.0`. All planned v1.x subpaths resolve:
+  `server/mcp.js`, `server/streamableHttp.js`, `client/index.js`,
+  `client/streamableHttp.js`, `inMemory.js`. No switch to 2.x modular packages
+  needed.
+- **Plan correction:** `RESPONSE_ALREADY_SENT` is **not** a top-level export of
+  `@hono/node-server` (v1.19.14). Correct import is
+  `import { RESPONSE_ALREADY_SENT } from '@hono/node-server/utils/response';`.
+  Apply this in Task 6 `route.ts` (the plan body shows it from `@hono/node-server`).
+- Confirmed bridge: `c.env.incoming` (IncomingMessage) + `c.env.outgoing`
+  (ServerResponse) + `transport.handleRequest(incoming, outgoing, body)` +
+  `return RESPONSE_ALREADY_SENT`. Stateless transport
+  (`sessionIdGenerator: undefined`), fresh `McpServer` per request.
+- `registerTool(name, { description, inputSchema: <ZodRawShape> }, async (args) => ({ content: [{ type: 'text', text }] }))`
+  confirmed. Tool handler return shape `{ content: [{ type: 'text', text }] }` works.
+- Round-trip verified with an in-SDK `StreamableHTTPClientTransport` client (no
+  external inspector needed): `tools/list` → `['echo']`,
+  `tools/call echo {text}` → `[{"type":"text","text":"hi-from-spike"}]`.
