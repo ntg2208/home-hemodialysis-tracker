@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../mcp/mcp_auth.dart';
 import '../mcp/mcp_settings.dart';
 
 class McpSettingsSection extends ConsumerWidget {
@@ -23,7 +25,7 @@ class McpSettingsSection extends ConsumerWidget {
           onChanged: (v) =>
               ref.read(mcpServerEnabledProvider.notifier).set(v),
         ),
-        if (enabled)
+        if (enabled) ...[
           FutureBuilder<String>(
             future: mcpLanUrl(),
             builder: (context, snap) => ListTile(
@@ -35,6 +37,34 @@ class McpSettingsSection extends ConsumerWidget {
               ),
             ),
           ),
+          ref.watch(mcpBearerKeyProvider).when(
+            data: (key) => ListTile(
+              dense: true,
+              title: const Text('Bearer key'),
+              subtitle: Text(
+                '(only needed for public tunnels — not for same-WiFi or Tailscale)',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.color
+                        ?.withAlpha(0x99)),
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.copy, size: 18),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: key));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Bearer key copied')),
+                  );
+                },
+              ),
+            ),
+            error: (_, __) => const SizedBox.shrink(),
+            loading: () => const SizedBox.shrink(),
+          ),
+        ],
       ],
     );
   }
