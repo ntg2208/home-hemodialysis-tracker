@@ -232,8 +232,10 @@ class _CommunitySettingsScreenState
                 final messenger = ScaffoldMessenger.of(context);
                 await runDemoSeed();
                 if (!mounted) return;
-                messenger.showSnackBar(
-                    const SnackBar(content: Text('Demo data loaded')));
+                messenger.showSnackBar(const SnackBar(
+                  content: Text('Demo data loaded — refresh the page to see the active session'),
+                  duration: Duration(seconds: 5),
+                ));
               },
               icon: const Icon(Icons.science_outlined, size: 16),
               label: const Text('Load demo data'),
