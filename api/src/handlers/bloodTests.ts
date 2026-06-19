@@ -1,21 +1,8 @@
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
-import { filterRows, isValidBound, type QueryParams } from '../lib/queryFilter.js';
-import { mergeRows } from '../lib/mergeRows.js';
+import { isValidBound, type QueryParams } from '../lib/queryFilter.js';
 import { getDb } from '../lib/firestore.js';
-import {
-  PHASES,
-  BloodTestRowSchema,
-  PostBodySchema,
-  type BloodTestRow,
-} from '../schemas/bloodTests.js';
-
-const here = dirname(fileURLToPath(import.meta.url));
-const staticRows: BloodTestRow[] = JSON.parse(
-  readFileSync(resolve(here, '../data/blood_tests.json'), 'utf8'),
-);
+import { getBloodMarkers } from '../lib/reads/bloodTestReads.js';
+import { PHASES, PostBodySchema } from '../schemas/bloodTests.js';
 
 export const bloodTests = new Hono()
   .get('/', async (c) => {
@@ -45,17 +32,7 @@ export const bloodTests = new Hono()
       p.to = to;
     }
 
-    const snap = await getDb().collection('blood_tests').get();
-    const firestoreRows: BloodTestRow[] = snap.docs
-      .map((d) => BloodTestRowSchema.safeParse(d.data()))
-      .filter((r): r is { success: true; data: BloodTestRow } => {
-        if (!r.success) console.warn('bloodTests GET: Firestore doc failed validation', r.error.issues);
-        return r.success;
-      })
-      .map((r) => r.data);
-
-    const merged = mergeRows(staticRows, firestoreRows);
-    const result = filterRows(merged, p);
+    const result = await getBloodMarkers(p);
     return c.json({ count: result.length, rows: result });
   })
   .post('/', async (c) => {
