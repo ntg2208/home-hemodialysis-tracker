@@ -35,13 +35,20 @@ Future<String> mcpLanUrl() async {
   return 'http://localhost:8080/sse';
 }
 
-/// Watches the enabled flag and starts/stops the server.
-final mcpLifecycleProvider = Provider<void>((ref) {
-  final enabled = ref.watch(mcpServerEnabledProvider);
+/// Ensure the server follows the enabled flag. Call from a long-lived
+/// ConsumerWidget/ConsumerState build to keep the listener alive.
+void watchMcpLifecycle(WidgetRef ref) {
+  ref.listen(mcpServerEnabledProvider, (_, enabled) {
+    final server = ref.read(hdMcpServerProvider);
+    if (enabled) {
+      server.start();
+    } else {
+      server.stop();
+    }
+  });
+  // Also sync on first build (listen fires only on changes).
   final server = ref.read(hdMcpServerProvider);
-  if (enabled) {
+  if (ref.read(mcpServerEnabledProvider)) {
     server.start();
-  } else {
-    server.stop();
   }
-});
+}

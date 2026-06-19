@@ -7,36 +7,30 @@ import '../chat/command_validator.dart';
 import '../chat/screen_context.dart';
 
 /// Bridge: parse → validate against live TreatmentState → dispatch.
-/// Returns an MCP-shaped [CallToolResult] map with `content` and `isError`.
-/// Pure with respect to [ref]; unit-testable with a [ProviderContainer].
-Future<Map<String, dynamic>> handleToolCall(
+/// Returns an MCP [CallToolResult]. Pure with respect to [ref];
+/// unit-testable with a [ProviderContainer].
+Future<CallToolResult> handleToolCall(
     String name, Map<String, dynamic> args, Ref ref) async {
   final cmd = parseAppCommand(name, args);
   if (cmd == null) {
-    return {
-      'content': [
-        {'type': 'text', 'text': 'Unknown tool: $name'}
-      ],
-      'isError': true,
-    };
+    return CallToolResult(
+      content: [TextContent(text: 'Unknown tool: $name')],
+      isError: true,
+    );
   }
   final state = ref.read(screenContextProvider).treatmentState;
   final error = validateCommand(cmd, state);
   if (error != null) {
-    return {
-      'content': [
-        {'type': 'text', 'text': error}
-      ],
-      'isError': true,
-    };
+    return CallToolResult(
+      content: [TextContent(text: error)],
+      isError: true,
+    );
   }
   dispatchCommand(cmd, ref);
-  return {
-    'content': [
-      {'type': 'text', 'text': 'Done: $name'}
-    ],
-    'isError': false,
-  };
+  return CallToolResult(
+    content: [TextContent(text: 'Done: $name')],
+    isError: false,
+  );
 }
 
 /// Owns the embedded MCP server lifecycle. Provider-scoped so it holds a [Ref]
@@ -51,28 +45,34 @@ class HdMcpServer {
 
   Future<void> start() async {
     if (_server != null) return;
-    final server = Server(
-      name: 'HD Tracker',
-      version: '1.0.0',
-      capabilities: const ServerCapabilities(tools: ToolsCapability()),
-    );
-    for (final t in appToolSpecs) {
-      server.addTool(
-        name: t.name,
-        description: t.description,
-        inputSchema: t.inputSchema,
-        handler: (args) async => handleToolCall(t.name, args, ref),
+    try {
+      final server = Server(
+        name: 'HD Tracker',
+        version: '1.0.0',
+        capabilities: const ServerCapabilities(tools: ToolsCapability()),
       );
+      for (final t in appToolSpecs) {
+        server.addTool(
+          name: t.name,
+          description: t.description,
+          inputSchema: t.inputSchema,
+          handler: (args) async => handleToolCall(t.name, args, ref),
+        );
+      }
+      final transport = SseServerTransport(
+        endpoint: '/sse',
+        messagesEndpoint: '/messages',
+        host: '0.0.0.0',
+        port: 8080,
+      );
+      server.connect(transport);
+      _transport = transport;
+      _server = server;
+      print('MCP server started on :8080');
+    } catch (e, stack) {
+      print('MCP server start failed: $e\n$stack');
+      rethrow;
     }
-    final transport = SseServerTransport(
-      endpoint: '/sse',
-      messagesEndpoint: '/messages',
-      host: '0.0.0.0',
-      port: 8080,
-    );
-    server.connect(transport);
-    _transport = transport;
-    _server = server;
   }
 
   void stop() {
