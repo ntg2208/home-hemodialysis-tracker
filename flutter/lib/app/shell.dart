@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/mcp/mcp_settings.dart' show mcpLifecycleProvider;
 import '../flavor.dart';
 import 'providers.dart' show aiSettingsControllerProvider, testModeProvider;
 import '../features/chat/chat_sheet.dart';
@@ -76,6 +77,8 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Keep the MCP server lifecycle alive (no-op in community builds).
+    ref.watch(mcpLifecycleProvider);
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {

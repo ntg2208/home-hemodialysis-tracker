@@ -9,8 +9,10 @@ import '../../app/shell.dart';
 import '../../app/theme.dart';
 import '../../firebase/firebase_init.dart';
 import '../blood_tests/csv_import.dart' show csvImportTemplate;
+import 'mcp_settings_section.dart';
 import 'notification_settings_section.dart';
 import '../treatment/providers.dart' show treatmentStoreProvider;
+import '../../flavor.dart';
 
 const _patientNameKey = 'patient_name';
 
@@ -155,6 +157,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _section(t, 'NOTIFICATIONS'),
           const NotificationSettingsSection(),
           const SizedBox(height: 28),
+          if (!kCommunity) ...[
+            _section(t, 'MCP SERVER'),
+            const SizedBox(height: 8),
+            const McpSettingsSection(),
+            const SizedBox(height: 28),
+          ],
           _section(t, 'DEVELOPER'),
           const SizedBox(height: 8),
           const _TestModeSection(),
