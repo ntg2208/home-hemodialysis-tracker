@@ -298,26 +298,34 @@ AppCommand? parseAppCommand(String name, Map<String, dynamic> a) {
 
 - [ ] **Step 4: Refactor `gemini_client.dart` to use the registry**
 
-Replace the hand-written declarations list with a builder over `appToolSpecs`, and replace the `_parseCommand` switch with a delegation to `parseAppCommand`. Add `import 'app_tools.dart';`.
+`gemini_client.dart` has a `static const _oaiTools` of **10** declarations: the 7 command tools (`navigate_to` … `end_session`) **plus 3 retriever tools** (`get_blood_markers`, `get_sessions`, `get_out_of_range_markers`) that return data via `RetrieverTools` and are **not** `AppCommand`s. Only the **7 command tools** move to the registry; the retriever tools stay here. Add `import 'app_tools.dart';` and:
+
+1. Move the 3 retriever map literals **verbatim** out of `_oaiTools` into a new `static const _retrieverTools = [ … ]` (the three `{'type':'function','function':{'name':'get_…'}}` entries, unchanged).
+2. Replace `_oaiTools` with a builder that combines the command tools (from `appToolSpecs`) with the retriever tools. A collection-`for` can't appear in a `const` list, so change `static const _oaiTools` → `static final`:
 
 ```dart
-// Declarations builder (replaces the inline list ~lines 100-260):
-List<Map<String, dynamic>> _toolDeclarations() => [
-      for (final t in appToolSpecs)
-        {
-          'type': 'function',
-          'function': {
-            'name': t.name,
-            'description': t.description,
-            'parameters': t.inputSchema,
-          },
-        },
-    ];
+static final List<Map<String, dynamic>> _oaiTools = [
+  for (final t in appToolSpecs)
+    {
+      'type': 'function',
+      'function': {
+        'name': t.name,
+        'description': t.description,
+        'parameters': t.inputSchema,
+      },
+    },
+  ..._retrieverTools,
+];
+```
 
-// _parseCommand body (replaces the switch ~lines 660-710):
-AppCommand? _parseCommand(String name, Map<String, dynamic> args) =>
+3. Replace the `_parseCommand` switch body with a delegation — **keep its existing signature** (args are `Map<String, Object?>`, assignable to `parseAppCommand`'s `Map<String, dynamic>`):
+
+```dart
+AppCommand? _parseCommand(String name, Map<String, Object?> args) =>
     parseAppCommand(name, args);
 ```
+
+**Source of truth for the 7 command schemas = the existing `_oaiTools` entries, not the reconstructed schemas in Step 3.** Before finalizing `app_tools.dart`, diff each `inputSchema` against the live `parameters` map and make them byte-identical (exact `description` strings and any `'required'` arrays). The `gemini_responder` test exercises the full 10-tool payload and must stay green.
 
 - [ ] **Step 5: Run the new + existing chat tests to verify all pass**
 
