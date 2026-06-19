@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockSheetsUpdate, mockSheetsClear } = vi.hoisted(() => ({
+const { mockSheetsUpdate, mockSheetsClear, mockLimit } = vi.hoisted(() => ({
   mockSheetsUpdate: vi.fn().mockResolvedValue({ data: {} }),
   mockSheetsClear: vi.fn().mockResolvedValue({ data: {} }),
+  mockLimit: vi.fn(),
 }));
 
 vi.mock('googleapis', () => ({
@@ -52,6 +53,7 @@ vi.mock('@google-cloud/firestore', () => {
     Firestore: vi.fn().mockImplementation(() => ({
       collection: vi.fn().mockReturnValue({
         orderBy: vi.fn().mockReturnThis(),
+        limit: mockLimit.mockReturnThis(),
         get: vi.fn()
           .mockResolvedValueOnce({ docs: [{ data: () => mockSessionData }] })
           .mockResolvedValueOnce({ docs: [{ data: () => mockReadingData }] }),
@@ -139,6 +141,11 @@ describe('POST /api/treatment/sync-to-sheet', () => {
     expect(dataRow[4]).toBe('135/82');             // pre BP as "sys/dia"
     expect(dataRow[6]).toBe('19:15');             // reading time
     expect(dataRow[7]).toBe('128/78');            // reading BP
+  });
+
+  it('caps the sync at the 32 most recent sessions', async () => {
+    await makeApp().request('/api/treatment/sync-to-sheet', { method: 'POST' });
+    expect(mockLimit).toHaveBeenCalledWith(32);
   });
 
   it('returns 500 when TREATMENT_SHEET_ID is missing', async () => {

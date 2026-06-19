@@ -23,6 +23,11 @@ const READING_COLS = [
 type SessionDoc = Record<string, unknown>;
 type ReadingDoc = Record<string, unknown>;
 
+// Keep the clinical Google Sheet short and easy to scan: only sync the most
+// recent N sessions (~8 weeks at ~4 sessions/week). Older sessions stay in
+// Firestore; they just drop off the Sheet.
+const SHEET_SESSION_LIMIT = 32;
+
 function formatDuration(min: number): string {
   const h = Math.floor(min / 60);
   const m = min % 60;
@@ -86,12 +91,17 @@ export const treatment = new Hono()
     if (!sheetId) return c.json({ ok: false, error: 'TREATMENT_SHEET_ID not set' }, 500);
     try {
       const db = new Firestore();
-      const sessSnap = await db.collection('treatment_sessions').orderBy('date').get();
-      const sessions: SessionDoc[] = sessSnap.docs.map(d => d.data());
+      // Newest-first + limit to cap the Sheet, then restore chronological order.
+      const sessSnap = await db.collection('treatment_sessions')
+        .orderBy('date', 'desc').limit(SHEET_SESSION_LIMIT).get();
+      const sessions: SessionDoc[] = sessSnap.docs.map(d => d.data()).reverse();
+      const sessionIds = new Set(sessions.map(s => String(s['session_id'])));
       // Composite index on (session_id ASC, seq ASC) required in production.
       // Deploy via firestore.indexes.json or Firestore console before first use.
       const readSnap = await db.collection('treatment_readings').orderBy('session_id').orderBy('seq').get();
-      const readings: ReadingDoc[] = readSnap.docs.map(d => d.data());
+      const readings: ReadingDoc[] = readSnap.docs
+        .map(d => d.data())
+        .filter(r => sessionIds.has(String(r['session_id'])));
 
       const readingsBySession = new Map<string, ReadingDoc[]>();
       for (const r of readings) {
