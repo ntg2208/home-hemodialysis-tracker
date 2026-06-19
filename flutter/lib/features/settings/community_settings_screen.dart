@@ -8,11 +8,11 @@ import '../../app/providers.dart'
 import '../../app/shell.dart';
 import '../../app/theme.dart';
 import '../treatment/providers.dart' show treatmentStoreProvider;
-import '../treatment/store.dart';
 import '../blood_tests/csv_import.dart' show csvImportTemplate;
 import 'about_section.dart';
 import 'notification_settings_section.dart';
 import 'supply_rates_section.dart';
+import '../demo/demo_seed.dart' show kDemoSeedEnabled, runDemoSeed;
 
 // Stored in the cache box under a simple key.
 const _patientNameKey = 'community_patient_name';
@@ -225,6 +225,20 @@ class _CommunitySettingsScreenState
               side: BorderSide(color: t.danger),
             ),
           ),
+          if (kDemoSeedEnabled) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                await runDemoSeed();
+                if (!mounted) return;
+                messenger.showSnackBar(
+                    const SnackBar(content: Text('Demo data loaded')));
+              },
+              icon: const Icon(Icons.science_outlined, size: 16),
+              label: const Text('Load demo data'),
+            ),
+          ],
         ],
       ),
     );
