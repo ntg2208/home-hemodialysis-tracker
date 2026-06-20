@@ -3,7 +3,8 @@
 <!-- combined spec + implementation plan — PLAN ONLY, build deferred -->
 
 Date: 2026-06-20
-Status: spec approved → plan written; **implementation deferred** ("do later")
+Status: **IMPLEMENTED + backend live** (rev homehd-api-00040-mcq, 2026-06-20). Flutter
+app rebuild/deploy (web + APK) is the only remaining step to surface it in the deployed app.
 Related: `2026-05-27-fitness-gcs-ingest.md`, `2026-05-31-fitness-summary-screen.md`
 
 ## Summary
