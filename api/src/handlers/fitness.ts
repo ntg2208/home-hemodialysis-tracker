@@ -22,6 +22,15 @@ import {
   type SyncState,
 } from '../lib/gcs.js';
 import { buildSummary } from '../lib/fitnessSummary.js';
+import { buildSeries } from '../lib/fitnessSeries.js';
+import { buildSleep } from '../lib/fitnessSleep.js';
+
+// YYYY-MM-DD for `n` days before today (UTC).
+function daysAgoDate(n: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
+}
 
 function getOAuthConfig() {
   const clientId = process.env.HEALTH_OAUTH_CLIENT_ID;
@@ -196,6 +205,34 @@ export const fitness = new Hono()
       return c.json(summary);
     } catch (err) {
       console.error('Summary error:', err instanceof Error ? err.message : String(err));
+      return c.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, 500);
+    }
+  })
+  .get('/series', async (c) => {
+    const type = c.req.query('type');
+    if (!type || !SYNC_TYPES.includes(type as SyncType)) {
+      return c.json({ ok: false, error: `unknown or missing type: ${type ?? ''}` }, 400);
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const from = c.req.query('from') ?? daysAgoDate(30);
+    const to = c.req.query('to') ?? today;
+    try {
+      const series = await buildSeries({ listFiles, readJson }, { type, from, to });
+      return c.json(series);
+    } catch (err) {
+      console.error('Series error:', err instanceof Error ? err.message : String(err));
+      return c.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, 500);
+    }
+  })
+  .get('/sleep', async (c) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const from = c.req.query('from') ?? daysAgoDate(30);
+    const to = c.req.query('to') ?? today;
+    try {
+      const sleep = await buildSleep({ listFiles, readJson }, { from, to });
+      return c.json(sleep);
+    } catch (err) {
+      console.error('Sleep error:', err instanceof Error ? err.message : String(err));
       return c.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, 500);
     }
   })
