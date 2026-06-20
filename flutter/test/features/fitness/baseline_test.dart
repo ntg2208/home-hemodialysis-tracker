@@ -15,6 +15,17 @@ void main() {
     test('steady when baseline is zero', () => expect(arrow(5, 0), Trend.steady));
   });
 
+  group('trailingBaseline', () {
+    test('null when fewer than 2 points', () => expect(trailingBaseline([5]), isNull));
+    test('median of priors (excludes the last value)', () {
+      expect(trailingBaseline([40, 42, 44, 50]), 42); // priors [40,42,44]
+    });
+    test('uses only the trailing `window` priors', () {
+      final values = <double>[999, 40, 40, 40, 40, 40, 40, 40, 41];
+      expect(trailingBaseline(values, window: 7), 40); // old outlier excluded
+    });
+  });
+
   group('trendFromSeries', () {
     test('null when fewer than 2 points', () => expect(trendFromSeries([42]), isNull));
     test('compares last value to median of prior window', () {

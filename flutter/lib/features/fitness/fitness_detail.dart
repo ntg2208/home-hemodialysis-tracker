@@ -106,9 +106,9 @@ class _TrendDetailScreenState extends ConsumerState<TrendDetailScreen> {
           }
           final values = series.points.map((p) => p.value).toList();
           final latest = values.last;
-          final base = median(values.sublist(0, values.length - 1).isEmpty
-              ? values
-              : values.sublist(0, values.length - 1));
+          // Same trailing-window baseline the arrow uses, so the dashed line,
+          // the "7-day median" label, and the arrow are always consistent.
+          final base = trailingBaseline(values);
           final trend = trendFromSeries(values);
           return ListView(
             padding: const EdgeInsets.all(16),
