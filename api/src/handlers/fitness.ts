@@ -25,6 +25,14 @@ import { buildSummary } from '../lib/fitnessSummary.js';
 import { buildSeries } from '../lib/fitnessSeries.js';
 import { buildSleep } from '../lib/fitnessSleep.js';
 
+/** Resolve the sync end date: a valid YYYY-MM-DD `to` param on/before
+ * yesterday, else yesterday. Lets a caller backfill one day at a time
+ * (?to=YYYY-MM-DD) instead of pulling the whole cursor→yesterday span. */
+export function clampSyncEnd(to: string | undefined, yesterday: string): string {
+  if (!to || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return yesterday;
+  return to <= yesterday ? to : yesterday;
+}
+
 // YYYY-MM-DD for `n` days before today (UTC).
 function daysAgoDate(n: number): string {
   const d = new Date();
@@ -260,7 +268,7 @@ export const fitness = new Hono()
           fetchList: ({ dataType, filterField, filterDateField, startDate, endDate }) =>
             fetchListAll({ accessToken, dataType, filterField, filterDateField, startDate, endDate }),
         },
-        { backfillDays, lastInclusiveDate: yesterday(), onlyType }
+        { backfillDays, lastInclusiveDate: clampSyncEnd(c.req.query('to'), yesterday()), onlyType }
       );
 
       const anyError = Object.values(summary).some((r) => r.status === 'error');

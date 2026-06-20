@@ -1,6 +1,22 @@
 import { describe, it, expect, vi } from 'vitest';
-import { runSync, type SyncDeps } from './fitness.js';
+import { runSync, clampSyncEnd, type SyncDeps } from './fitness.js';
 import { SYNC_TYPES } from '../lib/googleHealth.js';
+
+describe('clampSyncEnd', () => {
+  const yest = '2026-06-19';
+  it('defaults to yesterday when no/invalid param', () => {
+    expect(clampSyncEnd(undefined, yest)).toBe(yest);
+    expect(clampSyncEnd('garbage', yest)).toBe(yest);
+    expect(clampSyncEnd('2026-6-1', yest)).toBe(yest);
+  });
+  it('uses a valid date that is on/before yesterday', () => {
+    expect(clampSyncEnd('2026-06-04', yest)).toBe('2026-06-04');
+    expect(clampSyncEnd('2026-06-19', yest)).toBe('2026-06-19');
+  });
+  it('clamps a future date to yesterday', () => {
+    expect(clampSyncEnd('2026-06-25', yest)).toBe(yest);
+  });
+});
 
 // Build a set of fake deps. `failOn` names data types whose fetch should throw.
 function makeDeps(failOn: string[] = []): { deps: SyncDeps; states: Array<Record<string, string>>; uploads: string[] } {
