@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { FieldValue } from '@google-cloud/firestore';
 import { getDb } from '../lib/firestore.js';
-import { getInventory } from '../lib/reads/inventoryReads.js';
+import { getInventory, getDeliveries } from '../lib/reads/inventoryReads.js';
 import {
   EventBodySchema,
   ConfirmOrderBodySchema,
@@ -164,13 +164,7 @@ export const inventory = new Hono()
   })
 
   .get('/deliveries', async (c) => {
-    const snap = await getDb().collection('inventory_events')
-      .where('type', '==', 'delivery')
-      .get();
-    const deliveries = snap.docs
-      .map(d => d.data() as { timestamp: string; deltas: Record<string, number>; note?: string })
-      .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-    return c.json({ deliveries });
+    return c.json({ deliveries: await getDeliveries() });
   })
 
   .put('/stock', async (c) => {
