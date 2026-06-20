@@ -94,6 +94,95 @@ class FitnessSummary {
   bool get hasData => types.any((t) => (t.count ?? 0) > 0);
 }
 
+/// One point of a daily metric series (GET /api/fitness/series).
+class SeriesPoint {
+  const SeriesPoint(this.date, this.value);
+  final String date;
+  final double value;
+
+  factory SeriesPoint.fromJson(Map<String, dynamic> j) =>
+      SeriesPoint((j['date'] ?? '') as String, ((j['value'] as num?) ?? 0).toDouble());
+}
+
+class FitnessSeries {
+  const FitnessSeries(this.type, this.points);
+  final String type;
+  final List<SeriesPoint> points;
+
+  factory FitnessSeries.fromJson(Map<String, dynamic> j) => FitnessSeries(
+        (j['type'] ?? '') as String,
+        ((j['points'] as List?) ?? [])
+            .map((e) => SeriesPoint.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+      );
+}
+
+/// A stage total (e.g. DEEP 70m) within a night.
+class SleepStage {
+  const SleepStage(this.type, this.minutes);
+  final String type;
+  final int minutes;
+
+  factory SleepStage.fromJson(Map<String, dynamic> j) =>
+      SleepStage((j['type'] ?? '') as String, (j['minutes'] as num?)?.toInt() ?? 0);
+}
+
+/// One hypnogram segment (a contiguous run of a single stage).
+class HypnogramSegment {
+  const HypnogramSegment(this.type, this.start, this.end);
+  final String type;
+  final String start;
+  final String end;
+
+  factory HypnogramSegment.fromJson(Map<String, dynamic> j) => HypnogramSegment(
+        (j['type'] ?? '') as String,
+        (j['start'] ?? '') as String,
+        (j['end'] ?? '') as String,
+      );
+}
+
+class SleepNight {
+  const SleepNight({
+    required this.date,
+    required this.minutesAsleep,
+    required this.minutesAwake,
+    required this.hasStages,
+    required this.stages,
+    required this.hypnogram,
+  });
+
+  final String date;
+  final int? minutesAsleep;
+  final int? minutesAwake;
+  final bool hasStages;
+  final List<SleepStage> stages;
+  final List<HypnogramSegment> hypnogram;
+
+  factory SleepNight.fromJson(Map<String, dynamic> j) => SleepNight(
+        date: (j['date'] ?? '') as String,
+        minutesAsleep: (j['minutesAsleep'] as num?)?.toInt(),
+        minutesAwake: (j['minutesAwake'] as num?)?.toInt(),
+        hasStages: j['hasStages'] as bool? ?? false,
+        stages: ((j['stages'] as List?) ?? [])
+            .map((e) => SleepStage.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+        hypnogram: ((j['hypnogram'] as List?) ?? [])
+            .map((e) => HypnogramSegment.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+      );
+}
+
+class FitnessSleep {
+  const FitnessSleep(this.nights);
+  final List<SleepNight> nights;
+
+  factory FitnessSleep.fromJson(Map<String, dynamic> j) => FitnessSleep(
+        ((j['nights'] as List?) ?? [])
+            .map((e) => SleepNight.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+      );
+}
+
 class FitnessApi {
   FitnessApi(this._rest);
   final RestClient _rest;
@@ -101,6 +190,18 @@ class FitnessApi {
   Future<FitnessSummary> fetchSummary() async {
     final data = await _rest.get('/api/fitness/summary');
     return FitnessSummary.fromJson(data);
+  }
+
+  /// Daily series for one metric type (defaults to the last 30 days server-side).
+  Future<FitnessSeries> fetchSeries(String type) async {
+    final data = await _rest.get('/api/fitness/series', query: {'type': type});
+    return FitnessSeries.fromJson(data);
+  }
+
+  /// Per-night sleep detail (defaults to the last 30 nights server-side).
+  Future<FitnessSleep> fetchSleep() async {
+    final data = await _rest.get('/api/fitness/sleep');
+    return FitnessSleep.fromJson(data);
   }
 
   /// Returns the per-type sync result map; caller surfaces any errors.

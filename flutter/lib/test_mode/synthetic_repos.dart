@@ -151,6 +151,51 @@ class SyntheticFitnessApi extends FitnessApi {
 
   @override
   Future<Map<String, dynamic>> sync() async => {};
+
+  @override
+  Future<FitnessSeries> fetchSeries(String type) async {
+    final today = DateTime.now();
+    final points = List.generate(14, (i) {
+      final d = today.subtract(Duration(days: 13 - i));
+      final date = d.toIso8601String().substring(0, 10);
+      final base = type == 'daily-heart-rate-variability'
+          ? 44.0
+          : type == 'daily-resting-heart-rate'
+              ? 58.0
+              : 14.0;
+      return SeriesPoint(date, base + (i % 5) - 2);
+    });
+    return FitnessSeries(type, points);
+  }
+
+  @override
+  Future<FitnessSleep> fetchSleep() async {
+    final today = DateTime.now();
+    final nights = List.generate(7, (i) {
+      final d = today.subtract(Duration(days: i));
+      final date = d.toIso8601String().substring(0, 10);
+      return SleepNight(
+        date: date,
+        minutesAsleep: 420 + (i % 4) * 15,
+        minutesAwake: 18,
+        hasStages: true,
+        stages: const [
+          SleepStage('AWAKE', 18),
+          SleepStage('DEEP', 70),
+          SleepStage('LIGHT', 300),
+          SleepStage('REM', 92),
+        ],
+        hypnogram: [
+          HypnogramSegment('AWAKE', '${date}T00:09:00Z', '${date}T00:18:00Z'),
+          HypnogramSegment('LIGHT', '${date}T00:18:00Z', '${date}T02:00:00Z'),
+          HypnogramSegment('DEEP', '${date}T02:00:00Z', '${date}T03:10:00Z'),
+          HypnogramSegment('REM', '${date}T03:10:00Z', '${date}T04:42:00Z'),
+          HypnogramSegment('LIGHT', '${date}T04:42:00Z', '${date}T08:09:00Z'),
+        ],
+      );
+    });
+    return FitnessSleep(nights);
+  }
 }
 
 // ── CacheStore ────────────────────────────────────────────────────────────────
