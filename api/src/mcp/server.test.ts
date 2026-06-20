@@ -17,6 +17,7 @@ vi.mock('../lib/reads/inventoryReads.js', async () => {
       stock: { 'CAR-172-C': 4 }, cycle: null,
       pak_installed_at: null, pak_sessions: 0, pak_avg_sessions: null,
     })),
+    getRates: vi.fn(async () => ({})),
     getOrders: vi.fn(async () => ({
       current_order: null,
       history: [{ date: '2026-05-25T10:00:00Z', note: 'delivery applied', items: [] }],

@@ -47,24 +47,57 @@ const AMBER_THRESHOLD = 16; // < ~4 weeks of sessions
 
 export type StockStatus = 'red' | 'amber' | 'green';
 
+/** Per-item rate override (mirror of Flutter RateOverride). A field left
+ * null/absent falls back to the catalogue default. */
+export interface RateOverride {
+  perSession?: number | null;
+  targetQty?: number | null;
+}
+export type RateOverrides = Record<string, RateOverride>;
+
+/** Catalogue item with any override applied (port of resolveItem in
+ * stock_calc.dart). boxSize/section/priority are never overridable. */
+export function resolveItem(code: string, rates: RateOverrides = {}): ItemDef | undefined {
+  const base = getItem(code);
+  if (!base) return undefined;
+  const o = rates[code];
+  if (!o) return base;
+  return {
+    ...base,
+    perSession: o.perSession ?? base.perSession,
+    targetQty: o.targetQty ?? base.targetQty,
+  };
+}
+
+/** Effective target quantity after overrides. */
+export function effectiveTargetQty(code: string, rates: RateOverrides = {}): number | null {
+  return resolveItem(code, rates)?.targetQty ?? null;
+}
+
 /**
  * Effective per-session rate used by the supply math, including the special
  * cases not expressed by `ItemDef.perSession`. Null = no session-based rate
  * (hospital items, sundries). Reported in `get_inventory` so clients can
  * reconcile `sessions_remaining`.
  */
-export function effectivePerSession(code: string): number | null {
-  if (code === 'P00012326') return 2; // needles: 2 per session
-  const item = getItem(code);
+export function effectivePerSession(code: string, rates: RateOverrides = {}): number | null {
+  if (code === 'P00012326') {
+    const o = rates['P00012326']?.perSession;
+    return o != null && o > 0 ? o : 2; // needles: 2 per session, overridable
+  }
+  const item = resolveItem(code, rates);
   if (!item || item.section === 'hospital') return null;
   return item.perSession;
 }
 
 /** Sessions of supply remaining, or null for hospital/unknown/no-rate items. */
-export function sessionsRemaining(code: string, qty: number): number | null {
-  if (code === 'PAK-001') return qty * 10; // a PAK lasts ~10 sessions
-  if (code === 'P00012326') return Math.floor(qty / 2); // needles: 2 per session
-  const item = getItem(code);
+export function sessionsRemaining(code: string, qty: number, rates: RateOverrides = {}): number | null {
+  if (code === 'PAK-001') return qty * 10; // a PAK lasts ~10 sessions (not overridable)
+  if (code === 'P00012326') {
+    const o = rates['P00012326']?.perSession;
+    return Math.floor(qty / (o != null && o > 0 ? o : 2)); // needles
+  }
+  const item = resolveItem(code, rates);
   if (!item || item.section === 'hospital') return null;
   if (item.perSession != null && item.perSession > 0) {
     return Math.floor(qty / item.perSession);
@@ -72,8 +105,8 @@ export function sessionsRemaining(code: string, qty: number): number | null {
   return null;
 }
 
-export function stockStatus(code: string, qty: number): StockStatus {
-  const item = getItem(code);
+export function stockStatus(code: string, qty: number, rates: RateOverrides = {}): StockStatus {
+  const item = resolveItem(code, rates);
   if (!item) return qty > 0 ? 'green' : 'red';
 
   if (item.section === 'hospital') {
@@ -82,7 +115,7 @@ export function stockStatus(code: string, qty: number): StockStatus {
     return 'green';
   }
 
-  const sr = sessionsRemaining(code, qty);
+  const sr = sessionsRemaining(code, qty, rates);
   if (sr == null) {
     return qty <= 0 ? 'red' : qty <= 1 ? 'amber' : 'green';
   }
@@ -92,10 +125,13 @@ export function stockStatus(code: string, qty: number): StockStatus {
 }
 
 /** Units consumed over `sessions` sessions (inverse of sessionsRemaining). */
-export function consumedUnits(code: string, sessions: number): number {
+export function consumedUnits(code: string, sessions: number, rates: RateOverrides = {}): number {
   if (code === 'PAK-001') return Math.ceil(sessions / 10);
-  if (code === 'P00012326') return sessions * 2;
-  const item = getItem(code);
+  if (code === 'P00012326') {
+    const o = rates['P00012326']?.perSession;
+    return sessions * (o != null && o > 0 ? o : 2); // needles
+  }
+  const item = resolveItem(code, rates);
   if (!item || item.perSession == null || item.perSession <= 0) return 0;
   return sessions * item.perSession;
 }

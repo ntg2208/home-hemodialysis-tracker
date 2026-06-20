@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { getBloodMarkers, getOutOfRangeMarkers } from '../lib/reads/bloodTestReads.js';
 import { getSessions } from '../lib/reads/sessionReads.js';
-import { getInventory, getOrders, enrichStock } from '../lib/reads/inventoryReads.js';
+import { getInventory, getOrders, getRates, enrichStock } from '../lib/reads/inventoryReads.js';
 import type { QueryParams } from '../lib/queryFilter.js';
 
 const csv = (s?: string): string[] | undefined =>
@@ -34,7 +34,7 @@ const MARKER_GLOSSARY = [
 const INSTRUCTIONS = [
   'Read-only access to a home-haemodialysis patient\'s treatment, blood-test, inventory and order data.',
   '',
-  'Inventory & supply math (get_inventory): each item carries unit, box_size, per_session (effective per-session use), target_qty, and server-computed sessions_remaining + status. A typical session consumes 1 SAK dialysate, 1 cartridge, 1 saline, 1 on/off pack, 1 chlorine strip, and 2 needles; a PAK lasts ~10 sessions. status is red when sessions_remaining < 8 (~2 weeks), amber < 16 (~4 weeks), green otherwise (assuming ~4 sessions/week). Hospital items (heparin, EPO) have no per-session rate; their status is quantity-based. Rates are the standard defaults — if the patient customised supply rates in the app those live on-device and are not reflected here.',
+  'Inventory & supply math (get_inventory): each item carries unit, box_size, per_session (effective per-session use), target_qty, and server-computed sessions_remaining + status. A typical session consumes 1 SAK dialysate, 1 cartridge, 1 saline, 1 on/off pack, 1 chlorine strip, and 2 needles; a PAK lasts ~10 sessions. status is red when sessions_remaining < 8 (~2 weeks), amber < 16 (~4 weeks), green otherwise (assuming ~4 sessions/week). Hospital items (heparin, EPO) have no per-session rate; their status is quantity-based. The per_session and target_qty shown reflect the patient\'s configured supply rates (their personal overrides where set, otherwise standard defaults).',
   '',
   'Orders (get_orders): history lists fulfilled deliveries (newest first); current_order is the single open order for the active cycle (null if none placed). Quantities include a box count.',
   '',
@@ -92,9 +92,9 @@ export function buildMcpServer(): McpServer {
       inputSchema: {},
     },
     async () => {
-      const inv = await getInventory();
+      const [inv, rates] = await Promise.all([getInventory(), getRates()]);
       return json({
-        items: enrichStock(inv.stock),
+        items: enrichStock(inv.stock, rates),
         cycle: inv.cycle,
         pak_installed_at: inv.pak_installed_at,
         pak_sessions: inv.pak_sessions,

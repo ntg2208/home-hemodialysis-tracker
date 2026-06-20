@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   items,
   getItem,
+  resolveItem,
   effectivePerSession,
+  effectiveTargetQty,
   sessionsRemaining,
   stockStatus,
   consumedUnits,
@@ -95,5 +97,36 @@ describe('boxesFor', () => {
     expect(boxesFor('CAR-172-C', 24)).toBe(4); // box size 6
     expect(boxesFor('P00012326', 50)).toBe(1); // box size 50
     expect(boxesFor('UNKNOWN', 3)).toBe(3); // size 1 fallback
+  });
+});
+
+describe('rate overrides', () => {
+  const rates = {
+    'CAR-172-C': { perSession: 2, targetQty: 30 },
+    'P00012326': { perSession: 3 }, // needles override
+  };
+
+  it('resolveItem applies perSession + targetQty, keeps boxSize/section', () => {
+    expect(resolveItem('CAR-172-C', rates)).toMatchObject({
+      perSession: 2, targetQty: 30, boxSize: 6, section: 'nxstage',
+    });
+    expect(resolveItem('SAK-303', rates)).toMatchObject({ perSession: 1, targetQty: 24 }); // no override
+  });
+
+  it('effectivePerSession / effectiveTargetQty reflect overrides', () => {
+    expect(effectivePerSession('CAR-172-C', rates)).toBe(2);
+    expect(effectivePerSession('P00012326', rates)).toBe(3); // needles override
+    expect(effectivePerSession('P00012326', {})).toBe(2); // default
+    expect(effectiveTargetQty('CAR-172-C', rates)).toBe(30);
+    expect(effectiveTargetQty('SAK-303', rates)).toBe(24);
+  });
+
+  it('supply math uses overrides', () => {
+    expect(sessionsRemaining('CAR-172-C', 24, rates)).toBe(12); // 24 / 2
+    expect(sessionsRemaining('P00012326', 30, rates)).toBe(10); // 30 / 3
+    expect(consumedUnits('CAR-172-C', 10, rates)).toBe(20); // 10 * 2
+    // 24 cartridges at rate 2 = 12 sessions → amber (was green at default rate 1)
+    expect(stockStatus('CAR-172-C', 24, rates)).toBe('amber');
+    expect(stockStatus('CAR-172-C', 24, {})).toBe('green');
   });
 });

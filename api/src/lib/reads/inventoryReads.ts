@@ -2,10 +2,12 @@ import { getDb } from '../firestore.js';
 import {
   getItem,
   effectivePerSession,
+  effectiveTargetQty,
   sessionsRemaining,
   stockStatus,
   boxesFor,
   type StockStatus,
+  type RateOverrides,
 } from '../inventoryCatalogue.js';
 
 export interface EnrichedItem {
@@ -26,9 +28,13 @@ const sectionRank = (s: string | null): number =>
   s === 'nxstage' ? 0 : s === 'hospital' ? 1 : 2;
 
 /** Pure: enrich a raw `{ code: qty }` stock map with catalogue metadata and
- * server-computed supply math. Unknown codes pass through with null metadata
- * and qty-based status. Sorted nxstage → hospital → unknown, then by priority. */
-export function enrichStock(stock: Record<string, number>): EnrichedItem[] {
+ * server-computed supply math. `rates` applies the patient's per-item
+ * overrides (per-session / target). Unknown codes pass through with null
+ * metadata and qty-based status. Sorted nxstage → hospital → unknown, by priority. */
+export function enrichStock(
+  stock: Record<string, number>,
+  rates: RateOverrides = {},
+): EnrichedItem[] {
   return Object.entries(stock)
     .map(([code, qty]): EnrichedItem => {
       const item = getItem(code);
@@ -39,11 +45,11 @@ export function enrichStock(stock: Record<string, number>): EnrichedItem[] {
         unit: item?.unit ?? null,
         box_size: item?.boxSize ?? null,
         box_label: item?.boxLabel ?? null,
-        per_session: effectivePerSession(code),
-        target_qty: item?.targetQty ?? null,
+        per_session: effectivePerSession(code, rates),
+        target_qty: effectiveTargetQty(code, rates),
         section: item?.section ?? null,
-        sessions_remaining: sessionsRemaining(code, qty),
-        status: stockStatus(code, qty),
+        sessions_remaining: sessionsRemaining(code, qty, rates),
+        status: stockStatus(code, qty, rates),
       };
     })
     .sort((a, b) => {
@@ -189,6 +195,16 @@ export async function getDeliveries(
   if (range.from) rows = rows.filter((r) => r.timestamp.slice(0, 10) >= range.from!);
   if (range.to) rows = rows.filter((r) => r.timestamp.slice(0, 10) <= range.to!);
   return rows.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+}
+
+/** Patient supply-rate overrides from `inventory_config/rates` (doc field
+ * `overrides`: { code: { perSession?, targetQty? } }). Empty when unset —
+ * the catalogue defaults then apply. */
+export async function getRates(): Promise<RateOverrides> {
+  const doc = await getDb().collection('inventory_config').doc('rates').get();
+  if (!doc.exists) return {};
+  const data = doc.data() as { overrides?: RateOverrides } | undefined;
+  return data?.overrides ?? {};
 }
 
 /** Recent orders: the current open order (from the cycle doc) plus delivery

@@ -45,6 +45,14 @@ describe('enrichStock', () => {
     const [u] = enrichStock({ ZZZ: 0 });
     expect(u).toMatchObject({ code: 'ZZZ', label: null, per_session: null, sessions_remaining: null, status: 'red' });
   });
+
+  it('applies rate overrides to per_session, target, sessions_remaining, status', () => {
+    const rates = { 'CAR-172-C': { perSession: 2, targetQty: 30 } };
+    const [car] = enrichStock({ 'CAR-172-C': 24 }, rates);
+    expect(car).toMatchObject({
+      per_session: 2, target_qty: 30, sessions_remaining: 12, status: 'amber',
+    });
+  });
 });
 
 describe('enrichOrderItems', () => {
