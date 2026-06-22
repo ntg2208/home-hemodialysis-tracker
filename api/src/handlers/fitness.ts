@@ -4,6 +4,7 @@ import {
   exchangeCode,
   SYNC_TYPES,
   SYNC_TYPE_STRATEGY,
+  FRESHEN_TYPES,
   refreshAccessToken,
   fetchDailyRollUp,
   fetchListAll,
@@ -52,6 +53,10 @@ function yesterday(): string {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() - 1);
   return d.toISOString().slice(0, 10);
+}
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function nextDay(date: string): string {
@@ -292,6 +297,28 @@ export const fitness = new Hono()
       return c.json(sleep);
     } catch (err) {
       console.error('Sleep error:', err instanceof Error ? err.message : String(err));
+      return c.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, 500);
+    }
+  })
+  .post('/freshen', async (c) => {
+    try {
+      const { clientId, clientSecret } = getOAuthConfig();
+      const refreshToken = await getRefreshToken();
+      const accessToken = await refreshAccessToken({ refreshToken, clientId, clientSecret });
+
+      const summary = await freshenToday(
+        {
+          uploadJson,
+          fetchList: ({ dataType, filterField, filterDateField, startDate, endDate }) =>
+            fetchListAll({ accessToken, dataType, filterField, filterDateField, startDate, endDate }),
+        },
+        { types: FRESHEN_TYPES, date: today() },
+      );
+
+      const anyError = Object.values(summary).some((r) => r.status === 'error');
+      return c.json({ ok: !anyError, freshened: summary });
+    } catch (err) {
+      console.error('Freshen error:', err instanceof Error ? err.message : String(err));
       return c.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, 500);
     }
   })
