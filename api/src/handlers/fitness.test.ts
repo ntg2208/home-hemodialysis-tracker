@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { runSync, clampSyncEnd, type SyncDeps } from './fitness.js';
+import { runSync, clampSyncEnd, freshenToday, type SyncDeps } from './fitness.js';
 import { SYNC_TYPES } from '../lib/googleHealth.js';
 
 describe('clampSyncEnd', () => {
@@ -110,5 +110,52 @@ describe('runSync backfill window', () => {
     (deps.readSyncState as ReturnType<typeof vi.fn>).mockResolvedValue({ steps: '2026-05-30' });
     const summary = await runSync(deps, { backfillDays: 365, lastInclusiveDate: '2026-05-30', onlyType: 'steps' });
     expect(summary['steps'].days_covered).toBe(0);
+  });
+});
+
+describe('freshenToday', () => {
+  it('fetches a single day, writes to the today/ namespace, and never advances a cursor', async () => {
+    const uploads: Array<{ path: string; data: any }> = [];
+    const deps = {
+      uploadJson: vi.fn(async (path: string, data: unknown) => {
+        uploads.push({ path, data: data as any });
+      }),
+      fetchList: vi.fn(async () => [{ a: 1 }, { a: 2 }]),
+    };
+
+    const summary = await freshenToday(deps, { types: ['sleep'], date: '2026-06-22' });
+
+    expect(deps.fetchList).toHaveBeenCalledWith(
+      expect.objectContaining({ dataType: 'sleep', startDate: '2026-06-22', endDate: '2026-06-22' }),
+    );
+    expect(uploads).toHaveLength(1);
+    expect(uploads[0].path).toBe('raw/sleep/today/2026-06-22.json');
+    expect(uploads[0].data.count).toBe(2);
+    expect(uploads[0].data.date).toBe('2026-06-22');
+    expect(summary).toEqual({ sleep: { count: 2, status: 'ok' } });
+    // FreshenDeps deliberately has no readSyncState/writeSyncState — the cursor cannot move.
+    expect('readSyncState' in deps).toBe(false);
+    expect('writeSyncState' in deps).toBe(false);
+  });
+
+  it('records a non-list type as an error result, without throwing', async () => {
+    const deps = { uploadJson: vi.fn(async () => {}), fetchList: vi.fn(async () => []) };
+    // 'steps' is the only dailyRollUp type in SYNC_TYPE_STRATEGY.
+    const summary = await freshenToday(deps, { types: ['steps'], date: '2026-06-22' });
+    expect(summary['steps'].status).toBe('error');
+    expect(deps.fetchList).not.toHaveBeenCalled();
+  });
+
+  it('isolates a failing type instead of aborting the rest', async () => {
+    const deps = {
+      uploadJson: vi.fn(async () => {}),
+      fetchList: vi.fn(async () => {
+        throw new Error('boom');
+      }),
+    };
+    const summary = await freshenToday(deps, { types: ['sleep'], date: '2026-06-22' });
+    expect(summary['sleep'].status).toBe('error');
+    const result = summary['sleep'];
+    if (result.status === 'error') expect(result.error).toBe('boom');
   });
 });

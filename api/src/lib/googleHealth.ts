@@ -32,6 +32,17 @@ export const SYNC_TYPE_STRATEGY: Record<SyncType, FetchStrategy> = {
   'heart-rate':                          { method: 'list', filterField: 'heart_rate',                        filterDateField: 'civil_time' },
 };
 
+// The list-strategy types whose same-day ("today") values feed the energy-pacing
+// morning call. All are method:'list' (no dailyRollUp). Excludes raw 'heart-rate'
+// (huge, daytime/HR-ceiling concern only) and 'steps' (dailyRollUp, inherently T-1).
+export const FRESHEN_TYPES = [
+  'sleep',
+  'daily-heart-rate-variability',
+  'daily-resting-heart-rate',
+  'respiratory-rate-sleep-summary',
+  'daily-sleep-temperature-derivations',
+] as const satisfies readonly SyncType[];
+
 
 function parseCivilDate(date: string): { date: { year: number; month: number; day: number } } {
   const [year, month, day] = date.split('-').map(Number);

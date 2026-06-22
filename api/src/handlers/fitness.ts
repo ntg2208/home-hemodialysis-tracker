@@ -4,6 +4,7 @@ import {
   exchangeCode,
   SYNC_TYPES,
   SYNC_TYPE_STRATEGY,
+  FRESHEN_TYPES,
   refreshAccessToken,
   fetchDailyRollUp,
   fetchListAll,
@@ -52,6 +53,10 @@ function yesterday(): string {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() - 1);
   return d.toISOString().slice(0, 10);
+}
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function nextDay(date: string): string {
@@ -200,6 +205,57 @@ export async function runSync(deps: SyncDeps, opts: SyncOptions): Promise<SyncSu
   return summary;
 }
 
+export interface FreshenDeps {
+  uploadJson: (path: string, data: unknown) => Promise<void>;
+  fetchList: (args: {
+    dataType: string;
+    filterField: string;
+    filterDateField: Extract<FetchStrategy, { method: 'list' }>['filterDateField'];
+    startDate: string;
+    endDate: string;
+  }) => Promise<unknown[]>;
+}
+
+export type FreshenResult = { count: number; status: 'ok' } | { status: 'error'; error: string };
+export type FreshenSummary = Record<string, FreshenResult>;
+
+// Fetch a single day ("today", partial) for the given list-strategy types and write each
+// to raw/{type}/today/{date}.json. Deliberately does NOT touch sync_state: this is the
+// non-cursor-advancing "freshen" read. The archival runSync (yesterday-clamped) still
+// pulls the complete day tomorrow and supersedes the partial.
+export async function freshenToday(
+  deps: FreshenDeps,
+  opts: { types: readonly SyncType[]; date: string },
+): Promise<FreshenSummary> {
+  const summary: FreshenSummary = {};
+  for (const type of opts.types) {
+    try {
+      const strategy = SYNC_TYPE_STRATEGY[type];
+      if (strategy.method !== 'list') {
+        summary[type] = { status: 'error', error: `freshen supports list types only; ${type} is ${strategy.method}` };
+        continue;
+      }
+      const points = await deps.fetchList({
+        dataType: type,
+        filterField: strategy.filterField,
+        filterDateField: strategy.filterDateField,
+        startDate: opts.date,
+        endDate: opts.date,
+      });
+      await deps.uploadJson(dataTypePath(type, `today/${opts.date}`), {
+        fetched_at: new Date().toISOString(),
+        date: opts.date,
+        count: points.length,
+        data: points,
+      });
+      summary[type] = { count: points.length, status: 'ok' };
+    } catch (err) {
+      summary[type] = { status: 'error', error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+  return summary;
+}
+
 // Sync endpoint — mounted under bearer auth in index.ts
 export const fitness = new Hono()
   .get('/', (c) => c.json({ ok: true, types: SYNC_TYPES }))
@@ -241,6 +297,28 @@ export const fitness = new Hono()
       return c.json(sleep);
     } catch (err) {
       console.error('Sleep error:', err instanceof Error ? err.message : String(err));
+      return c.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, 500);
+    }
+  })
+  .post('/freshen', async (c) => {
+    try {
+      const { clientId, clientSecret } = getOAuthConfig();
+      const refreshToken = await getRefreshToken();
+      const accessToken = await refreshAccessToken({ refreshToken, clientId, clientSecret });
+
+      const summary = await freshenToday(
+        {
+          uploadJson,
+          fetchList: ({ dataType, filterField, filterDateField, startDate, endDate }) =>
+            fetchListAll({ accessToken, dataType, filterField, filterDateField, startDate, endDate }),
+        },
+        { types: FRESHEN_TYPES, date: today() },
+      );
+
+      const anyError = Object.values(summary).some((r) => r.status === 'error');
+      return c.json({ ok: !anyError, freshened: summary });
+    } catch (err) {
+      console.error('Freshen error:', err instanceof Error ? err.message : String(err));
       return c.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, 500);
     }
   })
