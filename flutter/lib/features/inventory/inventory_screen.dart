@@ -306,9 +306,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
             ),
             if (onConfigureRates != null) ...[
               const Spacer(),
-              GestureDetector(
+              InkWell(
                 onTap: onConfigureRates,
-                child: Icon(Icons.tune, size: 16, color: t.textMuted),
+                customBorder: const CircleBorder(),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Icon(Icons.tune, size: 16, color: t.textMuted),
+                ),
               ),
             ],
           ],
