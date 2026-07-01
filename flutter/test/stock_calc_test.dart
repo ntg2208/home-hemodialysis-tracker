@@ -56,12 +56,6 @@ void main() {
       expect(orderBoxes('SAK-303', 24), 0);
     });
 
-    test('excludes backup qty from working stock', () {
-      // working = 10-8 = 2, target = 24, order = ceil((24-2)/2) = 11
-      expect(orderBoxes('SAK-303', 10, backupQty: 8), 11);
-      expect(orderBoxes('SAK-303', 10, backupQty: 0), 7);
-    });
-
     test('delivery sessions: normal order (7-day lead = 4 sessions + 16 buffer = 20)', () {
       // Need 20 bags, have 10 working → order 10 → ceil(10/2) = 5 boxes
       expect(orderBoxes('SAK-303', 10, deliverySessions: 20), 5);
@@ -70,11 +64,6 @@ void main() {
     test('delivery sessions: early order (3-week lead = 12 sessions + 16 buffer = 28)', () {
       // Need 28 bags, have 10 working → order 18 → ceil(18/2) = 9 boxes
       expect(orderBoxes('SAK-303', 10, deliverySessions: 28), 9);
-    });
-
-    test('delivery sessions with backup: excludes backup from working stock', () {
-      // 20 total, 8 backup → working = 12; need 28; order 16 → ceil(16/2) = 8 boxes
-      expect(orderBoxes('SAK-303', 20, backupQty: 8, deliverySessions: 28), 8);
     });
 
     test('monthly items fall back to targetQty even with delivery sessions', () {

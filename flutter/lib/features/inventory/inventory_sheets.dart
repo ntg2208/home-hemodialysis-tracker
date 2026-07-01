@@ -235,7 +235,6 @@ class OrderSheet extends ConsumerStatefulWidget {
 class _OrderSheetState extends ConsumerState<OrderSheet> {
   _OrderStep _step = _OrderStep.count;
   late final Map<String, int> _counts; // physical stock count per nxstage item
-  final Map<String, int> _backup = {}; // backup/reserve qty per item (excluded from order)
   final Map<String, int> _boxes = {}; // boxes to order per item
   bool _saving = false;
   bool _copied = false;
@@ -262,7 +261,7 @@ class _OrderSheetState extends ConsumerState<OrderSheet> {
           : const <String, RateOverride>{};
       for (final i in _nxstage) {
         final b = orderBoxes(i.code, _counts[i.code] ?? 0,
-            backupQty: _backup[i.code] ?? 0, deliverySessions: ds, rates: rates);
+            deliverySessions: ds, rates: rates);
         if (b > 0) _boxes[i.code] = b;
       }
       setState(() {
@@ -324,7 +323,7 @@ class _OrderSheetState extends ConsumerState<OrderSheet> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Count what you physically have. If ordering early, enter backup/reserve stock separately — it is excluded from the order calculation.',
+            'Count what you physically have.',
             style: TextStyle(fontSize: 12, color: t.textMuted),
           ),
           const SizedBox(height: 8),
@@ -333,52 +332,27 @@ class _OrderSheetState extends ConsumerState<OrderSheet> {
             child: ListView(
               shrinkWrap: true,
               children: _nxstage.map((i) {
-                final backup = _backup[i.code] ?? 0;
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        Expanded(
-                            child: Text(i.label,
-                                style: TextStyle(color: t.textPrimary, fontSize: 14))),
-                        Text('${i.unit}s ',
-                            style: TextStyle(color: t.textMuted, fontSize: 11)),
-                        SizedBox(
-                          width: 64,
-                          child: TextFormField(
-                            initialValue: '${_counts[i.code] ?? 0}',
-                            textAlign: TextAlign.right,
-                            keyboardType: TextInputType.number,
-                            onChanged: (raw) {
-                              final n = int.tryParse(raw);
-                              if (n != null && n >= 0) _counts[i.code] = n;
-                            },
-                          ),
-                        ),
-                      ]),
-                      Row(children: [
-                        const SizedBox(width: 12),
-                        Text('backup: ',
-                            style: TextStyle(color: t.textMuted, fontSize: 11)),
-                        _roundBtn(t, Icons.remove,
-                            backup <= 0
-                                ? null
-                                : () => setState(() => _backup[i.code] = backup - 1)),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: Text('$backup',
-                              style: TextStyle(color: t.textMuted, fontSize: 12)),
-                        ),
-                        _roundBtn(t, Icons.add,
-                            backup >= (_counts[i.code] ?? 0)
-                                ? null
-                                : () => setState(
-                                    () => _backup[i.code] = backup + 1)),
-                      ]),
-                    ],
-                  ),
+                  child: Row(children: [
+                    Expanded(
+                        child: Text(i.label,
+                            style: TextStyle(color: t.textPrimary, fontSize: 14))),
+                    Text('${i.unit}s ',
+                        style: TextStyle(color: t.textMuted, fontSize: 11)),
+                    SizedBox(
+                      width: 64,
+                      child: TextFormField(
+                        initialValue: '${_counts[i.code] ?? 0}',
+                        textAlign: TextAlign.right,
+                        keyboardType: TextInputType.number,
+                        onChanged: (raw) {
+                          final n = int.tryParse(raw);
+                          if (n != null && n >= 0) _counts[i.code] = n;
+                        },
+                      ),
+                    ),
+                  ]),
                 );
               }).toList(),
             ),
@@ -419,9 +393,7 @@ class _OrderSheetState extends ConsumerState<OrderSheet> {
                           Text(i.label,
                               style: TextStyle(color: t.textPrimary, fontSize: 14)),
                           Text(
-                            (_backup[i.code] ?? 0) > 0
-                                ? 'have ${_counts[i.code] ?? 0} (${_backup[i.code]} backup)'
-                                : 'have ${_counts[i.code] ?? 0}',
+                            'have ${_counts[i.code] ?? 0}',
                             style: TextStyle(color: t.textMuted, fontSize: 11),
                           ),
                         ],

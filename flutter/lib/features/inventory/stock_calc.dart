@@ -72,12 +72,9 @@ int consumedUnits(String code, int sessionsTotal,
 }
 
 int orderUnits(String code, int currentQty,
-    {int backupQty = 0,
-    int? deliverySessions,
-    Map<String, RateOverride> rates = const {}}) {
+    {int? deliverySessions, Map<String, RateOverride> rates = const {}}) {
   final item = resolveItem(code, rates);
   if (item == null || item.section == 'hospital') return 0;
-  final working = (currentQty - backupQty).clamp(0, currentQty);
   int target;
   if (deliverySessions != null) {
     final consumed = consumedUnits(code, deliverySessions, rates: rates);
@@ -85,20 +82,16 @@ int orderUnits(String code, int currentQty,
   } else {
     target = item.targetQty;
   }
-  final n = target - working;
+  final n = target - currentQty;
   return n < 0 ? 0 : n;
 }
 
 int orderBoxes(String code, int currentQty,
-    {int backupQty = 0,
-    int? deliverySessions,
-    Map<String, RateOverride> rates = const {}}) {
+    {int? deliverySessions, Map<String, RateOverride> rates = const {}}) {
   final item = resolveItem(code, rates) ?? getItem(code);
   if (item == null) return 0;
   return (orderUnits(code, currentQty,
-              backupQty: backupQty,
-              deliverySessions: deliverySessions,
-              rates: rates) /
+              deliverySessions: deliverySessions, rates: rates) /
           item.boxSize)
       .ceil();
 }
