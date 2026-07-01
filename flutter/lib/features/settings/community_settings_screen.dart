@@ -10,7 +10,6 @@ import '../../app/theme.dart';
 import '../treatment/providers.dart' show treatmentStoreProvider;
 import '../blood_tests/csv_import.dart' show csvImportTemplate;
 import 'notification_settings_section.dart';
-import 'supply_rates_section.dart';
 import '../demo/demo_seed.dart' show kDemoSeedEnabled, runDemoSeed;
 
 // Stored in the cache box under a simple key.
@@ -184,14 +183,6 @@ class _CommunitySettingsScreenState
           OutlinedButton(
               onPressed: _saveDryWeight,
               child: Text(_drySaved ? 'Saved ✓' : 'Save dry weight')),
-          const SizedBox(height: 20),
-          _section(t, 'SUPPLY RATES'),
-          Text(
-            'How many of each supply you use per session and how much to keep on hand. Defaults are for a standard NxStage treatment.',
-            style: TextStyle(fontSize: 12, color: t.textMuted),
-          ),
-          const SizedBox(height: 8),
-          const SupplyRatesSection(),
           const SizedBox(height: 20),
           _section(t, 'AI ASSISTANT (OPTIONAL)'),
           Text(

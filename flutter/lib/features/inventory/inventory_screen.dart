@@ -13,6 +13,7 @@ import 'inventory_models.dart';
 import 'inventory_sheets.dart';
 import 'rate_overrides.dart';
 import 'stock_calc.dart';
+import 'supply_rates_sheet.dart';
 
 String _today() => DateTime.now().toIso8601String().substring(0, 10);
 
@@ -259,7 +260,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
               ],
             ),
             const SizedBox(height: 16),
-            _section(t, 'NxStage Supplies', nxstage, data, rates: rates),
+            _section(
+              t,
+              'NxStage Supplies',
+              nxstage,
+              data,
+              rates: rates,
+              onConfigureRates: kCommunity ? _openSupplyRates : null,
+            ),
             const SizedBox(height: 16),
             _section(t, 'Hospital Prescriptions', hospital, data, rates: rates),
           ],
@@ -285,13 +293,25 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     List<StockEntry> entries,
     InventoryResponse data, {
     Map<String, RateOverride> rates = const {},
+    VoidCallback? onConfigureRates,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title.toUpperCase(),
-          style: TextStyle(fontSize: 12, letterSpacing: 1, color: t.textMuted),
+        Row(
+          children: [
+            Text(
+              title.toUpperCase(),
+              style: TextStyle(fontSize: 12, letterSpacing: 1, color: t.textMuted),
+            ),
+            if (onConfigureRates != null) ...[
+              const Spacer(),
+              GestureDetector(
+                onTap: onConfigureRates,
+                child: Icon(Icons.tune, size: 16, color: t.textMuted),
+              ),
+            ],
+          ],
         ),
         const SizedBox(height: 8),
         Container(
@@ -412,6 +432,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
 
   void _openDelivery(Cycle cycle) =>
       _sheet(DeliverySheet(cycle: cycle, onDone: _load));
+
+  void _openSupplyRates() => _sheet(const SupplyRatesSheet());
 }
 
 // ============================ Stock row ============================
