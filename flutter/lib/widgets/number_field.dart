@@ -55,7 +55,10 @@ class _NumberFieldState extends State<NumberField> {
 
   num? _parse(String raw) {
     if (raw.isEmpty) return null;
-    return widget.integer ? int.tryParse(raw) : num.tryParse(raw);
+    // iOS decimal keypads on comma-locale devices emit ',' as the decimal
+    // separator; normalize it so num.tryParse (which only accepts '.') works.
+    final normalized = raw.replaceAll(',', '.');
+    return widget.integer ? int.tryParse(normalized) : num.tryParse(normalized);
   }
 
   @override
@@ -90,7 +93,10 @@ class _NumberFieldState extends State<NumberField> {
               decimal: !widget.integer, signed: true),
           inputFormatters: widget.integer
               ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9-]'))]
-              : [FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]'))],
+              // Allow ',' as well as '.' — comma-locale iOS keypads emit ',' for
+              // the decimal key; _parse normalizes it. Without this the decimal
+              // key is silently dropped and decimals can't be entered.
+              : [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,\-]'))],
           textInputAction: widget.textInputAction,
           style: TextStyle(
               fontSize: 18,

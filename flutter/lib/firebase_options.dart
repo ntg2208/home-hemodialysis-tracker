@@ -19,7 +19,7 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'REDACTED_FIREBASE_WEB_API_KEY',
+    apiKey: String.fromEnvironment('FIREBASE_WEB_API_KEY'),
     authDomain: 'homehd-personal.firebaseapp.com',
     projectId: 'homehd-personal',
     storageBucket: 'homehd-personal.firebasestorage.app',

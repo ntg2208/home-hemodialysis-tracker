@@ -57,10 +57,30 @@ class _CommunitySettingsScreenState
   }
 
   Future<void> _saveDryWeight() async {
-    final v = double.tryParse(_dryCtrl.text.trim());
-    if (v == null || v <= 0) return;
-    await ref.read(treatmentStoreProvider).setDriedWeight(v);
+    // Normalize the iOS decimal keypad separator: on some locales it emits a
+    // comma, which double.tryParse rejects.
+    final raw = _dryCtrl.text.trim().replaceAll(',', '.');
+    final v = double.tryParse(raw);
+    if (v == null || v <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Enter a valid dry weight in kg (e.g. 68.5)')));
+      }
+      return;
+    }
+    try {
+      await ref.read(treatmentStoreProvider).setDriedWeight(v);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not save: $e')));
+      }
+      return;
+    }
+    if (!mounted) return;
     setState(() => _drySaved = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Dry weight saved (${v.toStringAsFixed(1)} kg)')));
   }
 
   Future<void> _saveAiKey() async {

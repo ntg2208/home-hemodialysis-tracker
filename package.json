@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "build-data": "tsx scripts/build-data.ts",
-    "deploy:web": "cd flutter && flutter build web --release && cd .. && firebase deploy --only hosting:personal --project homehd-personal",
+    "deploy:web": "cd flutter && flutter build web --release --dart-define=FIREBASE_WEB_API_KEY=$FIREBASE_WEB_API_KEY && cd .. && firebase deploy --only hosting:personal --project homehd-personal",
     "deploy:web:community": "cd flutter && flutter build web --release --dart-define=FLAVOR=community --output=build/community_web && cd .. && firebase deploy --only hosting:community --project homehd-personal",
     "build:apk": "cd flutter && flutter build apk --release && cp build/app/outputs/flutter-apk/app-release.apk ../homehd-personal.apk",
     "build:apk:community": "cd flutter && flutter build apk --release --dart-define=FLAVOR=community && cp build/app/outputs/flutter-apk/app-release.apk ../homehd-community.apk",

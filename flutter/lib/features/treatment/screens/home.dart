@@ -172,7 +172,8 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome>
   }
 
   void _commitDried() {
-    final n = num.tryParse(_driedController.text);
+    // Normalize comma-locale iOS decimal separator before parsing.
+    final n = num.tryParse(_driedController.text.replaceAll(',', '.'));
     if (n != null && n > 0) {
       setState(() => _driedWeight = n.toDouble());
       ref.read(treatmentStoreProvider).saveDriedWeight(n.toDouble());
@@ -346,7 +347,9 @@ class _TreatmentHomeState extends ConsumerState<TreatmentHome>
           else
             InkWell(
               onTap: () {
-                _driedController.text = _fmt(_driedWeight);
+                // Start empty when dry weight isn't set yet (community default is
+                // 0), so the user doesn't have to delete a pre-filled "0".
+                _driedController.text = _driedWeight > 0 ? _fmt(_driedWeight) : '';
                 setState(() => _editingDried = true);
               },
               child: Row(
