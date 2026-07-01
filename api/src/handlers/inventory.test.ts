@@ -263,6 +263,16 @@ describe('POST /api/inventory/apply-delivery', () => {
     expect(body.ok).toBe(true);
   });
 
+  // The Flutter client sends `{ adjustments: null }` on a quick deliver (it does
+  // not omit the key). `.optional()` rejects null → 400; the app showed "cloud
+  // run fail server error 400" and, before instrumentation, silently did nothing.
+  it('accepts an explicit null adjustments (what the client sends)', async () => {
+    const res = await post(makeApp(), '/apply-delivery', { adjustments: null });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { ok: boolean };
+    expect(body.ok).toBe(true);
+  });
+
   it('applies order quantities as positive deltas to stock', async () => {
     await post(makeApp(), '/apply-delivery', {});
     // batchSet called for each item in order (SAK-303 and CAR-172-C)

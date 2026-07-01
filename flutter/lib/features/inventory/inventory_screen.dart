@@ -346,8 +346,38 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   Future<void> _quickDeliver() async {
-    await ref.read(inventoryApiProvider).applyDelivery();
-    _load();
+    // Diagnostic instrumentation (not a logic change): capture state around the
+    // call and report what actually happened, so a silent "nothing changed" is
+    // no longer invisible. Root cause of the "does nothing" report is still
+    // being pinned down — this surfaces which branch we're in.
+    final cycle = _data?.cycle;
+    final before = Map<String, int>.from(_data?.stock ?? const {});
+    final orderUnits =
+        (cycle?.order ?? const {}).values.fold<int>(0, (a, b) => a + b);
+    final appliedBefore = cycle?.deliveryAppliedAt != null;
+    try {
+      await ref.read(inventoryApiProvider).applyDelivery();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Delivery failed: $e')));
+      }
+      return;
+    }
+    await _load();
+    if (!mounted) return;
+    final after = _data?.stock ?? const {};
+    final added = after.entries
+        .fold<int>(0, (a, e) => a + (e.value - (before[e.key] ?? 0)));
+    final msg = added != 0
+        ? 'Delivery applied: stock ${added > 0 ? '+' : ''}$added units'
+            '${appliedBefore ? ' (was already marked applied)' : ''}.'
+        : orderUnits == 0
+            ? 'Nothing to deliver — this order has no items.'
+            : appliedBefore
+                ? 'Delivery was already applied earlier — no change.'
+                : 'Delivery applied but stock did not change (order units: $orderUnits).';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   // --- sheets ---

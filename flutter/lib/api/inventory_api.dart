@@ -61,7 +61,9 @@ class InventoryApi {
 
   Future<void> applyDelivery({Map<String, int>? adjustments}) =>
       _rest.send('POST', '/api/inventory/apply-delivery',
-          body: {'adjustments': adjustments});
+          // Omit rather than send null — the server now tolerates null too, but
+          // every other method here follows this if-present pattern.
+          body: {if (adjustments != null) 'adjustments': adjustments});
 
   /// Replaces the order map on the current cycle without touching the placed/
   /// applied timestamps — for correcting a placed order. (PATCH /api/inventory/order)

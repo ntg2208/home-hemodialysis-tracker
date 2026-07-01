@@ -31,7 +31,10 @@ export const OrderEditBodySchema = z.object({
 export type OrderEditBody = z.infer<typeof OrderEditBodySchema>;
 
 export const ApplyDeliveryBodySchema = z.object({
-  adjustments: z.record(z.string(), z.number().int().nonnegative()).optional(),
+  // nullish (not optional): the Flutter client sends `adjustments: null`
+  // explicitly rather than omitting it. The handler normalizes null/undefined
+  // to {} via `?? {}`.
+  adjustments: z.record(z.string(), z.number().int().nonnegative()).nullish(),
 });
 export type ApplyDeliveryBody = z.infer<typeof ApplyDeliveryBodySchema>;
 
