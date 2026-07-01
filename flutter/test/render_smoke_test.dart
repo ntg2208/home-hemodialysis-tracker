@@ -13,6 +13,7 @@ import 'package:home_hd/features/inventory/inventory_models.dart';
 import 'package:home_hd/api/inventory_api.dart';
 import 'package:home_hd/features/inventory/inventory_screen.dart';
 import 'package:home_hd/features/inventory/inventory_sheets.dart';
+import 'package:home_hd/features/inventory/supply_rates_sheet.dart';
 import 'package:home_hd/features/treatment/models.dart';
 import 'package:home_hd/features/treatment/providers.dart';
 import 'package:home_hd/features/treatment/screens/active.dart';
@@ -179,6 +180,12 @@ void main() {
       await pumpSheet(tester,
           ViewOrderSheet(cycle: cycle, onEdit: () {}, onEarlyDelivery: () {}));
       expect(find.text('Placed order'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('SupplyRatesSheet', (tester) async {
+      await pumpSheet(tester, const SupplyRatesSheet());
+      expect(find.text('Supply rates'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
