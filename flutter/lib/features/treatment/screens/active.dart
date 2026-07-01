@@ -9,14 +9,11 @@ import '../../../app/theme.dart';
 import '../../../widgets/pressable_scale.dart';
 import '../alerts.dart';
 import '../models.dart';
-import '../notification_prefs.dart';
 import '../providers.dart';
 import '../treatment_repo.dart';
 import '../widgets/add_reading_sheet.dart';
 import '../../chat/command_dispatch.dart'
     show endSessionProvider, prefillReadingCommandProvider, PrefillReading;
-
-const _defaultTargetMin = 255; // 4h 15m
 
 class ActiveSession extends ConsumerStatefulWidget {
   const ActiveSession({
@@ -56,7 +53,7 @@ class ActiveSession extends ConsumerStatefulWidget {
 
 class _ActiveSessionState extends ConsumerState<ActiveSession> {
   late final List<PendingReading> _readings = [...widget.initialReadings];
-  late int _targetMin = widget.initialTargetMin ?? _defaultTargetMin;
+  late int _targetMin; // set in initState from prefs when no per-session target
   late int? _countdownStartedAt = widget.initialCountdownStartedAt;
   late bool _heparinUsed = widget.heparinUsed;
   // EPO is set on Pre and carried to Post; Active threads it but shows no toggle.
@@ -73,6 +70,8 @@ class _ActiveSessionState extends ConsumerState<ActiveSession> {
   @override
   void initState() {
     super.initState();
+    _targetMin = widget.initialTargetMin ??
+        ref.read(timerPrefsProvider).defaultTargetMin;
     _commentController = TextEditingController(
       text: widget.initialComment ?? '',
     );

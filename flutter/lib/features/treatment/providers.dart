@@ -9,6 +9,7 @@ import '../../test_mode/synthetic_repos.dart';
 import 'hive_treatment_repo.dart';
 import 'notification_prefs.dart';
 import 'store.dart';
+import 'timer_prefs.dart';
 import 'treatment_auth.dart';
 import 'treatment_repo.dart';
 
@@ -44,6 +45,23 @@ class _NotificationPrefsNotifier extends Notifier<NotificationPrefs> {
 
   Future<void> update(NotificationPrefs p) async {
     await ref.read(notificationPrefsStoreProvider).write(p);
+    state = p;
+  }
+}
+
+final timerPrefsStoreProvider = Provider<TimerPrefsStore>(
+  (_) => TimerPrefsStore(Hive.box(treatmentBoxName)),
+);
+
+final timerPrefsProvider =
+    NotifierProvider<_TimerPrefsNotifier, TimerPrefs>(_TimerPrefsNotifier.new);
+
+class _TimerPrefsNotifier extends Notifier<TimerPrefs> {
+  @override
+  TimerPrefs build() => ref.read(timerPrefsStoreProvider).read();
+
+  Future<void> update(TimerPrefs p) async {
+    await ref.read(timerPrefsStoreProvider).write(p);
     state = p;
   }
 }

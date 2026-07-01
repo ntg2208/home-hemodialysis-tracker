@@ -11,6 +11,7 @@ import '../../firebase/firebase_init.dart';
 import '../blood_tests/csv_import.dart' show csvImportTemplate;
 import 'mcp_settings_section.dart';
 import 'notification_settings_section.dart';
+import 'timer_settings_section.dart';
 import '../treatment/providers.dart' show treatmentStoreProvider;
 import '../../flavor.dart';
 
@@ -153,6 +154,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             mode: mode,
             onChanged: (m) => ref.read(themeModeProvider.notifier).set(m),
           ),
+          const SizedBox(height: 28),
+          _section(t, 'TREATMENT'),
+          const SizedBox(height: 8),
+          const TimerSettingsSection(),
           const SizedBox(height: 28),
           _section(t, 'NOTIFICATIONS'),
           const NotificationSettingsSection(),

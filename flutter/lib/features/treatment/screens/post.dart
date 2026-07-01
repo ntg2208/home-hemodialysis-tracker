@@ -17,7 +17,6 @@ import '../treatment_repo.dart';
 
 num _round2(num n) => (n * 100).round() / 100;
 
-const _defaultDurationMin = 255;
 const _defaultDialysateVolume = 49;
 
 class PostTreatment extends ConsumerStatefulWidget {
@@ -60,7 +59,8 @@ class _PostTreatmentState extends ConsumerState<PostTreatment> {
     _comment = widget.initialComment;
     _commentController =
         TextEditingController(text: widget.initialComment ?? '');
-    _durationMin = widget.consumed.durationMin ?? _defaultDurationMin;
+    _durationMin = widget.consumed.durationMin ??
+        ref.read(timerPrefsProvider).defaultTargetMin;
     _dialysateVolume = _defaultDialysateVolume.toDouble();
     ref.read(inventoryApiProvider).fetchStock().then((stock) {
       if (mounted) {

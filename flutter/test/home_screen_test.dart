@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:home_hd/app/theme.dart';
 import 'package:home_hd/features/treatment/models.dart';
+import 'package:home_hd/app/providers.dart' show cacheBoxName;
 import 'package:home_hd/features/treatment/providers.dart';
 import 'package:home_hd/features/treatment/screens/home.dart';
 import 'package:home_hd/features/treatment/store.dart';
@@ -33,6 +34,7 @@ void main() {
   setUpAll(() async {
     Hive.init(Directory.systemTemp.createTempSync('hd_test').path);
     await Hive.openBox(treatmentBoxName);
+    await Hive.openBox(cacheBoxName); // HdScaffold reads testModeProvider (cache box)
     // Pre-populate the session cache so TreatmentHome renders without a network call.
     await TreatmentStore(Hive.box(treatmentBoxName)).saveCachedSessions(const [
       Session(
