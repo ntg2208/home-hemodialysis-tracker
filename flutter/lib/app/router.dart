@@ -1,6 +1,9 @@
 import 'package:go_router/go_router.dart';
+import 'package:hive/hive.dart';
 
 import '../flavor.dart';
+import '../features/treatment/providers.dart' show treatmentBoxName;
+import '../features/treatment/store.dart' show TreatmentStore;
 import 'branch_switcher.dart';
 import 'providers.dart';
 import 'shell.dart';
@@ -19,10 +22,26 @@ import '../features/kb/kb_screen.dart';
 ///
 /// /setup  and /settings live outside the shell so they can be pushed onto the
 /// back-stack: back from Settings returns to whichever section the user was in.
+/// If a session was in progress when the app was last closed, start on that
+/// sub-route so the flow (and the browser back-stack) resumes correctly.
+String _restoreLocation() {
+  try {
+    final active = TreatmentStore(Hive.box(treatmentBoxName)).getActiveState();
+    return switch (active?.screen) {
+      'pre' => '/treatment/pre',
+      'active' => '/treatment/active',
+      'post' => '/treatment/post',
+      _ => '/treatment',
+    };
+  } catch (_) {
+    return '/treatment';
+  }
+}
+
 GoRouter buildRouter(AuthController auth) {
   return GoRouter(
     refreshListenable: auth,
-    initialLocation: '/treatment',
+    initialLocation: _restoreLocation(),
     redirect: (context, state) {
       if (kCommunity) return null;
       final atSetup = state.matchedLocation == '/setup';
@@ -50,8 +69,20 @@ GoRouter buildRouter(AuthController auth) {
         branches: [
           StatefulShellBranch(routes: [
             GoRoute(
-                path: '/treatment',
-                builder: (_, _) => const TreatmentFlow()),
+              path: '/treatment',
+              builder: (_, _) => const TreatmentHomeRoute(),
+              routes: [
+                GoRoute(
+                    path: 'pre',
+                    builder: (_, _) => const PreTreatmentRoute()),
+                GoRoute(
+                    path: 'active',
+                    builder: (_, _) => const ActiveSessionRoute()),
+                GoRoute(
+                    path: 'post',
+                    builder: (_, _) => const PostTreatmentRoute()),
+              ],
+            ),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(

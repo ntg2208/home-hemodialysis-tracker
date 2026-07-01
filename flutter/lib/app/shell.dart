@@ -8,7 +8,13 @@ import '../flavor.dart';
 import 'providers.dart' show aiSettingsControllerProvider, testModeProvider;
 import '../features/chat/chat_sheet.dart';
 import '../features/chat/command_dispatch.dart'
-    show chatSheetCloseSignalProvider, pendingNavigationProvider;
+    show
+        chatSheetCloseSignalProvider,
+        pendingNavigationProvider,
+        prefillPreCommandProvider;
+import '../features/treatment/providers.dart'
+    show treatmentAuthProvider, treatmentStoreProvider;
+import '../features/treatment/treatment_flow_controller.dart';
 
 /// Thin shell widget required by [StatefulShellRoute.indexedStack].
 ///
@@ -35,6 +41,28 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   void initState() {
     super.initState();
+    // Personal build: kick off Firebase auth once the shell mounts (community
+    // has no auth). Previously done in TreatmentFlow._bootstrap; the router's
+    // redirect handles the unauthed case.
+    if (!kCommunity) {
+      ref.read(treatmentAuthProvider).ensure().catchError((_) {});
+    }
+
+    // AI "start a session" command → navigate into the Pre route (only when no
+    // session is already in progress), then the Pre screen consumes the prefill.
+    ref.listenManual(prefillPreCommandProvider, (_, cmd) {
+      if (cmd == null || !mounted) return;
+      if (ref.read(treatmentFlowProvider).phase != TreatmentPhase.idle) return;
+      final ids = ref
+              .read(treatmentStoreProvider)
+              .getCachedSessions()
+              ?.map((s) => s.sessionId)
+              .toList() ??
+          [];
+      ref.read(treatmentFlowProvider.notifier).goPre(ids);
+      context.go('/treatment/pre');
+    });
+
     // Listen for AI navigation commands dispatched by GeminiChatResponder.
     // Delay by 500ms so the chat sheet close animation (~250ms) completes first
     // and the modal route is fully removed before we switch shell branches.
@@ -83,6 +111,15 @@ class _AppShellState extends ConsumerState<AppShell> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
+
+        // A pushed sub-route (e.g. treatment Pre/Post) → pop back to its root.
+        // The Active route intercepts its own back with a confirm dialog, so it
+        // never reaches here.
+        final router = GoRouter.of(context);
+        if (router.canPop()) {
+          router.pop();
+          return;
+        }
 
         // Not on Treatment → go there instead of exiting.
         if (widget.navigationShell.currentIndex != 0) {

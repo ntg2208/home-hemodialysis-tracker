@@ -1,365 +1,234 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-import '../../app/shell.dart';
 import '../../app/theme.dart';
-import '../../flavor.dart';
-import '../chat/command_dispatch.dart' show prefillPreCommandProvider;
 import '../chat/screen_context.dart'
-    show screenContextProvider, TreatmentState;
-import 'models.dart';
-import 'providers.dart';
+    show screenContextProvider, ScreenContextNotifier, TreatmentState;
 import 'screens/active.dart';
 import 'screens/home.dart';
 import 'screens/post.dart';
 import 'screens/pre.dart';
-import 'store.dart';
+import 'treatment_flow_controller.dart';
 
-sealed class _FlowScreen {}
+/// The treatment lifecycle is now four real routes so the browser/OS back
+/// button behaves — Home (`/treatment`), Pre (`/treatment/pre`), Active
+/// (`/treatment/active`), Post (`/treatment/post`). Shared session data lives
+/// in [treatmentFlowProvider]; these widgets are thin route builders that wire
+/// the existing screens to the controller + navigation.
 
-class _Loading extends _FlowScreen {}
+Widget _loading() =>
+    const Scaffold(body: Center(child: CircularProgressIndicator()));
 
-class _ErrorScreen extends _FlowScreen {}
-
-class _Home extends _FlowScreen {}
-
-class _Pre extends _FlowScreen {
-  _Pre(this.existingIds);
-  final List<String> existingIds;
+void _publish(WidgetRef ref, void Function(ScreenContextNotifier) update) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    update(ref.read(screenContextProvider.notifier));
+  });
 }
 
-class _Active extends _FlowScreen {
-  _Active(this.session, this.readings, this.heparinUsed, this.epoUsed,
-      {this.countdownStartedAt, this.targetMin, this.comment});
-  final Session session;
-  List<PendingReading> readings;
-  bool heparinUsed;
-  bool epoUsed;
-  int? countdownStartedAt;
-  int? targetMin;
-  String? comment;
+/// `/treatment` — the session list.
+class TreatmentHomeRoute extends ConsumerStatefulWidget {
+  const TreatmentHomeRoute({super.key});
+  @override
+  ConsumerState<TreatmentHomeRoute> createState() => _TreatmentHomeRouteState();
 }
 
-class _Post extends _FlowScreen {
-  _Post(this.session, this.consumed, {this.comment});
-  final Session session;
-  final SessionConsumed consumed;
-  final String? comment;
-}
-
-/// Treatment route: bootstraps Firebase auth (with the race fix + 20s timeout),
-/// restores any in-progress session, and drives the Home→Pre→Active→Post machine.
-/// Port of frontend/src/routes/Treatment/index.tsx.
-class TreatmentFlow extends ConsumerStatefulWidget {
-  const TreatmentFlow({super.key});
+class _TreatmentHomeRouteState extends ConsumerState<TreatmentHomeRoute> {
+  @override
+  void initState() {
+    super.initState();
+    _publish(ref, (n) => n.setTreatmentState(TreatmentState.idle, clearSession: true));
+  }
 
   @override
-  ConsumerState<TreatmentFlow> createState() => _TreatmentFlowState();
+  Widget build(BuildContext context) {
+    return TreatmentHome(
+      onStartSession: (ids) {
+        ref.read(treatmentFlowProvider.notifier).goPre(ids);
+        context.push('/treatment/pre');
+      },
+    );
+  }
 }
 
-class _TreatmentFlowState extends ConsumerState<TreatmentFlow> {
-  _FlowScreen _screen = _Loading();
+/// `/treatment/pre` — pushed on top of Home; back returns to the list.
+class PreTreatmentRoute extends ConsumerStatefulWidget {
+  const PreTreatmentRoute({super.key});
+  @override
+  ConsumerState<PreTreatmentRoute> createState() => _PreTreatmentRouteState();
+}
+
+class _PreTreatmentRouteState extends ConsumerState<PreTreatmentRoute> {
+  @override
+  void initState() {
+    super.initState();
+    _publish(ref, (n) => n.setTreatmentState(TreatmentState.preForm, clearSession: true));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final existingIds =
+        ref.watch(treatmentFlowProvider.select((s) => s.existingIds));
+    return PreTreatment(
+      existingIds: existingIds,
+      onSaved: (session, heparinUsed, epoUsed) {
+        ref
+            .read(treatmentFlowProvider.notifier)
+            .startActive(session, heparinUsed, epoUsed);
+        // Replace Pre so back from Active goes to the list, not back to Pre.
+        context.pushReplacement('/treatment/active');
+      },
+      onCancel: () {
+        ref.read(treatmentFlowProvider.notifier).finish();
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/treatment');
+        }
+      },
+    );
+  }
+}
+
+/// `/treatment/active` — back shows the "Cancel session?" confirm.
+class ActiveSessionRoute extends ConsumerStatefulWidget {
+  const ActiveSessionRoute({super.key});
+  @override
+  ConsumerState<ActiveSessionRoute> createState() => _ActiveSessionRouteState();
+}
+
+class _ActiveSessionRouteState extends ConsumerState<ActiveSessionRoute> {
+  late final TreatmentFlowState _snap = ref.read(treatmentFlowProvider);
 
   @override
   void initState() {
     super.initState();
-    _bootstrap();
-
-    // Publish initial treatment state after build completes (idle until bootstrap).
-    WidgetsBinding.instance.addPostFrameCallback((_) => _publishTreatmentState());
-
-    // React to AI prefill-pre command — transition to Pre if currently on Home.
-    ref.listenManual(prefillPreCommandProvider, (_, cmd) {
-      if (cmd != null && _screen is _Home && mounted) {
-        final ids = ref.read(treatmentStoreProvider).getCachedSessions()
-            ?.map((s) => s.sessionId).toList() ?? [];
-        _goPre(ids);
-      }
-    });
-  }
-
-  Future<void> _bootstrap() async {
-    setState(() => _screen = _Loading());
-    if (kCommunity) {
-      _restoreOrHome();
-      return;
-    }
-    final auth = ref.read(treatmentAuthProvider);
-    try {
-      await auth.ensure();
-    } catch (e) {
-      // currentUser may still be set from a previous session — Firestore may work.
-      if (!auth.hasCurrentUser) {
-        if (mounted) {
-          setState(() => _screen = _ErrorScreen());
-          _publishTreatmentState();
-        }
-        return;
-      }
-    }
-    if (!mounted) return;
-    _restoreOrHome();
-  }
-
-  void _restoreOrHome() {
-    final active = ref.read(treatmentStoreProvider).getActiveState();
-    if (active == null) {
-      setState(() => _screen = _Home());
-      _publishTreatmentState();
-      return;
-    }
-    switch (active.screen) {
-      case 'pre':
-        setState(() => _screen = _Pre(active.existingIds ?? []));
-        _publishTreatmentState();
-      case 'active' when active.session != null:
-        // Demote any in-flight reading to error ("interrupted") on restore.
-        final readings = (active.readings ?? []).map((p) {
-          if (p.status == SaveStatus.pending) {
-            return PendingReading(p.reading,
-                status: SaveStatus.error, errorMsg: 'interrupted');
-          }
-          return p;
-        }).toList();
-        setState(() => _screen = _Active(
-              active.session!,
-              readings,
-              active.heparinUsed ?? true,
-              active.epoUsed ?? true,
-              countdownStartedAt: active.countdownStartedAt,
-              targetMin: active.targetMin,
-              comment: active.comment,
-            ));
-        _publishTreatmentState();
-      case 'post' when active.session != null:
-        setState(() => _screen = _Post(
-            active.session!,
-            active.consumed ??
-                const SessionConsumed(
-                    needles: 2, onOffPacks: 1, heparinUsed: false),
-            comment: active.comment,
-        ));
-        _publishTreatmentState();
-      default:
-        setState(() => _screen = _Home());
-        _publishTreatmentState();
-    }
-  }
-
-  TreatmentStore get _store => ref.read(treatmentStoreProvider);
-
-  void _goPre(List<String> ids) {
-    setState(() => _screen = _Pre(ids));
-    _publishTreatmentState();
-    _store.saveActiveState(ActiveState(
-        screen: 'pre',
-        existingIds: ids,
-        savedAt: DateTime.now().millisecondsSinceEpoch));
-  }
-
-  _Active? _lastActive;
-
-  void _goActive(Session session, bool heparinUsed, bool epoUsed) {
-    final s = _Active(session, [], heparinUsed, epoUsed);
-    _lastActive = s;
-    setState(() => _screen = s);
-    _publishTreatmentState();
-    _persistActive(s);
-  }
-
-  void _goBackToActive() {
-    if (_lastActive != null) {
-      setState(() => _screen = _lastActive!);
-      _publishTreatmentState();
-    }
-  }
-
-  void _persistActive(_Active s) {
-    _store.saveActiveState(ActiveState(
-      screen: 'active',
-      session: s.session,
-      readings: s.readings,
-      heparinUsed: s.heparinUsed,
-      epoUsed: s.epoUsed,
-      countdownStartedAt: s.countdownStartedAt,
-      targetMin: s.targetMin,
-      comment: s.comment,
-      savedAt: DateTime.now().millisecondsSinceEpoch,
-    ));
-  }
-
-  void _goPost(Session session, SessionConsumed consumed, String? comment) {
-    setState(() => _screen = _Post(session, consumed, comment: comment));
-    _publishTreatmentState();
-    _store.saveActiveState(ActiveState(
-      screen: 'post',
-      session: session,
-      consumed: consumed,
-      comment: comment,
-      savedAt: DateTime.now().millisecondsSinceEpoch,
-    ));
-  }
-
-  void _goHome() {
-    _store.clearActiveState();
-    setState(() => _screen = _Home());
-    _publishTreatmentState();
-  }
-
-  void _publishTreatmentState() {
-    final notifier = ref.read(screenContextProvider.notifier);
-    switch (_screen) {
-      case _Home() || _Loading() || _ErrorScreen():
-        notifier.setTreatmentState(TreatmentState.idle, clearSession: true);
-      case _Pre():
-        notifier.setTreatmentState(TreatmentState.preForm, clearSession: true);
-      case final _Active s:
-        notifier.setTreatmentState(
-          TreatmentState.active,
-          activeSession: s.session,
-          readings: s.readings.map((p) => p.reading).toList(),
-        );
-      case final _Post s:
-        notifier.setTreatmentState(TreatmentState.postForm, activeSession: s.session);
+    final s = _snap;
+    if (s.session != null) {
+      _publish(
+          ref,
+          (n) => n.setTreatmentState(TreatmentState.active,
+              activeSession: s.session,
+              readings: s.readings.map((p) => p.reading).toList()));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final screen = _screen;
-    // Allow normal pop (and app exit) only from the Home/Loading/Error states.
-    // Pre → back cancels session start (same as the X button).
-    // Active → back shows a confirmation to avoid mid-session accidents.
-    // Post → back returns to Active so the treatment can continue.
+    final s = _snap;
+    if (s.session == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go('/treatment');
+      });
+      return _loading();
+    }
+    final ctrl = ref.read(treatmentFlowProvider.notifier);
     return PopScope(
-      canPop: screen is _Home || screen is _Loading || screen is _ErrorScreen,
-      onPopInvokedWithResult: (didPop, _) {
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        if (screen is _Pre) {
-          _goHome();
-        } else if (screen is _Active) {
-          _confirmCancelSession(context);
-        } else if (screen is _Post) {
-          _goBackToActive();
+        final cancel = await _confirmCancel(context);
+        if (cancel == true && context.mounted) {
+          ctrl.finish();
+          context.go('/treatment');
         }
       },
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        switchInCurve: Curves.easeOut,
-        switchOutCurve: Curves.easeIn,
-        child: switch (screen) {
-          _Loading() => const HdScaffold(
-              key: ValueKey('loading'),
-              title: 'Treatment',
-              body: Center(child: CircularProgressIndicator()),
-            ),
-          _ErrorScreen() => _errorView(key: ValueKey('error')),
-          _Home() => TreatmentHome(key: ValueKey('home'), onStartSession: _goPre),
-          _Pre() => PreTreatment(
-              key: ValueKey('pre'),
-              existingIds: screen.existingIds,
-              onSaved: (session, heparinUsed, epoUsed) =>
-                  _goActive(session, heparinUsed, epoUsed),
-              onCancel: _goHome,
-            ),
-          _Active() => ActiveSession(
-              key: ValueKey('active_${screen.session.sessionId}'),
-              session: screen.session,
-              initialReadings: screen.readings,
-              heparinUsed: screen.heparinUsed,
-              epoUsed: screen.epoUsed,
-              initialCountdownStartedAt: screen.countdownStartedAt,
-              initialTargetMin: screen.targetMin,
-              initialComment: screen.comment,
-              onReadingsChanged: (rs) {
-                screen.readings = rs;
-                _persistActive(screen);
-              },
-              onCountdownChanged: (startedAt, targetMin) {
-                screen.countdownStartedAt = startedAt;
-                screen.targetMin = targetMin;
-                _persistActive(screen);
-              },
-              onHeparinChanged: (h) {
-                screen.heparinUsed = h;
-                _persistActive(screen);
-              },
-              onEpoChanged: (e) {
-                screen.epoUsed = e;
-                _persistActive(screen);
-              },
-              onCommentChanged: (c) {
-                screen.comment = c;
-                _persistActive(screen);
-              },
-              onEnd: (consumed) =>
-                  _goPost(screen.session, consumed, screen.comment),
-            ),
-          _Post() => PostTreatment(
-              key: ValueKey('post'),
-              session: screen.session,
-              consumed: screen.consumed,
-              initialComment: screen.comment,
-              onSaved: _goHome,
-              onCancel: _goBackToActive,
-            ),
+      child: ActiveSession(
+        key: ValueKey('active_${s.session!.sessionId}'),
+        session: s.session!,
+        initialReadings: s.readings,
+        heparinUsed: s.heparinUsed,
+        epoUsed: s.epoUsed,
+        initialCountdownStartedAt: s.countdownStartedAt,
+        initialTargetMin: s.targetMin,
+        initialComment: s.comment,
+        onReadingsChanged: ctrl.updateReadings,
+        onCountdownChanged: ctrl.updateCountdown,
+        onHeparinChanged: ctrl.setHeparin,
+        onEpoChanged: ctrl.setEpo,
+        onCommentChanged: ctrl.setComment,
+        onEnd: (consumed) {
+          ctrl.goPost(consumed);
+          context.push('/treatment/post');
         },
       ),
     );
   }
+}
 
-  void _confirmCancelSession(BuildContext context) {
-    final t = context.hd;
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: t.panel,
-        title: Text('Cancel session?',
-            style: TextStyle(color: t.textPrimary)),
-        content: Text(
-          'Your readings have been saved. The session will remain in Firestore and can be completed later.',
-          style: TextStyle(color: t.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Stay', style: TextStyle(color: t.accent)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _goHome();
-            },
-            child: Text('Cancel session',
-                style: TextStyle(color: t.warning)),
-          ),
-        ],
-      ),
-    );
+/// `/treatment/post` — pushed on top of Active; back returns to Active.
+class PostTreatmentRoute extends ConsumerStatefulWidget {
+  const PostTreatmentRoute({super.key});
+  @override
+  ConsumerState<PostTreatmentRoute> createState() => _PostTreatmentRouteState();
+}
+
+class _PostTreatmentRouteState extends ConsumerState<PostTreatmentRoute> {
+  late final TreatmentFlowState _snap = ref.read(treatmentFlowProvider);
+
+  @override
+  void initState() {
+    super.initState();
+    if (_snap.session != null) {
+      _publish(
+          ref,
+          (n) => n.setTreatmentState(TreatmentState.postForm,
+              activeSession: _snap.session));
+    }
   }
 
-  Widget _errorView({Key? key}) {
-    final t = context.hd;
-    return HdScaffold(
-      key: key,
-      title: 'Treatment',
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.warning_amber_rounded, size: 40, color: t.warning),
-            const SizedBox(height: 12),
-            Text('Could not connect.',
-                style: TextStyle(color: t.textPrimary, fontSize: 16)),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: _bootstrap,
-              icon: const Icon(Icons.refresh_outlined),
-              label: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
+  @override
+  Widget build(BuildContext context) {
+    final s = _snap;
+    if (s.session == null || s.consumed == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go('/treatment');
+      });
+      return _loading();
+    }
+    final ctrl = ref.read(treatmentFlowProvider.notifier);
+    return PostTreatment(
+      session: s.session!,
+      consumed: s.consumed!,
+      initialComment: s.comment,
+      onSaved: () {
+        ctrl.finish();
+        context.go('/treatment');
+      },
+      onCancel: () {
+        // Back to the active session to keep going.
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/treatment');
+        }
+      },
     );
   }
+}
+
+Future<bool?> _confirmCancel(BuildContext context) {
+  final t = context.hd;
+  return showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: t.panel,
+      title: Text('Cancel session?', style: TextStyle(color: t.textPrimary)),
+      content: Text(
+        'Your readings have been saved. The session will remain and can be '
+        'completed later.',
+        style: TextStyle(color: t.textSecondary),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: Text('Stay', style: TextStyle(color: t.accent)),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: Text('Cancel session', style: TextStyle(color: t.warning)),
+        ),
+      ],
+    ),
+  );
 }
